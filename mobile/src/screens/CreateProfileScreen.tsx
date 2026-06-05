@@ -49,10 +49,13 @@ import {
   ONBOARDING_DEFAULT_MAX_AGE,
   ONBOARDING_DEFAULT_MAX_DISTANCE,
   ONBOARDING_DEFAULT_MIN_AGE,
+  isOnboardingGenderComplete,
+  isProfileAgeUnset,
+  parseOnboardingAgeOrNull,
   readMobileCreateProfileDraft,
-  resolveOnboardingAge,
-  resolveOnboardingGender,
   resolveOnboardingPreferredGenders,
+  shouldClearLoadedProfileAge,
+  validateOnboardingBasics,
   writeMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
 import {
@@ -116,19 +119,6 @@ const PREFERRED_GENDER_META: Record<(typeof PREFERRED_GENDER_OPTIONS)[number], {
 function preferredGenderDisplayLabel(value: string) { return PREFERRED_GENDER_LABELS[value] ?? value; }
 
 /** API: null = everyone; otherwise only Man/Woman (no legacy Other). */
-/** Server stub row from ensureStubProfile — not a user gender choice. */
-function isStubProfileGender(
-  gender: string | null | undefined,
-  profile: { display_name?: string | null; location?: string | null }
-): boolean {
-  const g = (gender ?? '').trim();
-  if (!g || g === 'Not specified') return true;
-  if (g !== 'Other') return false;
-  const hasName = (profile.display_name ?? '').trim().length >= 2;
-  const hasLocation = !!(profile.location ?? '').trim();
-  return !hasName && !hasLocation;
-}
-
 function preferredGendersPayload(g: string[]): string[] | null {
   if (g.length === 0) return null;
   if (g.includes('Everyone')) return ['Everyone'];
@@ -194,7 +184,8 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 1; // name + location on one screen (photos on Profile before Connect)
+const TOTAL_STEPS = 1; // name + location (+ age on iOS) + gender on one screen (photos on Profile before Connect)
+const ANDROID_ONBOARDING_SKIPS_AGE = Platform.OS === 'android';
 const MIN_PHOTOS_REQUIRED = 3;
 const PHOTO_SLOT_COUNT = 6;
 
@@ -412,31 +403,47 @@ export default function CreateProfileScreen() {
     const isAndroid = Platform.OS === 'android';
     const scaleW = Math.min(Math.max(w / 375, 0.9), 1.15);
     const scaleH = Math.min(Math.max(h / 812, 0.85), 1.1);
+    // Fit three onboarding cards in the viewport without scrolling (Android: name, location, gender).
+    const headerBudget = isAndroid ? 82 : 120;
+    const footerBudget = isAndroid ? 96 : 110;
+    const bodyBudget = h - insets.top - insets.bottom - headerBudget - footerBudget;
+    // Gender card is taller (option grid) — weight it heavier than name/location cards.
+    const threeCardStackEstimate = isAndroid ? 2 * 118 + 178 + 2 * 6 : 4 * 136 + 3 * 8;
+    const rawSqueeze = bodyBudget / threeCardStackEstimate;
+    const androidOnboardingSqueeze = isAndroid
+      ? Math.min(1, Math.max(0.64, rawSqueeze))
+      : 1;
+    const sq = (n: number) => Math.round(n * androidOnboardingSqueeze);
+    const androidOnboardingOverflow =
+      isAndroid && bodyBudget < threeCardStackEstimate * androidOnboardingSqueeze * 0.97;
     return {
       sectionMinHeight: h * 0.62,
       sectionPaddingH: Math.round(20 * scaleW),
       sectionPaddingV: Math.round(36 * scaleH),
       cardPadding: Math.round(36 * scaleW),
       cardPaddingFirst: Math.round(44 * scaleW),
-      onboardingCardPadding: Math.round((isAndroid ? 18 : 24) * scaleW),
+      onboardingCardPadding: sq(Math.round((isAndroid ? 14 : 24) * scaleW)),
       cardPaddingKeyboard: Math.round(22 * scaleW),
       emojiSize: Math.round(72 * scaleW),
       emojiSizeSmall: Math.round(42 * scaleW),
-      onboardingEmojiSize: Math.round((isAndroid ? 38 : 44) * scaleW),
+      onboardingEmojiSize: sq(Math.round((isAndroid ? 30 : 44) * scaleW)),
       onboardingEmojiSizeKeyboard: Math.round(34 * scaleW),
       titleSize: Math.round(32 * scaleW),
       titleSizeSmall: Math.round(22 * scaleW),
       titleSizeCompact: Math.round(28 * scaleW),
-      onboardingTitleSize: Math.round(22 * scaleW),
-      onboardingTitleSizeSmall: Math.round(18 * scaleW),
+      onboardingTitleSize: sq(Math.round(20 * scaleW)),
+      onboardingTitleSizeSmall: sq(Math.round((isAndroid ? 15 : 18) * scaleW)),
       titleMargin: Math.round(12 * scaleH),
-      onboardingTitleMargin: Math.round((isAndroid ? 4 : 6) * scaleH),
+      onboardingTitleMargin: sq(Math.round((isAndroid ? 2 : 6) * scaleH)),
       subtitleSize: Math.round(18 * scaleW),
       subtitleSizeSmall: Math.round(13 * scaleW),
-      onboardingSubtitleSize: Math.round((isAndroid ? 11 : 12) * scaleW),
-      onboardingSubtitleLineHeight: Math.round((isAndroid ? 15 : 17) * scaleW),
-      onboardingSubtitleMargin: Math.round((isAndroid ? 6 : 10) * scaleH),
-      onboardingSectionsGap: isAndroid ? 10 : 12,
+      onboardingSubtitleSize: sq(Math.round((isAndroid ? 10 : 12) * scaleW)),
+      onboardingSubtitleLineHeight: sq(Math.round((isAndroid ? 13 : 17) * scaleW)),
+      onboardingSubtitleMargin: sq(Math.round((isAndroid ? 4 : 10) * scaleH)),
+      onboardingSectionsGap: sq(isAndroid ? 6 : 12),
+      showOnboardingStepPill: !isAndroid || androidOnboardingSqueeze >= 0.82,
+      androidOnboardingOverflow,
+      androidOnboardingSqueeze,
       subtitleSizeTiny: Math.max(9, Math.round(10 * scaleW)),
       subtitleSizeCompact: Math.round(16 * scaleW),
       subtitleMargin: Math.round(32 * scaleH),
@@ -446,7 +453,7 @@ export default function CreateProfileScreen() {
       lifestyleTitleSize: Math.round(22 * scaleW),
       lifestyleSubtitleSize: Math.round(13 * scaleW),
     };
-  }, [screenWidth, screenHeight]);
+  }, [screenWidth, screenHeight, insets.top, insets.bottom]);
 
   // Animate name + location on the single onboarding screen
   useEffect(() => {
@@ -463,10 +470,14 @@ export default function CreateProfileScreen() {
     if (step === 1) {
       anim(firstNameScale, firstNameOpacity, firstNameGlow);
       anim(locationScale, locationOpacity, locationGlow);
+      if (!ANDROID_ONBOARDING_SKIPS_AGE) {
+        anim(ageScale, ageOpacity, ageGlow);
+      }
+      anim(genderScale, genderOpacity, genderGlow);
     } else {
-      [firstNameScale, locationScale].forEach(s => s.setValue(0.95));
-      [firstNameOpacity, locationOpacity].forEach(o => o.setValue(0));
-      [firstNameGlow, locationGlow].forEach(g => g.setValue(0));
+      [firstNameScale, locationScale, ageScale, genderScale].forEach(s => s.setValue(0.95));
+      [firstNameOpacity, locationOpacity, ageOpacity, genderOpacity].forEach(o => o.setValue(0));
+      [firstNameGlow, locationGlow, ageGlow, genderGlow].forEach(g => g.setValue(0));
     }
   }, [step]);
 
@@ -532,8 +543,7 @@ export default function CreateProfileScreen() {
       throw new Error('Session expired. Please log in again.');
     }
 
-    const ageNum = resolveOnboardingAge(age);
-    const genderVal = resolveOnboardingGender(gender);
+    const ageNum = parseOnboardingAgeOrNull(age);
     const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
     const minAgeVal = minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
     const maxAgeVal =
@@ -542,14 +552,15 @@ export default function CreateProfileScreen() {
       maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE,
     );
 
-    await api.post('/profile', {
+    const profileBody: Record<string, unknown> = {
       displayName,
-      age: ageNum,
-      gender: genderVal,
       location,
       bio,
       lookingFor: null,
-    });
+    };
+    if (ageNum != null) profileBody.age = ageNum;
+    if (isOnboardingGenderComplete(gender)) profileBody.gender = gender.trim();
+    await api.post('/profile', profileBody);
 
     if (interests.length > 0) {
       await api.put('/profile/interests', {
@@ -709,23 +720,23 @@ export default function CreateProfileScreen() {
       if (data?.profile) {
         const stubName = !(data.profile.display_name ?? '').trim();
         if (!stubName) dn = data.profile.display_name ?? '';
-        if (data.profile.age) ageStr = String(data.profile.age);
+        if (
+          !shouldClearLoadedProfileAge(data.profile.age, data.profile.gender) &&
+          data.profile.age != null
+        ) {
+          ageStr = String(data.profile.age);
+        } else if (!draft?.age) {
+          ageStr = '';
+        }
         if (draft?.gender?.trim()) {
           genderVal = draft.gender.trim();
-        } else if (data.profile.gender && !isStubProfileGender(data.profile.gender, data.profile)) {
-          genderVal = data.profile.gender;
+        } else if (isOnboardingGenderComplete(data.profile.gender)) {
+          genderVal = (data.profile.gender ?? '').trim();
         } else {
           genderVal = '';
         }
         if (data.profile.location) loc = data.profile.location ?? '';
         if (data.profile.bio) bioVal = data.profile.bio ?? '';
-
-        const isStubLike =
-          dn.trim().length >= 2 &&
-          data.profile.gender === 'Other' &&
-          !data.profile.location &&
-          (data.interests?.length ?? 0) === 0;
-        if (isStubLike && !draft?.age) ageStr = '';
       }
       if (data?.interests?.length) {
         interestList = data.interests.map((i: { name: string }) => i.name);
@@ -792,7 +803,13 @@ export default function CreateProfileScreen() {
     setMaxAge(maxAgeVal);
     setMaxDistance(clampMaxDistanceMiles(maxDist));
 
-    const profileForConnect = { display_name: dn, displayName: dn, location: loc };
+    const profileForConnect = {
+      display_name: dn,
+      displayName: dn,
+      location: loc,
+      age: parseOnboardingAgeOrNull(ageStr),
+      gender: genderVal || null,
+    };
     const wizardDraftActive = await hasMobileCreateProfileDraft();
     const accountActive = isAccountActiveFromAuthUser(user);
     const registrationComplete = deriveAppRegistrationComplete({
@@ -839,10 +856,15 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
-  // Pre-save profile once name + location are valid so Complete Profile is fast.
+  // Pre-save profile once name, location, gender (and age on iOS) are valid so Complete Profile is fast.
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileSaveStartedRef.current) return;
-    if (displayName.trim().length < 2 || !hasCityAndState(location)) return;
+    if (
+      displayName.trim().length < 2 ||
+      !hasCityAndState(location) ||
+      (!ANDROID_ONBOARDING_SKIPS_AGE && isProfileAgeUnset(parseOnboardingAgeOrNull(age))) ||
+      !isOnboardingGenderComplete(gender)
+    ) return;
     profileSaveStartedRef.current = true;
 
     const saveProfileOnLocationStep = async () => {
@@ -865,10 +887,11 @@ export default function CreateProfileScreen() {
             
             // First, save basic profile (required for photos endpoint and other operations)
             try {
+              const ageNum = parseOnboardingAgeOrNull(age);
               await api.post('/profile', {
                 displayName,
-                age: resolveOnboardingAge(age),
-                gender: resolveOnboardingGender(gender),
+                ...(ANDROID_ONBOARDING_SKIPS_AGE || ageNum == null ? {} : { age: ageNum }),
+                gender: gender.trim(),
                 location,
                 bio,
                 lookingFor: null,
@@ -982,7 +1005,7 @@ export default function CreateProfileScreen() {
     void profileSavePromiseRef.current.finally(() => {
       profileSavePromiseRef.current = null;
     });
-  }, [step, displayName, location]);
+  }, [step, displayName, location, age, gender]);
 
   const detectLocation = async () => {
     setDetectingLocation(true);
@@ -1268,13 +1291,12 @@ export default function CreateProfileScreen() {
     setLoading(true);
     setError('');
 
-    if (!displayName?.trim() || displayName.trim().length < 2) {
-      setError('Please enter at least 2 characters for your name');
-      setLoading(false);
-      return;
-    }
-    if (!hasCityAndState(location)) {
-      setError('Please enter both city and state (e.g. Medford, Oregon)');
+    const validationError = validateOnboardingBasics(
+      { displayName, location, age, gender },
+      { requireAge: !ANDROID_ONBOARDING_SKIPS_AGE }
+    );
+    if (validationError) {
+      setError(validationError);
       setLoading(false);
       return;
     }
@@ -1287,8 +1309,13 @@ export default function CreateProfileScreen() {
     }
 
     try {
-      const ageNum = resolveOnboardingAge(age);
-      const genderVal = resolveOnboardingGender(gender);
+      const ageNum = parseOnboardingAgeOrNull(age);
+      if (!ANDROID_ONBOARDING_SKIPS_AGE && ageNum == null) {
+        throw new Error('Enter your age (18 or older).');
+      }
+      if (!isOnboardingGenderComplete(gender)) {
+        throw new Error('Please select your gender.');
+      }
       const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
       const minAgeVal = minAge != null && minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
       const maxAgeVal =
@@ -1299,8 +1326,8 @@ export default function CreateProfileScreen() {
 
       await api.post('/profile', {
         displayName,
-        age: ageNum,
-        gender: genderVal,
+        ...(ANDROID_ONBOARDING_SKIPS_AGE || ageNum == null ? {} : { age: ageNum }),
+        gender: gender.trim(),
         location,
         bio,
         lookingFor: null,
@@ -1475,19 +1502,24 @@ export default function CreateProfileScreen() {
 
   // Steps 1–2: compact onboarding layout (name, location)
   const androidOnboardingIdle = Platform.OS === 'android' && !keyboardVisible;
+  // Android: never lock scroll — gender grid height varies; avoids bottom clipping.
+  const androidOnboardingScrollLocked =
+    Platform.OS === 'android' ? false : androidOnboardingIdle && !rs.androidOnboardingOverflow;
   const onboardingStepContentStyle = [
     styles.onboardingStepScrollContent,
     keyboardVisible && styles.onboardingStepScrollContentKeyboard,
     androidOnboardingIdle && styles.onboardingStepScrollContentAndroidIdle,
+    androidOnboardingScrollLocked && styles.onboardingStepScrollContentAndroidLocked,
   ];
   const onboardingStepWrapper = (content: React.ReactNode) => (
     <ScrollView
+      ref={step1ScrollViewRef}
       style={styles.onboardingStepScroll}
       contentContainerStyle={onboardingStepContentStyle}
-      showsVerticalScrollIndicator={false}
+      showsVerticalScrollIndicator={Platform.OS === 'android' && !androidOnboardingScrollLocked}
       keyboardShouldPersistTaps="always"
-      scrollEnabled={!androidOnboardingIdle}
-      bounces={!androidOnboardingIdle}
+      scrollEnabled={!androidOnboardingScrollLocked}
+      bounces={!androidOnboardingScrollLocked}
       nestedScrollEnabled
     >
       {content}
@@ -1498,11 +1530,12 @@ export default function CreateProfileScreen() {
     keyboardVisible && styles.onboardingFieldWrapKeyboard,
     { paddingHorizontal: rs.sectionPaddingH },
   ];
-  const renderOnboardingStepPill = (label: string) => (
-    <View style={styles.onboardingStepPill}>
-      <Text style={styles.onboardingStepPillText}>{label}</Text>
-    </View>
-  );
+  const renderOnboardingStepPill = (label: string) =>
+    rs.showOnboardingStepPill ? (
+      <View style={styles.onboardingStepPill}>
+        <Text style={styles.onboardingStepPillText}>{label}</Text>
+      </View>
+    ) : null;
 
   const renderStep1DisplayName = () => onboardingStepWrapper(
     <View style={[onboardingFieldWrapStyle, styles.onboardingSectionsWrap, { gap: rs.onboardingSectionsGap }]}>
@@ -1654,9 +1687,11 @@ export default function CreateProfileScreen() {
                 opacity: 0.92,
               },
             ]}
-            numberOfLines={2}
+            numberOfLines={Platform.OS === 'android' ? 1 : 2}
           >
-            Southern Oregon and nearby — we show people within about 100 miles.
+            {Platform.OS === 'android'
+              ? 'Southern Oregon & nearby (~100 mi)'
+              : 'Southern Oregon and nearby — we show people within about 100 miles.'}
           </Text>
           <Animated.View
             pointerEvents="box-none"
@@ -1700,7 +1735,9 @@ export default function CreateProfileScreen() {
             {detectingLocation ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>
+              <Text style={styles.focusedLocationButtonText}>
+                {Platform.OS === 'android' ? '📍 Use location' : '📍 Use My Location'}
+              </Text>
             )}
           </TouchableOpacity>
           {locationValid ? (
@@ -1713,14 +1750,257 @@ export default function CreateProfileScreen() {
         </LinearGradient>
       </Animated.View>
 
-      <Text
+      {!ANDROID_ONBOARDING_SKIPS_AGE ? (
+        <Animated.View
+          pointerEvents="box-none"
+          style={[
+            { transform: [{ scale: ageScale }], opacity: ageOpacity },
+            styles.onboardingSectionCardWrap,
+          ]}
+        >
+          <LinearGradient
+            colors={['#f093fb', '#f5576c', '#4facfe']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            pointerEvents="box-none"
+            style={[
+              styles.focusedFieldCard,
+              styles.onboardingCompactCard,
+              keyboardVisible && styles.focusedCardWithKeyboard,
+              { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.onboardingCardPadding },
+            ]}
+          >
+            {renderOnboardingStepPill('Step 3 · Your age')}
+            <Text
+              style={[
+                styles.focusedEmoji,
+                keyboardVisible && styles.focusedEmojiSmall,
+                {
+                  fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
+                  marginBottom: keyboardVisible ? 6 : Platform.OS === 'android' ? 6 : 10,
+                },
+              ]}
+            >
+              🎂
+            </Text>
+            <Text
+              style={[
+                styles.focusedTitle,
+                keyboardVisible && styles.focusedTitleSmall,
+                {
+                  fontSize: rs.onboardingTitleSizeSmall,
+                  marginBottom: keyboardVisible ? 4 : rs.onboardingTitleMargin,
+                },
+              ]}
+            >
+              How old are you?
+            </Text>
+            <Text
+              style={[
+                styles.focusedSubtitle,
+                keyboardVisible && styles.focusedSubtitleSmall,
+                {
+                  fontSize: rs.onboardingSubtitleSize,
+                  lineHeight: rs.onboardingSubtitleLineHeight,
+                  marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
+                  opacity: 0.92,
+                },
+              ]}
+              numberOfLines={2}
+            >
+              You must be 18 or older to use Mulligan.
+            </Text>
+            <Animated.View
+              pointerEvents="box-none"
+              style={[
+                styles.focusedInputWrapper,
+                styles.onboardingInputWrapper,
+                {
+                  shadowOpacity: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
+                  shadowRadius: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
+                },
+              ]}
+            >
+              <TextInput
+                ref={ageInputRef}
+                style={[styles.focusedAgeInput, styles.onboardingCompactNameInput]}
+                value={age}
+                onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))}
+                placeholder="Your age"
+                placeholderTextColor="#4a5568"
+                keyboardType="number-pad"
+                returnKeyType="done"
+              />
+            </Animated.View>
+            {!isProfileAgeUnset(parseOnboardingAgeOrNull(age)) ? (
+              <Animated.View
+                style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: ageOpacity }]}
+              >
+                <Text style={styles.successText}>✓ Age set</Text>
+              </Animated.View>
+            ) : null}
+          </LinearGradient>
+        </Animated.View>
+      ) : null}
+
+      <Animated.View
+        pointerEvents="box-none"
         style={[
-          styles.onboardingFootnote,
-          isOnboardingWizard && { color: onboardingChrome.footnote },
+          { transform: [{ scale: genderScale }], opacity: genderOpacity },
+          styles.onboardingSectionCardWrap,
         ]}
       >
-        Add a photo on Profile before you Connect.
-      </Text>
+        <LinearGradient
+          colors={['#764ba2', '#f093fb', '#f5576c']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          pointerEvents="box-none"
+            style={[
+            styles.focusedFieldCard,
+            styles.onboardingCompactCard,
+            rs.androidOnboardingSqueeze < 0.82 && styles.onboardingGenderCardTight,
+            { padding: rs.onboardingCardPadding },
+          ]}
+        >
+          {renderOnboardingStepPill(
+            ANDROID_ONBOARDING_SKIPS_AGE ? 'Step 3 · Your gender' : 'Step 4 · Your gender'
+          )}
+          <Text
+            style={[
+              styles.focusedEmoji,
+              {
+                fontSize: rs.onboardingEmojiSize,
+                marginBottom: Platform.OS === 'android' ? 6 : 10,
+              },
+            ]}
+          >
+            ⚧️
+          </Text>
+          <Text
+            style={[
+              styles.focusedTitle,
+              {
+                fontSize: rs.onboardingTitleSizeSmall,
+                marginBottom: rs.onboardingTitleMargin,
+              },
+            ]}
+          >
+            What&apos;s your gender?
+          </Text>
+          <Text
+            style={[
+              styles.focusedSubtitle,
+              {
+                fontSize: rs.onboardingSubtitleSize,
+                lineHeight: rs.onboardingSubtitleLineHeight,
+                marginBottom: rs.onboardingSubtitleMargin,
+                opacity: 0.92,
+              },
+            ]}
+            numberOfLines={ANDROID_ONBOARDING_SKIPS_AGE ? 1 : 2}
+          >
+            This is how you show up on your profile.
+          </Text>
+          <View
+            style={[
+              styles.preferencesGenderGrid,
+              ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderGridAndroid,
+            ]}
+          >
+            {GENDER_OPTIONS.map((g) => {
+              const isSelected = gender === g;
+              const meta = GENDER_OPTION_META[g];
+              return (
+                <TouchableOpacity
+                  key={g}
+                  style={[
+                    styles.preferencesGenderCard,
+                    ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderCardSlotAndroid,
+                  ]}
+                  onPress={() => setGender(g)}
+                  activeOpacity={0.7}
+                >
+                  {isSelected ? (
+                    <LinearGradient
+                      colors={['#f5576c', '#f093fb', '#667eea']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.preferencesGenderCardSelected,
+                        ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderOptionAndroid,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.preferencesGenderEmoji,
+                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderEmojiAndroid,
+                        ]}
+                      >
+                        {meta.emoji}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.preferencesGenderTextSelected,
+                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderLabelAndroid,
+                        ]}
+                      >
+                        {meta.label}
+                      </Text>
+                      {!ANDROID_ONBOARDING_SKIPS_AGE ? (
+                        <View style={styles.preferencesCheckmark}>
+                          <Text style={styles.preferencesCheckmarkText}>✓</Text>
+                        </View>
+                      ) : null}
+                    </LinearGradient>
+                  ) : (
+                    <View
+                      style={[
+                        styles.preferencesGenderCardUnselected,
+                        ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderOptionAndroid,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.preferencesGenderEmoji,
+                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderEmojiAndroid,
+                        ]}
+                      >
+                        {meta.emoji}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.preferencesGenderText,
+                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderLabelAndroid,
+                        ]}
+                      >
+                        {meta.label}
+                      </Text>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {isOnboardingGenderComplete(gender) && !ANDROID_ONBOARDING_SKIPS_AGE ? (
+            <Animated.View
+              style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: genderOpacity }]}
+            >
+              <Text style={styles.successText}>✓ Gender selected</Text>
+            </Animated.View>
+          ) : null}
+        </LinearGradient>
+      </Animated.View>
+
+      {!ANDROID_ONBOARDING_SKIPS_AGE ? (
+        <Text
+          style={[
+            styles.onboardingFootnote,
+            isOnboardingWizard && { color: onboardingChrome.footnote },
+          ]}
+        >
+          Add a photo on Profile before you Connect.
+        </Text>
+      ) : null}
     </View>
   );
 
@@ -2529,8 +2809,16 @@ export default function CreateProfileScreen() {
 
   const nameValid = displayName.trim().length >= 2;
   const locationValid = hasCityAndState(location);
+  const ageValid = ANDROID_ONBOARDING_SKIPS_AGE || !isProfileAgeUnset(parseOnboardingAgeOrNull(age));
+  const genderValid = isOnboardingGenderComplete(gender);
   const completeProfileDisabled =
-    loading || savingProgress || detectingLocation || !nameValid || !locationValid;
+    loading ||
+    savingProgress ||
+    detectingLocation ||
+    !nameValid ||
+    !locationValid ||
+    !ageValid ||
+    !genderValid;
 
   return (
     <KeyboardAvoidingView
@@ -2581,7 +2869,7 @@ export default function CreateProfileScreen() {
           <View
             style={[
               styles.headerActionRow,
-              { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 12 : 8) },
+              { paddingTop: Math.max(insets.top, Platform.OS === 'android' ? 8 : 8) },
             ]}
           >
             <TouchableOpacity
@@ -2660,14 +2948,20 @@ export default function CreateProfileScreen() {
           { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
         ]}
       >
-        {!locationValid ? (
+        {!nameValid || !locationValid || !ageValid || !genderValid ? (
           <Text
             style={[
               styles.actionsHint,
               isOnboardingWizard && { color: onboardingChrome.footnote },
             ]}
           >
-            Enter city and state (e.g. Medford, Oregon) to finish
+            {!nameValid
+              ? 'Enter at least 2 characters for your name'
+              : !locationValid
+                ? 'Enter city and state (e.g. Medford, Oregon) to finish'
+                : !ANDROID_ONBOARDING_SKIPS_AGE && !ageValid
+                  ? 'Enter your age (18 or older)'
+                  : 'Select your gender to finish'}
           </Text>
         ) : null}
         <View style={styles.actions}>
@@ -4216,19 +4510,19 @@ const styles = StyleSheet.create({
   },
   preferencesGenderCardSelected: {
     backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === 'android' ? 10 : 14,
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.5)',
     position: 'relative',
-    minHeight: 72,
+    minHeight: Platform.OS === 'android' ? 58 : 72,
     borderRadius: 12,
   },
   preferencesGenderCardUnselected: {
     backgroundColor: 'rgba(255, 255, 255, 0.15)',
-    paddingVertical: 14,
+    paddingVertical: Platform.OS === 'android' ? 10 : 14,
     paddingHorizontal: 10,
     alignItems: 'center',
     justifyContent: 'center',
@@ -4385,13 +4679,16 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
     paddingTop: Platform.OS === 'android' ? 6 : 14,
-    paddingBottom: Platform.OS === 'android' ? 0 : 4,
+    paddingBottom: Platform.OS === 'android' ? 16 : 4,
   },
   onboardingStepScrollContentAndroidIdle: {
     flexGrow: 1,
-    justifyContent: 'center',
-    paddingTop: 10,
-    paddingBottom: 28,
+    justifyContent: 'flex-start',
+    paddingTop: 4,
+    paddingBottom: 16,
+  },
+  onboardingStepScrollContentAndroidLocked: {
+    paddingBottom: 16,
   },
   onboardingInputWrapper: {
     ...(Platform.OS === 'android' ? { elevation: 0 } : {}),
@@ -4404,7 +4701,7 @@ const styles = StyleSheet.create({
   onboardingFieldWrap: {
     width: '100%',
     justifyContent: 'flex-start',
-    paddingVertical: Platform.OS === 'android' ? 4 : 8,
+    paddingVertical: Platform.OS === 'android' ? 0 : 8,
   },
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
@@ -4417,11 +4714,12 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   headerOnboardingCompact: {
-    paddingTop: 8,
-    paddingBottom: Platform.OS === 'android' ? 14 : 20,
+    paddingTop: Platform.OS === 'android' ? 4 : 8,
+    paddingBottom: Platform.OS === 'android' ? 8 : 20,
+    paddingHorizontal: Platform.OS === 'android' ? 16 : 24,
   },
   headerOnboardingCompactTitle: {
-    fontSize: 26,
+    fontSize: Platform.OS === 'android' ? 22 : 26,
     marginBottom: 0,
   },
   onboardingCompactCard: {
@@ -4431,28 +4729,53 @@ const styles = StyleSheet.create({
       : {}),
   },
   onboardingCompactNameInput: {
-    paddingVertical: Platform.OS === 'android' ? 10 : 12,
+    paddingVertical: Platform.OS === 'android' ? 8 : 12,
     paddingHorizontal: 14,
-    fontSize: 16,
+    fontSize: Platform.OS === 'android' ? 15 : 16,
     borderRadius: 14,
   },
   onboardingCompactLocationInput: {
-    paddingVertical: Platform.OS === 'android' ? 8 : 10,
+    paddingVertical: Platform.OS === 'android' ? 6 : 10,
     paddingHorizontal: 12,
-    fontSize: 15,
-    minHeight: Platform.OS === 'android' ? 40 : 46,
-    maxHeight: Platform.OS === 'android' ? 52 : 58,
+    fontSize: Platform.OS === 'android' ? 14 : 15,
+    minHeight: Platform.OS === 'android' ? 36 : 46,
+    maxHeight: Platform.OS === 'android' ? 44 : 58,
     borderRadius: 14,
   },
   onboardingCompactLocButton: {
-    marginTop: Platform.OS === 'android' ? 6 : 8,
-    paddingVertical: Platform.OS === 'android' ? 8 : 10,
-    paddingHorizontal: 20,
+    marginTop: Platform.OS === 'android' ? 4 : 8,
+    paddingVertical: Platform.OS === 'android' ? 6 : 10,
+    paddingHorizontal: Platform.OS === 'android' ? 14 : 20,
     borderRadius: 14,
   },
-  onboardingCompactSuccess: {
-    marginTop: 8,
+  onboardingGenderCardTight: {
+    marginTop: 0,
+  },
+  onboardingGenderGridAndroid: {
+    gap: 6,
+    marginBottom: 0,
+  },
+  onboardingGenderCardSlotAndroid: {
+    width: '30%',
+    minWidth: 86,
+    marginBottom: 0,
+  },
+  onboardingGenderOptionAndroid: {
     paddingVertical: 6,
+    paddingHorizontal: 6,
+    minHeight: 44,
+  },
+  onboardingGenderEmojiAndroid: {
+    fontSize: 20,
+    marginBottom: 2,
+  },
+  onboardingGenderLabelAndroid: {
+    fontSize: 12,
+    lineHeight: 14,
+  },
+  onboardingCompactSuccess: {
+    marginTop: Platform.OS === 'android' ? 4 : 8,
+    paddingVertical: Platform.OS === 'android' ? 4 : 6,
     paddingHorizontal: 14,
     borderRadius: 12,
   },

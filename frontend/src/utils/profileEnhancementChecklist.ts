@@ -2,7 +2,11 @@ import {
   profileEnhancementPhotoHint,
   profileEnhancementPhotoLabel,
 } from "../constants/connectPhotoCopy";
-import { isProfileAgeUnset, shouldClearLoadedProfileAge } from "./createProfileProgress";
+import {
+  isOnboardingGenderComplete,
+  isProfileAgeUnset,
+  shouldClearLoadedProfileAge,
+} from "./createProfileProgress";
 import { MIN_PHOTOS_TO_CONNECT } from "./connectProfileEligibility";
 
 /** Encourage more than the connect minimum. */
@@ -19,8 +23,6 @@ export const PROFILE_ENHANCEMENT_CELEBRATION_KEY =
   "mulligan:connect-profile-enhancement-celebrated";
 
 export const PROFILE_ENHANCEMENT_DISMISS_DAYS = 7;
-
-export const PROFILE_ENHANCEMENT_VALID_GENDERS = ["Man", "Woman", "Other"] as const;
 
 export type ProfileEnhancementSectionId =
   | "photos"
@@ -98,12 +100,7 @@ export function isAgeEnhancementComplete(
 }
 
 export function isGenderEnhancementComplete(gender: string | null | undefined): boolean {
-  return (
-    typeof gender === "string" &&
-    PROFILE_ENHANCEMENT_VALID_GENDERS.includes(
-      gender.trim() as (typeof PROFILE_ENHANCEMENT_VALID_GENDERS)[number]
-    )
-  );
+  return isOnboardingGenderComplete(gender);
 }
 
 export const PROFILE_ENHANCEMENT_HASH: Record<ProfileEnhancementSectionId, string> = {

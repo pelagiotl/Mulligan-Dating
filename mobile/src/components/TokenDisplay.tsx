@@ -459,14 +459,18 @@ function WebNavbarTokenBadge({
       : shell === 'sunny'
         ? (['rgba(251, 146, 60, 0.2)', 'rgba(251, 191, 36, 0.12)'] as const)
         : (['rgba(99, 102, 241, 0.13)', 'rgba(236, 72, 153, 0.08)'] as const);
-  /** Android: solid black fill; shell-colored stroke for readability on OLED. */
-  const androidNavbarFillOpaque = '#000000';
+  const androidNavbarGradient =
+    shell === 'midnight'
+      ? (['#db2777', '#7c3aed', '#a855f7'] as const)
+      : shell === 'sunny'
+        ? (['#ea580c', '#f97316', '#fbbf24'] as const)
+        : (['#667eea', '#764ba2', '#f093fb'] as const);
   const androidNavbarBorderColor =
     shell === 'midnight'
-      ? 'rgba(251, 113, 133, 0.42)'
+      ? 'rgba(254, 202, 202, 0.72)'
       : shell === 'sunny'
-        ? 'rgba(251, 146, 60, 0.48)'
-        : 'rgba(129, 140, 248, 0.45)';
+        ? 'rgba(255, 251, 235, 0.85)'
+        : 'rgba(255, 255, 255, 0.72)';
   const borderColor =
     shell === 'midnight'
       ? 'rgba(244, 114, 182, 0.35)'
@@ -474,7 +478,13 @@ function WebNavbarTokenBadge({
         ? 'rgba(251, 146, 60, 0.38)'
         : 'rgba(129, 140, 248, 0.38)';
   const textColor =
-    shell === 'midnight' ? '#fda4af' : shell === 'sunny' ? '#c2410c' : '#6d28d9';
+    Platform.OS === 'android'
+      ? '#ffffff'
+      : shell === 'midnight'
+        ? '#fda4af'
+        : shell === 'sunny'
+          ? '#c2410c'
+          : '#6d28d9';
 
   /** iOS pulse shadow tint — matches Connect shell chrome */
   const pulseShadowColor = shell === 'midnight' ? '#ec4899' : shell === 'sunny' ? '#ea580c' : '#8b5cf6';
@@ -491,14 +501,6 @@ function WebNavbarTokenBadge({
     minWidth: loading ? 56 : undefined,
     overflow: 'hidden' as const,
   };
-
-  const androidGlyphStyle =
-    Platform.OS === 'android'
-      ? ({
-          backgroundColor: androidNavbarFillOpaque,
-          includeFontPadding: false,
-        } as const)
-      : null;
 
   const badgeInner = (
     <>
@@ -523,7 +525,6 @@ function WebNavbarTokenBadge({
           flexDirection: 'row',
           alignItems: 'center',
           zIndex: 1,
-          ...(Platform.OS === 'android' ? { backgroundColor: androidNavbarFillOpaque } : {}),
         }}
       >
         {loading ? (
@@ -532,16 +533,14 @@ function WebNavbarTokenBadge({
           <>
             <SmoothPulsingEmoji emoji="🎟️" fontSize={16} />
             <Text
-              style={[
-                {
-                  fontSize: 14,
-                  fontWeight: '700',
-                  color: textColor,
-                  letterSpacing: 0.15,
-                  marginLeft: 6,
-                },
-                androidGlyphStyle,
-              ]}
+              style={{
+                fontSize: 14,
+                fontWeight: '800',
+                color: textColor,
+                letterSpacing: 0.15,
+                marginLeft: 6,
+                ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+              }}
             >
               {count}
             </Text>
@@ -582,18 +581,20 @@ function WebNavbarTokenBadge({
           }}
         >
           {Platform.OS === 'android' ? (
-            <View
+            <LinearGradient
+              colors={[...androidNavbarGradient]}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
               style={[
                 badgeInnerStyle,
                 {
-                  backgroundColor: androidNavbarFillOpaque,
                   borderColor: androidNavbarBorderColor,
-                  elevation: pressed ? 7 : 4,
+                  elevation: pressed ? 10 : 6,
                 },
               ]}
             >
               {badgeInner}
-            </View>
+            </LinearGradient>
           ) : (
             <LinearGradient
               colors={[...gradientColors]}
@@ -707,12 +708,17 @@ function PremiumTokenDisplay({
         ]}
       >
         {Platform.OS === 'android' ? (
-          <View style={[styles.premiumGradient, { backgroundColor: chrome.androidBg, shadowColor: chrome.shadowColor }]}>
+          <LinearGradient
+            colors={[...chrome.gradient]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.premiumGradient, { shadowColor: chrome.shadowColor, elevation: 6 }]}
+          >
             <View style={styles.premiumContent} collapsable={false}>
-              <Text style={[styles.premiumIcon, styles.premiumGlyphAndroid]}>🎟️</Text>
-              <Text style={[styles.premiumCount, styles.premiumGlyphAndroid, styles.premiumCountAndroid]}>{count}</Text>
+              <Text style={styles.premiumIcon}>🎟️</Text>
+              <Text style={[styles.premiumCount, styles.premiumCountAndroid]}>{count}</Text>
             </View>
-          </View>
+          </LinearGradient>
         ) : (
           <LinearGradient
             colors={[...chrome.gradient]}
@@ -1056,15 +1062,6 @@ export default function TokenDisplay({
     if (browseLandingStrip) {
       return (
         <View style={styles.browseLandingLoadingOuter}>
-          {Platform.OS === 'android' && (
-            <View style={styles.browseLandingNavbarBadgeAnchor} pointerEvents="box-none">
-              <WebNavbarTokenBadge
-                loading
-                shell={connectShell}
-                onPress={() => void fetchTokens()}
-              />
-            </View>
-          )}
           <ActivityIndicator size="small" color="#a78bfa" />
           <Text style={styles.browseLandingLoadingText}>Loading tokens...</Text>
         </View>
@@ -1410,18 +1407,6 @@ export default function TokenDisplay({
     return (
       <>
         <View style={styles.browseLandingTokenWrap}>
-          {Platform.OS === 'android' && (
-            <View style={styles.browseLandingNavbarBadgeAnchor} pointerEvents="box-none">
-              <WebNavbarTokenBadge
-                count={data.availableTokens}
-                shell={connectShell}
-                onPress={() => {
-                  setShowInfoModal(true);
-                  fetchPackages();
-                }}
-              />
-            </View>
-          )}
           <BrowseConnectLandingTokenStrip
             availableTokens={data.availableTokens}
             canClaimWeeklyToken={data.canClaimWeeklyToken}

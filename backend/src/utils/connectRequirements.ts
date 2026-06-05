@@ -19,6 +19,17 @@ export function isValidConnectLocation(location: string | null | undefined): boo
   return t.slice(0, i).trim().length > 0 && t.slice(i + 1).trim().length > 0;
 }
 
+export const VALID_PROFILE_GENDERS = ['Man', 'Woman', 'Other'] as const;
+
+export function hasValidProfileAge(age: number | null | undefined): boolean {
+  return typeof age === 'number' && !Number.isNaN(age) && age >= 18 && age <= 120;
+}
+
+export function hasValidProfileGender(gender: string | null | undefined): boolean {
+  const g = (gender ?? '').trim();
+  return (VALID_PROFILE_GENDERS as readonly string[]).includes(g);
+}
+
 export type OnboardingProgress = {
   hasName: boolean;
   hasLocation: boolean;
@@ -26,7 +37,7 @@ export type OnboardingProgress = {
   photosRequired: number;
   /** Share of name + location + min photos (0–100). */
   percentComplete: number;
-  missing: Array<'profile' | 'name' | 'location' | 'photos'>;
+  missing: Array<'profile' | 'name' | 'location' | 'age' | 'gender' | 'photos'>;
   /** Name + location only — user may tap Complete Profile without photos. */
   readyToActivate: boolean;
 };
@@ -34,10 +45,10 @@ export type OnboardingProgress = {
 /** Violations for POST /profile/activate and browse routing (no photos). */
 export async function getActivationSetupViolationsForUser(userId: string): Promise<string[]> {
   const profileResult = db
-    .prepare('SELECT id, display_name, location FROM profiles WHERE user_id = ?')
+    .prepare('SELECT id, display_name, location, age, gender FROM profiles WHERE user_id = ?')
     .get([userId]);
   const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
-    | { id: string; display_name: string; location: string | null }
+    | { id: string; display_name: string; location: string | null; age: number | null; gender: string | null }
     | undefined;
 
   if (!profile) return ['profile'];
@@ -45,6 +56,7 @@ export async function getActivationSetupViolationsForUser(userId: string): Promi
   const violations: string[] = [];
   if (!hasConnectDisplayName(profile.display_name)) violations.push('name');
   if (!isValidConnectLocation(profile.location)) violations.push('location');
+  if (!hasValidProfileGender(profile.gender)) violations.push('gender');
   return violations;
 }
 
@@ -54,25 +66,40 @@ export function computeOnboardingProgress(
   location: string | null | undefined,
   photoCount: number,
   hasProfileRow: boolean,
+  age?: number | null,
+  gender?: string | null,
 ): OnboardingProgress {
   const photosRequired = MIN_PHOTOS_TO_CONNECT;
   const missing: OnboardingProgress['missing'] = [];
   if (!hasProfileRow) missing.push('profile');
   const hasName = hasConnectDisplayName(displayName);
   const hasLocation = isValidConnectLocation(location);
+  const hasAge = hasValidProfileAge(age ?? null);
+  const hasGender = hasValidProfileGender(gender ?? null);
   const safePhotoCount = Math.max(0, Math.floor(photoCount));
   if (!hasName) missing.push('name');
   if (!hasLocation) missing.push('location');
+  if (!hasAge) missing.push('age');
+  if (!hasGender) missing.push('gender');
   if (safePhotoCount < photosRequired) missing.push('photos');
 
-  const stepsDone =
-    (hasName ? 1 : 0) + (hasLocation ? 1 : 0) + (Math.min(safePhotoCount, photosRequired) >= photosRequired ? 1 : 0);
-  const percentComplete = Math.round((stepsDone / 3) * 100);
+  const activationSteps = 3;
+  const activationDone =
+    (hasName ? 1 : 0) +
+    (hasLocation ? 1 : 0) +
+    (hasGender ? 1 : 0);
+  const connectSteps = activationSteps + 2;
+  const connectDone =
+    activationDone +
+    (hasAge ? 1 : 0) +
+    (Math.min(safePhotoCount, photosRequired) >= photosRequired ? 1 : 0);
+  const percentComplete = Math.round((connectDone / connectSteps) * 100);
 
   const activationMissing: OnboardingProgress['missing'] = [];
   if (!hasProfileRow) activationMissing.push('profile');
   if (!hasName) activationMissing.push('name');
   if (!hasLocation) activationMissing.push('location');
+  if (!hasGender) activationMissing.push('gender');
 
   return {
     hasName,
@@ -89,11 +116,13 @@ export async function getConnectSetupViolationsForUser(userId: string): Promise<
   const activation = await getActivationSetupViolationsForUser(userId);
   if (activation.length > 0) return activation;
 
-  const profileResult = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([userId]);
+  const profileResult = db.prepare('SELECT id, age FROM profiles WHERE user_id = ?').get([userId]);
   const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
-    | { id: string }
+    | { id: string; age: number | null }
     | undefined;
   if (!profile) return ['profile'];
+
+  if (!hasValidProfileAge(profile.age)) return ['age'];
 
   const countResult = db.prepare('SELECT COUNT(*) as c FROM photos WHERE profile_id = ?').get([profile.id]);
   const countRow = (countResult instanceof Promise ? await countResult : countResult) as
@@ -110,6 +139,8 @@ export function connectSetupErrorPayload(violations: string[]) {
     profile: 'Complete your profile first.',
     name: 'Add your name in Settings before connecting.',
     location: 'Add your city and state on your Profile before connecting (e.g. Medford, Oregon).',
+    age: 'Add your age on your Profile before connecting.',
+    gender: 'Add your gender on your Profile before connecting.',
     photos: `Upload at least ${minPhotosToConnectPhrase()} on your Profile to start matching with other people.`,
   };
   const primary = violations.includes('photos')

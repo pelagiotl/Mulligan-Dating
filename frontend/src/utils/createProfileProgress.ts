@@ -9,6 +9,9 @@ export const ONBOARDING_DEFAULT_MAX_DISTANCE = 50;
 /** Legacy placeholder gender from onboarding saves before Profile is completed. */
 export const ONBOARDING_DEFAULT_GENDER = "Not specified";
 
+export const ONBOARDING_GENDER_OPTIONS = ["Man", "Woman", "Other"] as const;
+export type OnboardingGenderOption = (typeof ONBOARDING_GENDER_OPTIONS)[number];
+
 /** @deprecated Server used to auto-insert 18; treat as unset when gender is still a stub. */
 export const ONBOARDING_LEGACY_AUTO_AGE = 18;
 
@@ -55,6 +58,11 @@ export function displayProfileAge(age: number | null | undefined): string {
   return isProfileAgeUnset(age) ? "Not set" : String(age);
 }
 
+export function isOnboardingGenderComplete(gender: string | null | undefined): boolean {
+  const t = (gender ?? "").trim();
+  return ONBOARDING_GENDER_OPTIONS.includes(t as OnboardingGenderOption);
+}
+
 export function resolveOnboardingGender(gender: string): string {
   const t = gender.trim();
   return t || ONBOARDING_DEFAULT_GENDER;
@@ -62,7 +70,33 @@ export function resolveOnboardingGender(gender: string): string {
 
 export function isStubProfileGender(gender: string | null | undefined): boolean {
   const g = (gender ?? "").trim();
-  return !g || g === ONBOARDING_DEFAULT_GENDER;
+  return !g || g === ONBOARDING_DEFAULT_GENDER || !isOnboardingGenderComplete(g);
+}
+
+export type OnboardingBasicsInput = {
+  displayName: string;
+  location: string;
+  age: string;
+  gender: string;
+};
+
+/** Client-side gate for Complete Profile — name, location, age, and gender required. */
+export function validateOnboardingBasics(input: OnboardingBasicsInput): string | null {
+  if (input.displayName.trim().length < 2) {
+    return "Please enter at least 2 characters for your name";
+  }
+  const loc = input.location.trim();
+  const comma = loc.indexOf(",");
+  if (comma === -1 || loc.slice(0, comma).trim().length === 0 || loc.slice(comma + 1).trim().length === 0) {
+    return "Please enter both city and state (e.g. Medford, Oregon)";
+  }
+  if (isProfileAgeUnset(parseOnboardingAgeOrNull(input.age))) {
+    return "Enter your age (18 or older).";
+  }
+  if (!isOnboardingGenderComplete(input.gender)) {
+    return "Please select your gender.";
+  }
+  return null;
 }
 
 /** Short label for profile cards when gender was not set during onboarding. */

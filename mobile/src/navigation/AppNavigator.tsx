@@ -28,6 +28,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import AdminScreen from '../screens/AdminScreen';
 import TermsScreen from '../screens/TermsScreen';
 import PrivacyScreen from '../screens/PrivacyScreen';
+import LaunchGoLiveCelebrationGate from '../components/LaunchGoLiveCelebrationGate';
 import PushNotificationSettingsScreen from '../screens/PushNotificationSettingsScreen';
 import BlockedUsersScreen from '../screens/BlockedUsersScreen';
 import { useAuth } from '../context/AuthContext';
@@ -68,6 +69,8 @@ function readMainTabsTokenOverlayVisible(): boolean {
   const tabState = stackRoute.state as NavigationState | undefined;
   if (!tabState || typeof tabState.index !== 'number') return false;
   const tabRoute = tabState.routes[tabState.index];
+  // Browse (Connect landing) paints above navigator siblings on Android — badge lives on BrowseScreen.
+  if (Platform.OS === 'android') return tabRoute?.name !== 'Browse';
   return tabRoute?.name !== 'Browse';
 }
 
@@ -400,8 +403,8 @@ function MainTabs() {
               position: 'absolute',
               top: Math.max(insets.top, 8) + 4,
               right: 28,
-              zIndex: 120,
-              elevation: 14,
+              zIndex: Platform.OS === 'android' ? 10000 : 120,
+              elevation: Platform.OS === 'android' ? 24 : 14,
             }}
           >
             <TokenDisplay compact connectShell={connectShellMode} compactNavbarChrome />
@@ -643,6 +646,9 @@ export default function AppNavigator() {
             <ActivityIndicator size="small" color="#8B1538" />
           </View>
         ) : null}
+        <LaunchGoLiveCelebrationGate
+          enabled={!!user && gateStatusLoaded && ageGatePassed === true}
+        />
       </View>
     );
   } catch (error) {

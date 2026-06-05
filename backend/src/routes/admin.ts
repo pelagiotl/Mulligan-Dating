@@ -871,6 +871,8 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
           u.location,
           photoCount,
           hasProfileRow,
+          u.age,
+          u.gender,
         );
         return mapAdminListUser(u, tokenCounts, platformSignals, {
           account_status: u.account_status ?? 'onboarding',

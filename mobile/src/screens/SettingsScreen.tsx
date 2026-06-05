@@ -41,6 +41,49 @@ import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 /** Android elevation renders as a harsh grey box behind rounded cards — disable it there. */
 const E = (n: number) => (Platform.OS === 'android' ? 0 : n);
 const SO = (n: number) => (Platform.OS === 'android' ? 0 : n);
+/** Entrance opacity fades darken/wash out Settings on Android — use plain Views there. */
+const USE_SETTINGS_ENTRANCE_FADE = Platform.OS === 'ios';
+const SettingsSectionShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
+  USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
+const SettingsStatCardShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
+  USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
+const SettingsHeaderShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
+  USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
+
+function settingsSectionEntranceStyle(
+  index: number,
+  sectionAnimations: Animated.Value[],
+  sectionFallbackAnim: Animated.Value
+) {
+  if (!USE_SETTINGS_ENTRANCE_FADE) return undefined;
+  const anim = sectionAnimations[index] ?? sectionFallbackAnim;
+  return {
+    opacity: anim,
+    transform: [
+      {
+        translateY: anim.interpolate({
+          inputRange: [0, 1],
+          outputRange: [30, 0],
+        }),
+      },
+    ],
+  };
+}
+
+function settingsStatCardShellStyle(
+  index: number,
+  statCardAnimations: Animated.Value[],
+  statCardFallbackAnim: Animated.Value
+) {
+  if (!USE_SETTINGS_ENTRANCE_FADE) {
+    return styles.statCardShellAndroid;
+  }
+  return {
+    flex: 1,
+    transform: [{ scale: statCardAnimations[index] ?? statCardFallbackAnim }],
+  };
+}
+
 import {
   androidShellBackdropColors,
   iosFloatingTabBarInset,
@@ -83,6 +126,46 @@ async function writeStoredDisplayEmail(email: string): Promise<void> {
 const isExpoGo = Constants.appOwnership === 'expo';
 const IAP_COMING_SOON_MSG = "In-app purchases are coming soon. We're switching to a new provider—stay tuned!";
 
+/**
+ * Android: match Danger Zone — semi-transparent saturated rgba gradients over the tab scene.
+ * Opaque hex / nested glass cards render dark on Android; Danger Zone's rgba(251,113,133,0.52) does not.
+ */
+/** Saturated rgba over #12101c — same family as Danger Zone (opaque hex stacks dark on Android). */
+const ANDROID_SETTINGS_HEADER_BRIGHT = [
+  'rgba(251, 113, 133, 0.82)',
+  'rgba(244, 114, 182, 0.76)',
+  'rgba(167, 139, 250, 0.68)',
+] as const;
+const ANDROID_SETTINGS_SECTION_BRIGHT = [
+  'rgba(251, 113, 133, 0.72)',
+  'rgba(244, 114, 182, 0.66)',
+  'rgba(167, 139, 250, 0.58)',
+] as const;
+
+function AndroidSettingsBrightCard({
+  children,
+  variant = 'section',
+}: {
+  children: React.ReactNode;
+  variant?: 'header' | 'section';
+}) {
+  if (Platform.OS !== 'android') return <>{children}</>;
+  const colors = variant === 'header' ? ANDROID_SETTINGS_HEADER_BRIGHT : ANDROID_SETTINGS_SECTION_BRIGHT;
+  return (
+    <LinearGradient
+      colors={[...colors]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={variant === 'header' ? styles.androidBrightHeader : styles.androidBrightSection}
+    >
+      {children}
+    </LinearGradient>
+  );
+}
+
+const SettingsSectionOuter: React.ComponentType<{ style?: object; children: React.ReactNode }> =
+  Platform.OS === 'android' ? View : SettingsSectionShell;
+
 export default function SettingsScreen() {
   const { user, profile, logout, refreshProfile, refreshTokensBalance } = useAuth();
   const { mode: connectShellMode, toggleMode: toggleConnectShellMode } = useConnectShellTheme();
@@ -91,6 +174,8 @@ export default function SettingsScreen() {
     () => androidShellBackdropColors(connectShellMode),
     [connectShellMode]
   );
+  const settingsBackdropColors = shellBackdropColors;
+  const showSettingsBackdropGradient = Platform.OS !== 'android';
   const insets = useSafeAreaInsets();
   const scrollBottomPad = useMemo(() => mainTabScrollBottomPadding(insets.bottom), [insets.bottom]);
   const iosTabBarInset = useMemo(
@@ -100,6 +185,8 @@ export default function SettingsScreen() {
   const glassSectionColors = shellMidnight
     ? (['rgba(28, 24, 38, 0.94)', 'rgba(18, 16, 28, 0.9)'] as const)
     : (['rgba(255, 255, 255, 0.34)', 'rgba(255, 255, 255, 0.18)'] as const);
+  const settingsGlassCardColors = ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)'] as const;
+  const androidInnerPanelStyle = Platform.OS === 'android' ? styles.androidBrightInnerPanel : undefined;
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -143,8 +230,8 @@ export default function SettingsScreen() {
   const [purchasing, setPurchasing] = useState(false);
 
   // Animations
-  const headerScale = useRef(new Animated.Value(0.9)).current;
-  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const headerScale = useRef(new Animated.Value(USE_SETTINGS_ENTRANCE_FADE ? 0.9 : 1)).current;
+  const headerOpacity = useRef(new Animated.Value(USE_SETTINGS_ENTRANCE_FADE ? 0 : 1)).current;
   const headerIconRotate = useRef(new Animated.Value(0)).current;
   const sectionAnimations = useRef<Animated.Value[]>([]).current;
   const statCardAnimations = useRef<Animated.Value[]>([]).current;
@@ -181,23 +268,28 @@ export default function SettingsScreen() {
     if (!user || entrancePlayedRef.current) return;
     entrancePlayedRef.current = true;
 
-    Animated.parallel([
-      Animated.spring(headerScale, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
-      Animated.timing(headerOpacity, {
-        toValue: 1,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    if (USE_SETTINGS_ENTRANCE_FADE) {
+      Animated.parallel([
+        Animated.spring(headerScale, {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          useNativeDriver: true,
+        }),
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      headerScale.setValue(1);
+      headerOpacity.setValue(1);
+    }
 
     for (let i = 0; i < 10; i++) {
       // Sections 4+ (Danger Zone, Help, Session) must stay visible — iOS fade-in often stuck at opacity 0.
-      const skipFade = i >= 4;
+      const skipFade = !USE_SETTINGS_ENTRANCE_FADE || i >= 4;
       sectionAnimations[i] = new Animated.Value(skipFade ? 1 : 0);
       if (!skipFade) {
         Animated.timing(sectionAnimations[i], {
@@ -210,16 +302,29 @@ export default function SettingsScreen() {
     }
 
     for (let i = 0; i < 2; i++) {
-      statCardAnimations[i] = new Animated.Value(0);
-      Animated.spring(statCardAnimations[i], {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        delay: 200 + i * 100,
-        useNativeDriver: true,
-      }).start();
+      statCardAnimations[i] = new Animated.Value(USE_SETTINGS_ENTRANCE_FADE ? 0 : 1);
+      if (USE_SETTINGS_ENTRANCE_FADE) {
+        Animated.spring(statCardAnimations[i], {
+          toValue: 1,
+          tension: 50,
+          friction: 7,
+          delay: 200 + i * 100,
+          useNativeDriver: true,
+        }).start();
+      }
     }
   }, [user]);
+
+  // Android: re-assert full opacity when returning to Settings (guards against stuck entrance values).
+  useEffect(() => {
+    if (Platform.OS !== 'android' || !isFocused || !user) return;
+    headerOpacity.setValue(1);
+    headerScale.setValue(1);
+    for (let i = 0; i < 3; i++) {
+      if (sectionAnimations[i]) sectionAnimations[i].setValue(1);
+      if (statCardAnimations[i]) statCardAnimations[i].setValue(1);
+    }
+  }, [isFocused, user, headerOpacity, headerScale, sectionAnimations, statCardAnimations]);
 
   // Continuous header loops — pause when Settings tab is in background (gradient uses JS driver)
   useEffect(() => {
@@ -629,7 +734,7 @@ export default function SettingsScreen() {
     return (
       <View style={styles.loadingContainer}>
         <LinearGradient
-          colors={[...shellBackdropColors]}
+          colors={[...settingsBackdropColors]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={StyleSheet.absoluteFill}
@@ -641,13 +746,15 @@ export default function SettingsScreen() {
   }
 
   return (
-    <View style={styles.wrapper}>
-      <LinearGradient
-        colors={[...shellBackdropColors]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={StyleSheet.absoluteFill}
-      />
+    <View style={[styles.wrapper, Platform.OS === 'android' && styles.wrapperAndroid]}>
+      {showSettingsBackdropGradient ? (
+        <LinearGradient
+          colors={[...settingsBackdropColors]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { paddingBottom: scrollBottomPad }]}
@@ -656,47 +763,59 @@ export default function SettingsScreen() {
         alwaysBounceVertical
         showsVerticalScrollIndicator
       >
-        <Animated.View
-          style={[
-            styles.headerGradient,
-            {
-              opacity: headerOpacity,
-              transform: [{ scale: headerScale }],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={['#667eea', '#764ba2', '#f093fb']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
-          />
-          <View style={styles.header}>
-            <Animated.View
-              style={[
-                styles.headerIconContainer,
-                {
-                  transform: [
-                    {
-                      rotate: headerIconRotate.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: ['-5deg', '5deg'],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            >
-              <LinearGradient
-                colors={['#fff', '#f8f9ff']}
-                style={StyleSheet.absoluteFill}
-              />
-              <ProfileCardAnimatedEmoji emoji="⚙️" variant="shimmer" fontSize={40} delay={0} />
-            </Animated.View>
-            <Text style={styles.headerTitle}>Settings</Text>
-            <Text style={styles.headerSubtitle}>Manage your account preferences</Text>
+        {Platform.OS === 'android' ? (
+          <View style={styles.section}>
+            <AndroidSettingsBrightCard variant="header">
+              <View style={styles.header}>
+                <View style={styles.headerIconContainer}>
+                  <LinearGradient colors={['#fff', '#f8f9ff']} style={StyleSheet.absoluteFill} />
+                  <ProfileCardAnimatedEmoji emoji="⚙️" variant="shimmer" fontSize={40} delay={0} />
+                </View>
+                <Text style={styles.headerTitle}>Settings</Text>
+                <Text style={styles.headerSubtitle}>Manage your account preferences</Text>
+              </View>
+            </AndroidSettingsBrightCard>
           </View>
-        </Animated.View>
+        ) : (
+          <SettingsHeaderShell
+            style={[
+              styles.headerGradient,
+              {
+                opacity: headerOpacity,
+                transform: [{ scale: headerScale }],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <View style={styles.header}>
+              <Animated.View
+                style={[
+                  styles.headerIconContainer,
+                  {
+                    transform: [
+                      {
+                        rotate: headerIconRotate.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: ['-5deg', '5deg'],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <LinearGradient colors={['#fff', '#f8f9ff']} style={StyleSheet.absoluteFill} />
+                <ProfileCardAnimatedEmoji emoji="⚙️" variant="shimmer" fontSize={40} delay={0} />
+              </Animated.View>
+              <Text style={styles.headerTitle}>Settings</Text>
+              <Text style={styles.headerSubtitle}>Manage your account preferences</Text>
+            </View>
+          </SettingsHeaderShell>
+        )}
 
       {error ? (
         <View style={styles.errorContainer}>
@@ -729,38 +848,18 @@ export default function SettingsScreen() {
       ) : null}
 
       {Platform.OS === 'android' ? (
-        <Animated.View
-          style={[
-            styles.section,
-            {
-              opacity: sectionAnimations[1],
-              transform: [
-                {
-                  translateY: sectionAnimations[1].interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [30, 0],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <View style={styles.sectionTitleContainer}>
-            <ProfileCardAnimatedEmoji
-              emoji="🎨"
-              variant="shimmer"
-              fontSize={26}
-              delay={0}
-              containerStyle={styles.sectionEmojiWrap}
-            />
-            <Text style={styles.sectionTitle}>Connect tab appearance</Text>
-          </View>
-          <LinearGradient
-            colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.tokensCard}
-          >
+        <View style={styles.section}>
+          <AndroidSettingsBrightCard>
+            <View style={styles.sectionTitleContainer}>
+              <ProfileCardAnimatedEmoji
+                emoji="🎨"
+                variant="shimmer"
+                fontSize={26}
+                delay={0}
+                containerStyle={styles.sectionEmojiWrap}
+              />
+              <Text style={styles.sectionTitle}>Connect tab appearance</Text>
+            </View>
             <Text style={styles.tokensCardTitle}>Hero card & chrome</Text>
             <Text style={[styles.tokensCardDescription, { marginBottom: 14 }]}>
               Cycle through Midnight, Sunny, and Soft Connect chrome. Tokens on Connect landing, tab bar, and backdrop follow
@@ -771,47 +870,37 @@ export default function SettingsScreen() {
               onPress={toggleConnectShellMode}
               style={[
                 styles.settingsShellToggleBase,
-                connectShellMode === 'midnight'
-                  ? styles.settingsShellToggleMidnight
-                  : connectShellMode === 'sunny'
-                    ? styles.settingsShellToggleSunny
-                    : styles.settingsShellToggleSoft,
+                styles.settingsShellToggleAndroidBright,
+                connectShellMode === 'sunny'
+                  ? styles.settingsShellToggleSunny
+                  : connectShellMode === 'soft'
+                    ? styles.settingsShellToggleSoft
+                    : null,
               ]}
             >
               <Text
                 style={[
                   styles.settingsShellToggleLabel,
-                  connectShellMode === 'midnight'
-                    ? styles.settingsShellToggleLabelMidnight
-                    : connectShellMode === 'sunny'
-                      ? styles.settingsShellToggleLabelSunny
-                      : styles.settingsShellToggleLabelSoft,
+                  styles.settingsShellToggleLabelAndroidBright,
+                  connectShellMode === 'sunny'
+                    ? styles.settingsShellToggleLabelSunny
+                    : connectShellMode === 'soft'
+                      ? styles.settingsShellToggleLabelSoft
+                      : null,
                 ]}
               >
                 {connectShellDisplayLabel(connectShellMode)}
               </Text>
             </TouchableOpacity>
-          </LinearGradient>
-        </Animated.View>
+          </AndroidSettingsBrightCard>
+        </View>
       ) : null}
 
       {/* Account Info */}
-      <Animated.View
-        style={[
-          styles.section,
-          {
-            opacity: sectionAnimations[0],
-            transform: [
-              {
-                translateY: sectionAnimations[0].interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
+      <SettingsSectionOuter
+        style={[styles.section, settingsSectionEntranceStyle(0, sectionAnimations, sectionFallbackAnim)]}
       >
+        <AndroidSettingsBrightCard>
         <View style={styles.sectionTitleContainer}>
           <ProfileCardAnimatedEmoji
             emoji="👤"
@@ -825,23 +914,16 @@ export default function SettingsScreen() {
 
         {/* Account Stats Cards */}
         <View style={styles.statsRow}>
-          <Animated.View
-            style={[
-              {
-                flex: 1,
-                transform: [
-                  {
-                    scale: statCardAnimations[0] ?? statCardFallbackAnim,
-                  },
-                ],
-              },
-            ]}
-          >
+          <SettingsStatCardShell style={settingsStatCardShellStyle(0, statCardAnimations, statCardFallbackAnim)}>
             <LinearGradient
-              colors={['#667eea', '#764ba2']}
+              colors={
+                Platform.OS === 'android'
+                  ? ['#fb7185', '#f472b6', '#a78bfa']
+                  : ['#667eea', '#764ba2']
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.statCard}
+              style={[styles.statCard, Platform.OS === 'android' && styles.statCardAndroid]}
             >
               <ProfileCardAnimatedEmoji
                 emoji="🎉"
@@ -860,25 +942,18 @@ export default function SettingsScreen() {
                   : 'N/A'}
               </Text>
             </LinearGradient>
-          </Animated.View>
+          </SettingsStatCardShell>
 
-          <Animated.View
-            style={[
-              {
-                flex: 1,
-                transform: [
-                  {
-                    scale: statCardAnimations[1] ?? statCardFallbackAnim,
-                  },
-                ],
-              },
-            ]}
-          >
+          <SettingsStatCardShell style={settingsStatCardShellStyle(1, statCardAnimations, statCardFallbackAnim)}>
             <LinearGradient
-              colors={['#f093fb', '#f5576c']}
+              colors={
+                Platform.OS === 'android'
+                  ? ['#f472b6', '#fb7185', '#ef4444']
+                  : ['#f093fb', '#f5576c']
+              }
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 1 }}
-              style={styles.statCard}
+              style={[styles.statCard, Platform.OS === 'android' && styles.statCardAndroid]}
             >
               <ProfileCardAnimatedEmoji
                 emoji="🟢"
@@ -897,12 +972,12 @@ export default function SettingsScreen() {
                   : 'Just now'}
               </Text>
             </LinearGradient>
-          </Animated.View>
+          </SettingsStatCardShell>
         </View>
 
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={styles.pushNotificationsRow}
+            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
             onPress={() => navigationRef.current?.navigate('PushNotificationSettings')}
             activeOpacity={0.8}
           >
@@ -919,7 +994,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={styles.pushNotificationsRow}
+            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
             onPress={() => navigationRef.current?.navigate('BlockedUsers')}
             activeOpacity={0.8}
           >
@@ -936,7 +1011,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Optional email for support / important account updates */}
-        <View style={styles.emailCard}>
+        <View style={[styles.emailCard, androidInnerPanelStyle]}>
           <Text style={styles.emailCardLabel}>Email address (optional)</Text>
           <Text style={styles.emailCardSubLabel}>
             Add an email for account support and important updates. We’ll only contact you if needed.
@@ -991,7 +1066,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        <View style={styles.emailCard}>
+        <View style={[styles.emailCard, androidInnerPanelStyle]}>
           <Text style={styles.emailCardLabel}>Display name</Text>
           <Text style={styles.emailCardSubLabel}>
             Shown to people you connect with. You need a name, location, and a photo before you can use Connect.
@@ -1029,7 +1104,7 @@ export default function SettingsScreen() {
 
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={styles.pushNotificationsRow}
+            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
             onPress={() => (navigation as any).navigate('MyProfile')}
             activeOpacity={0.8}
           >
@@ -1046,7 +1121,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={styles.pushNotificationsRow}
+            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
             onPress={() => (navigation as any).navigate('MyProfile', { scrollToPhotos: true })}
             activeOpacity={0.8}
           >
@@ -1061,25 +1136,14 @@ export default function SettingsScreen() {
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
           </TouchableOpacity>
         </View>
-      </Animated.View>
+        </AndroidSettingsBrightCard>
+      </SettingsSectionOuter>
 
       {/* Buy Tokens */}
-      <Animated.View
-        style={[
-          styles.section,
-          {
-            opacity: sectionAnimations[2] ?? sectionFallbackAnim,
-            transform: [
-              {
-                translateY: (sectionAnimations[2] ?? sectionFallbackAnim).interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [30, 0],
-                }),
-              },
-            ],
-          },
-        ]}
+      <SettingsSectionOuter
+        style={[styles.section, settingsSectionEntranceStyle(2, sectionAnimations, sectionFallbackAnim)]}
       >
+        <AndroidSettingsBrightCard>
         <View style={styles.sectionTitleContainer}>
           <ProfileCardAnimatedEmoji
             emoji="💳"
@@ -1090,37 +1154,66 @@ export default function SettingsScreen() {
           />
           <Text style={styles.sectionTitle}>Tokens</Text>
         </View>
-        <LinearGradient
-          colors={['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.tokensCard}
-        >
-          <Text style={styles.tokensCardTitle}>Need more tokens?</Text>
-          <Text style={styles.tokensCardDescription}>
-            Purchase Mulligan tokens to connect with more people
-          </Text>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => {
-              setShowPurchaseModal(true);
-              fetchPackages();
-            }}
-          >
-            <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.primaryButton}
+        {Platform.OS === 'android' ? (
+          <>
+            <Text style={styles.tokensCardTitle}>Need more tokens?</Text>
+            <Text style={styles.tokensCardDescription}>
+              Purchase Mulligan tokens to connect with more people
+            </Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => {
+                setShowPurchaseModal(true);
+                fetchPackages();
+              }}
             >
-              <View style={styles.buttonTextRow}>
-                <ProfileCardAnimatedEmoji emoji="💳" variant="heartbeat" fontSize={20} delay={0} />
-                <Text style={[styles.buttonText, styles.primaryButtonText]}>Cop some more</Text>
-              </View>
-            </LinearGradient>
-          </TouchableOpacity>
-        </LinearGradient>
-      </Animated.View>
+              <LinearGradient
+                colors={['#fb7185', '#f472b6', '#a78bfa']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryButton}
+              >
+                <View style={styles.buttonTextRow}>
+                  <ProfileCardAnimatedEmoji emoji="💳" variant="heartbeat" fontSize={20} delay={0} />
+                  <Text style={[styles.buttonText, styles.primaryButtonText]}>Cop some more</Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </>
+        ) : (
+          <LinearGradient
+            colors={[...settingsGlassCardColors]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.tokensCard}
+          >
+            <Text style={styles.tokensCardTitle}>Need more tokens?</Text>
+            <Text style={styles.tokensCardDescription}>
+              Purchase Mulligan tokens to connect with more people
+            </Text>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={() => {
+                setShowPurchaseModal(true);
+                fetchPackages();
+              }}
+            >
+              <LinearGradient
+                colors={['#667eea', '#764ba2', '#f093fb']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryButton}
+              >
+                <View style={styles.buttonTextRow}>
+                  <ProfileCardAnimatedEmoji emoji="💳" variant="heartbeat" fontSize={20} delay={0} />
+                  <Text style={[styles.buttonText, styles.primaryButtonText]}>Cop some more</Text>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </LinearGradient>
+        )}
+        </AndroidSettingsBrightCard>
+      </SettingsSectionOuter>
 
       {/* Delete Account — no entrance fade (must stay visible on iOS) */}
       <View style={styles.section}>
@@ -1542,6 +1635,9 @@ const styles = StyleSheet.create({
   wrapper: {
     flex: 1,
   },
+  wrapperAndroid: {
+    backgroundColor: '#12101c',
+  },
   container: {
     flex: 1,
   },
@@ -1580,6 +1676,31 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.4)',
     marginHorizontal: 20,
     overflow: 'hidden',
+  },
+  androidBrightHeader: {
+    marginTop: 56,
+    paddingTop: 60,
+    paddingBottom: 32,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    marginBottom: 24,
+    marginHorizontal: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(254, 202, 202, 0.72)',
+    overflow: 'hidden',
+    backgroundColor: '#fb7185',
+  },
+  androidBrightSection: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(254, 202, 202, 0.72)',
+    overflow: 'hidden',
+    backgroundColor: '#fb7185',
+  },
+  androidBrightInnerPanel: {
+    backgroundColor: 'rgba(255, 255, 255, 0.24)',
+    borderColor: 'rgba(254, 202, 202, 0.55)',
   },
   header: {
     alignItems: 'center',
@@ -1737,6 +1858,12 @@ const styles = StyleSheet.create({
   statsRow: {
     flexDirection: 'row',
     gap: 12,
+    alignItems: 'stretch',
+  },
+  statCardShellAndroid: {
+    flex: 1,
+    minWidth: 0,
+    alignSelf: 'stretch',
   },
   statCard: {
     flex: 1,
@@ -1750,6 +1877,11 @@ const styles = StyleSheet.create({
     elevation: E(12),
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  statCardAndroid: {
+    width: '100%',
+    minHeight: 148,
+    flex: undefined,
   },
   statEmoji: {
     fontSize: 32,
@@ -1779,6 +1911,13 @@ const styles = StyleSheet.create({
     shadowOpacity: SO(0.2),
     shadowRadius: 20,
     elevation: E(10),
+  },
+  settingsShellToggleAndroidBright: {
+    borderColor: 'rgba(254, 202, 202, 0.72)',
+    backgroundColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  settingsShellToggleLabelAndroidBright: {
+    color: '#fff',
   },
   tokensCardTitle: {
     fontSize: 20,
@@ -1914,6 +2053,7 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.35)',
+    ...(Platform.OS === 'android' ? { backgroundColor: 'transparent' } : null),
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: SO(0.25),
@@ -1943,6 +2083,7 @@ const styles = StyleSheet.create({
     padding: 18,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.28)',
+    ...(Platform.OS === 'android' ? { backgroundColor: 'transparent' } : null),
   },
   emailCardLabel: {
     fontSize: 16,
@@ -1961,7 +2102,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1.5,
     borderColor: 'rgba(255, 255, 255, 0.35)',
-    backgroundColor: 'rgba(0,0,0,0.10)',
+    backgroundColor: Platform.OS === 'android' ? 'rgba(255, 255, 255, 0.16)' : 'rgba(0,0,0,0.10)',
     paddingHorizontal: 14,
     paddingVertical: 12,
     color: '#fff',

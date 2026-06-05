@@ -13,6 +13,7 @@ import SessionBootstrapScreen from './components/SessionBootstrapScreen'
 import RouteChunkFallback from './components/RouteChunkFallback'
 import { playMatchCelebrationSound } from './utils/matchSound'
 import WebMessageNotifications from './components/WebMessageNotifications'
+import LaunchGoLiveCelebrationGate from './components/LaunchGoLiveCelebrationGate'
 import { isIncomingMatchForConnectInitiator } from './lib/connectInitiator'
 
 const Layout = lazyRoute(() => import('./components/Layout'))
@@ -356,6 +357,7 @@ export default function App() {
       <PwaPushLaunchRedirect />
       <NewMatchesNotification />
       <WebMessageNotifications />
+      <LaunchGoLiveCelebrationGate />
       <Routes>
         <Route
           path="/"

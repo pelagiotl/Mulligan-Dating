@@ -9,7 +9,20 @@ export type ConnectProfileLike = {
   displayName?: string;
   display_name?: string;
   location?: string | null;
+  age?: number | null;
+  gender?: string | null;
 } | null;
+
+const VALID_PROFILE_GENDERS = ['Man', 'Woman', 'Other'] as const;
+
+function hasValidProfileAge(age: number | null | undefined): boolean {
+  return typeof age === 'number' && !Number.isNaN(age) && age >= 18 && age <= 120;
+}
+
+function hasValidProfileGender(gender: string | null | undefined): boolean {
+  const g = (gender ?? '').trim();
+  return (VALID_PROFILE_GENDERS as readonly string[]).includes(g);
+}
 
 function displayNameFromProfile(profile: ConnectProfileLike): string {
   if (!profile) return '';
@@ -35,13 +48,14 @@ export function hasConnectDisplayName(profile: ConnectProfileLike): boolean {
   return displayNameFromProfile(profile).length >= 2;
 }
 
-export type ProfileActivationMissing = 'name' | 'location';
+export type ProfileActivationMissing = 'name' | 'location' | 'age' | 'gender';
 export type ConnectSetupMissing = ProfileActivationMissing | 'photos';
 
 export function getProfileActivationMissing(profile: ConnectProfileLike): ProfileActivationMissing[] {
   const missing: ProfileActivationMissing[] = [];
   if (!hasConnectDisplayName(profile)) missing.push('name');
   if (!isValidConnectLocation(profileLocationText(profile))) missing.push('location');
+  if (!hasValidProfileGender(profile?.gender ?? null)) missing.push('gender');
   return missing;
 }
 
@@ -50,6 +64,7 @@ export function getConnectSetupMissing(
   photoCount: number | null
 ): ConnectSetupMissing[] {
   const missing: ConnectSetupMissing[] = [...getProfileActivationMissing(profile)];
+  if (!hasValidProfileAge(profile?.age ?? null)) missing.push('age');
   if (photoCount === null) return missing;
   if (photoCount < MIN_PHOTOS_TO_CONNECT) missing.push('photos');
   return missing;
@@ -66,7 +81,7 @@ export function isConnectSetupComplete(profile: ConnectProfileLike, photoCount: 
   return getConnectSetupMissing(profile, photoCount).length === 0;
 }
 
-/** Browse routing after onboarding — name + city/state only. */
+/** Browse routing after onboarding — name, location, age, and gender. */
 export function computeConnectSetupComplete(profile: ConnectProfileLike, photoCount: number): boolean {
   return isProfileActivationComplete(profile);
 }
@@ -113,6 +128,10 @@ export function connectSetupGapMessage(first: ConnectSetupMissing): string {
       return 'Add your name in Settings (at least 2 characters) before you can Connect.';
     case 'location':
       return 'Add your city and state on your Profile (e.g. Medford, Oregon) before you can Connect.';
+    case 'age':
+      return 'Add your age on your Profile before you can Connect.';
+    case 'gender':
+      return 'Add your gender on your Profile before you can Connect.';
     case 'photos':
       return CONNECT_PHOTOS_REQUIRED_MESSAGE;
     default:

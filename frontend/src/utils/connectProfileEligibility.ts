@@ -35,21 +35,44 @@ function rowLocation(row: unknown): string {
   return String(v);
 }
 
-export type ProfileActivationGap = "name" | "location";
+function rowAge(row: unknown): number | null {
+  if (row == null || typeof row !== "object") return null;
+  const o = row as Record<string, unknown>;
+  const v = o.age ?? o.profile_age;
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  if (typeof v === "string" && v.trim()) {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function rowGender(row: unknown): string {
+  if (row == null || typeof row !== "object") return "";
+  const o = row as Record<string, unknown>;
+  const v = o.gender;
+  return typeof v === "string" ? v : "";
+}
+
+export type ProfileActivationGap = "name" | "location" | "age" | "gender";
 export type ConnectSetupGap = ProfileActivationGap | "photos";
 
 export function getProfileActivationGaps(profileRow: unknown): ProfileActivationGap[] {
   const gaps: ProfileActivationGap[] = [];
   if (!profileRow || typeof profileRow !== "object") {
-    return ["name", "location"];
+    return ["name", "location", "gender"];
   }
   if (!hasConnectDisplayName(rowDisplayName(profileRow))) gaps.push("name");
   if (!isValidConnectLocation(rowLocation(profileRow))) gaps.push("location");
+  const gender = rowGender(profileRow).trim();
+  if (!gender || !["Man", "Woman", "Other"].includes(gender)) gaps.push("gender");
   return gaps;
 }
 
 export function getConnectSetupGaps(profileRow: unknown, photoCount: number): ConnectSetupGap[] {
   const gaps: ConnectSetupGap[] = [...getProfileActivationGaps(profileRow)];
+  const age = rowAge(profileRow);
+  if (age == null || age < 18 || age > 120) gaps.push("age");
   if (photoCount < MIN_PHOTOS_TO_CONNECT) gaps.push("photos");
   return gaps;
 }
@@ -63,6 +86,8 @@ export function formatProfileActivationGapMessage(gaps: ProfileActivationGap[]):
   if (gaps.includes("location")) {
     parts.push("city and state on your profile (e.g. Medford, Oregon)");
   }
+  if (gaps.includes("age")) parts.push("your age (18 or older)");
+  if (gaps.includes("gender")) parts.push("your gender");
   return `Still missing on the server: ${parts.join(", ")}. Check your connection and try again.`;
 }
 
@@ -75,6 +100,8 @@ export function formatConnectSetupGapMessage(gaps: ConnectSetupGap[]): string {
   if (gaps.includes("location")) {
     parts.push("city and state on your profile (e.g. Medford, Oregon)");
   }
+  if (gaps.includes("age")) parts.push("your age (18 or older)");
+  if (gaps.includes("gender")) parts.push("your gender");
   if (gaps.includes("photos")) {
     parts.push(`at least ${minPhotosToConnectLabel()} saved on the server`);
   }

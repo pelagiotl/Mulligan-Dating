@@ -2040,10 +2040,30 @@ export default function BrowseScreen() {
         />
       ) : null}
 
-      {/* Token strip: fixed overlay when browsing; inside white card on Connect landing */}
+      {/* Fixed token strip when browsing (all platforms); landing uses compact badge on Android */}
       {!showLandingPage && (
         <View style={styles.tokenOverlay} pointerEvents="box-none">
           {mulliganTokenControls}
+        </View>
+      )}
+
+      {/* Android Connect landing: navigator-level overlay sits under the tab screen — pin badge here */}
+      {showLandingPage && Platform.OS === 'android' && (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.androidConnectLandingTokenBadge,
+            { top: Math.max(insets.top, 8) + 4 },
+          ]}
+        >
+          <TokenDisplay
+            compact
+            connectShell={connectShellMode}
+            compactNavbarChrome
+            openModalRef={openTokenModalRef}
+            performClaimRef={performClaimRef}
+            onTokensUpdated={refreshConnectLandingEconomy}
+          />
         </View>
       )}
 
@@ -4250,6 +4270,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
+  },
+  androidConnectLandingTokenBadge: {
+    position: 'absolute',
+    right: 28,
+    zIndex: 10000,
+    elevation: 24,
   },
   tokenOverlay: {
     position: 'absolute',
