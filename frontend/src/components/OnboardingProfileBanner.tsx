@@ -18,8 +18,8 @@ export default function OnboardingProfileBanner() {
     <div className="onboarding-profile-banner" role="status">
       <div className="onboarding-profile-banner-inner">
         <p className="onboarding-profile-banner-text">
-          <strong>Finish your profile</strong> — add your name, location, and a photo (if you
-          haven&apos;t already).
+          <strong>Finish your profile</strong> — add your name, location, and a photo. You must be
+          at Floatropica at Emigrant Lake Gate C tomorrow to be eligible to win.
         </p>
         <Link to="/create-profile" className="onboarding-profile-banner-cta">
           Complete Profile

@@ -10,10 +10,10 @@ import {
 
 const DEFAULT_PUSH_TITLE = 'Finish your Mulligan profile 💘';
 const DEFAULT_PUSH_BODY =
-  "We launch tomorrow! Add your name, location, and a photo (if you haven't already).";
+  'We launch tomorrow! Add your name, location, and a photo. You must be at Floatropica at Emigrant Lake Gate C tomorrow to be eligible to win.';
 
 const DEFAULT_SMS_BODY =
-  "Mulligan 💘 We launch tomorrow! Add your name, location, and a photo (if you haven't already):";
+  'Mulligan 💘 We launch tomorrow! Add your name, location, and a photo. You must be at Floatropica at Emigrant Lake Gate C tomorrow to be eligible to win:';
 
 const SMS_SUFFIX = ' Reply STOP to opt out.';
 
