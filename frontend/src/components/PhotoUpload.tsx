@@ -310,9 +310,13 @@ export default function PhotoUpload({ profileId, onPhotosUpdated, maxPhotos = 6 
             ></div>
           </div>
           <div className="photo-upload-progress-text">
-            {uploadingIndex !== null 
-              ? `Compressing photo ${uploadingIndex + 1}...` 
-              : `Uploading... ${Math.round(uploadProgress)}%`}
+            {uploadingIndex !== null
+              ? uploadingSlotIndices.length === 1
+                ? "Preparing your photo…"
+                : "Preparing your photos…"
+              : uploadingSlotIndices.length === 1
+                ? `Uploading your photo… ${Math.round(uploadProgress)}%`
+                : `Uploading your photos… ${Math.round(uploadProgress)}%`}
           </div>
         </div>
       )}
