@@ -10,10 +10,10 @@ import {
 
 const DEFAULT_PUSH_TITLE = 'Finish your Mulligan profile 💘';
 const DEFAULT_PUSH_BODY =
-  'We launch tomorrow! Add your name and city & state — then tap Complete Profile. Add a photo on your Profile before you Connect.';
+  "We launch tomorrow! Add your name, location, and a photo (if you haven't already), then tap Complete Profile.";
 
 const DEFAULT_SMS_BODY =
-  'Mulligan 💘 We launch tomorrow! Your account is not active yet — add your name and city & state to finish setup:';
+  "Mulligan 💘 We launch tomorrow! Add your name, location, and a photo (if you haven't already), then tap Complete Profile:";
 
 const SMS_SUFFIX = ' Reply STOP to opt out.';
 
