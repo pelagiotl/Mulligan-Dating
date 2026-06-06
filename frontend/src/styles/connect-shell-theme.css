@@ -185,9 +185,11 @@ html[data-connect-shell="midnight"],
     0 10px 28px rgba(0, 0, 0, 0.32),
     0 0 0 1px rgba(167, 139, 250, 0.12) inset;
   --profile-bio-kicker: #c4b5fd;
-  --profile-bio-text: #cbd5e1;
-  --profile-bio-placeholder: #64748b;
+  --profile-bio-text: #f1f5f9;
+  --profile-bio-placeholder: #94a3b8;
   --profile-bio-hint: #94a3b8;
+  --profile-bio-body-bg: rgba(22, 18, 32, 0.94);
+  --profile-bio-body-border: rgba(167, 139, 250, 0.22);
   --profile-detail-section-bg: linear-gradient(
     135deg,
     rgba(30, 27, 46, 0.98) 0%,
@@ -1667,6 +1669,13 @@ html[data-connect-shell="midnight"] .my-profile.native-app-screen .my-profile-bi
 html[data-connect-shell="midnight"] .my-profile.native-app-screen .my-profile-bio-block-kicker,
 .app-layout.connect-shell--midnight .my-profile.native-app-screen .my-profile-bio-block-kicker {
   color: var(--profile-bio-kicker);
+}
+
+html[data-connect-shell="midnight"] .my-profile.native-app-screen .my-profile-bio-body,
+.app-layout.connect-shell--midnight .my-profile.native-app-screen .my-profile-bio-body {
+  background: var(--profile-bio-body-bg);
+  border-color: var(--profile-bio-body-border);
+  box-shadow: inset 0 1px 0 rgba(167, 139, 250, 0.08);
 }
 
 html[data-connect-shell="midnight"] .my-profile.native-app-screen .my-profile-bio-text,

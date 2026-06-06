@@ -7786,22 +7786,22 @@ button.my-profile-mini-card:focus-visible {
 .my-profile-bio-body {
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.92);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  background: var(--profile-bio-body-bg, rgba(255, 255, 255, 0.92));
+  border: 1px solid var(--profile-bio-body-border, rgba(15, 23, 42, 0.06));
   box-shadow: 0 1px 3px rgba(15, 23, 42, 0.05);
   min-height: 4.25rem;
 }
 
 .my-profile-bio-text {
   margin: 0;
-  color: var(--color-wine-900);
+  color: var(--profile-bio-text, var(--color-wine-900));
   line-height: 1.65;
   white-space: pre-wrap;
   font-size: 0.9375rem;
 }
 
 .my-profile-bio-placeholder {
-  color: var(--text-muted);
+  color: var(--profile-bio-placeholder, var(--text-muted));
   font-style: italic;
   font-size: 0.9rem;
   line-height: 1.55;
