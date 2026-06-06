@@ -43,6 +43,7 @@ import {
 import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectPhotosRequiredModal from '../components/ConnectPhotosRequiredModal';
+import ConnectSetupGapModal, { type ConnectSetupGapModalGap } from '../components/ConnectSetupGapModal';
 import ConnectProfileEnhancementCard, {
   ConnectProfileEnhancementRestoreLink,
   type ConnectEnhancementShell,
@@ -80,10 +81,9 @@ import { fetchMatchSlotStatus } from '../utils/matchSlotStatus';
 import MatchCapacityBanner from '../components/MatchCapacityBanner';
 import {
   MIN_PHOTOS_TO_CONNECT,
-  connectSetupGapMessage,
   connectSetupGapNavigationTarget,
-  connectSetupGapPrimaryActionLabel,
   getConnectSetupMissing,
+  type ConnectSetupMissing,
 } from '../utils/connectSetup';
 import {
   endMatchCelebrationDemoSession,
@@ -263,6 +263,7 @@ export default function BrowseScreen() {
   const [matchmakingPausedModalVisible, setMatchmakingPausedModalVisible] = useState(false);
   const [connectPhotosModalVisible, setConnectPhotosModalVisible] = useState(false);
   const [connectPhotosModalCount, setConnectPhotosModalCount] = useState(0);
+  const [connectSetupGap, setConnectSetupGap] = useState<ConnectSetupGapModalGap | null>(null);
   const [showMatchLimitModal, setShowMatchLimitModal] = useState(false);
   const [matchLimitCanExpand, setMatchLimitCanExpand] = useState(false);
   const [matchLimitCurrent, setMatchLimitCurrent] = useState(DEFAULT_MATCH_SLOT_LIMIT);
@@ -498,33 +499,34 @@ export default function BrowseScreen() {
     setConnectPhotosModalVisible(true);
   }, []);
 
-  const showConnectSetupAlert = useCallback(
-    (first: ReturnType<typeof getConnectSetupMissing>[number]) => {
+  const showConnectSetupGap = useCallback(
+    (first: ConnectSetupMissing) => {
       if (first === 'photos') {
         void resolvePhotoCountForConnect().then((count) => promptPhotosRequired(count));
         return;
       }
-      const target = connectSetupGapNavigationTarget(first);
-      Alert.alert('Finish your profile', connectSetupGapMessage(first), [
-        {
-          text: connectSetupGapPrimaryActionLabel(first),
-          onPress: () => {
-            (navigation as any).navigate(target.screen, target.params);
-          },
-        },
-        { text: 'OK', style: 'cancel' },
-      ]);
+      setConnectSetupGap(first);
     },
-    [navigation, resolvePhotoCountForConnect, promptPhotosRequired]
+    [resolvePhotoCountForConnect, promptPhotosRequired]
   );
+
+  const handleConnectSetupGapPrimary = useCallback(() => {
+    if (!connectSetupGap) return;
+    const target = connectSetupGapNavigationTarget(connectSetupGap);
+    setConnectSetupGap(null);
+    (navigation as { navigate: (name: string, params?: object) => void }).navigate(
+      target.screen,
+      target.params
+    );
+  }, [connectSetupGap, navigation]);
 
   const ensureReadyToConnect = useCallback(async (): Promise<boolean> => {
     const count = await resolvePhotoCountForConnect();
     const missing = getConnectSetupMissing(userProfile, count);
     if (missing.length === 0) return true;
-    showConnectSetupAlert(missing[0]);
+    showConnectSetupGap(missing[0]);
     return false;
-  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupAlert]);
+  }, [resolvePhotoCountForConnect, userProfile, showConnectSetupGap]);
 
   const handleUnlockBrowse = useCallback(async () => {
     if (unlocking) return;
@@ -641,18 +643,9 @@ export default function BrowseScreen() {
         setLoading(false);
         setBrowseUnlocked(false);
         setCurrentProfile(null);
-        const missing = Array.isArray((err as any).missing) ? (err as any).missing as string[] : [];
-        const first = missing[0];
-        Alert.alert('Finish your profile', errorMessage, [
-          {
-            text: first === 'name' ? 'Open Settings' : 'Open Profile',
-            onPress: () => {
-              if (first === 'name') (navigation as any).navigate('Settings');
-              else (navigation as any).navigate('MyProfile', first === 'photos' ? { scrollToPhotos: true } : undefined);
-            },
-          },
-          { text: 'OK', style: 'cancel' },
-        ]);
+        const missing = Array.isArray((err as any).missing) ? ((err as any).missing as string[]) : [];
+        const first = missing[0] as ConnectSetupMissing | undefined;
+        if (first) showConnectSetupGap(first);
         return;
       }
       
@@ -775,7 +768,7 @@ export default function BrowseScreen() {
         setBrowseUnlocked(true);
       }
     }
-  }, [unlocking, isAuthenticated, user, userProfile, ensureReadyToConnect, handleConnect, refreshProfile, navigation]);
+  }, [unlocking, isAuthenticated, user, userProfile, ensureReadyToConnect, handleConnect, refreshProfile, navigation, showConnectSetupGap]);
 
   const fetchProfile = useCallback(async () => {
     try {
@@ -1819,17 +1812,8 @@ export default function BrowseScreen() {
           }
           if (apiErr.status === 400 && apiErr.code === 'CONNECT_SETUP_INCOMPLETE') {
             const missing = Array.isArray((apiErr as any).missing) ? ((apiErr as any).missing as string[]) : [];
-            const first = missing[0];
-            Alert.alert('Finish your profile', err.message || 'Complete your profile to connect.', [
-              {
-                text: first === 'name' ? 'Open Settings' : 'Open Profile',
-                onPress: () => {
-                  if (first === 'name') (navigation as any).navigate('Settings');
-                  else (navigation as any).navigate('MyProfile', first === 'photos' ? { scrollToPhotos: true } : undefined);
-                },
-              },
-              { text: 'OK', style: 'cancel' },
-            ]);
+            const first = missing[0] as ConnectSetupMissing | undefined;
+            if (first) showConnectSetupGap(first);
             return;
           }
           if (apiErr.status === 400 && apiErr.code === 'AT_MATCH_LIMIT') {
@@ -1909,6 +1893,7 @@ export default function BrowseScreen() {
     isAtMatchCapacity,
     slotLimit,
     refreshConnectLandingEconomy,
+    showConnectSetupGap,
   ]);
 
   const handleCelebrationClose = useCallback(() => {
@@ -2600,6 +2585,13 @@ export default function BrowseScreen() {
           });
         }}
         onPhotoUploaded={(uploaded) => void handleConnectPhotoUploaded(uploaded)}
+      />
+
+      <ConnectSetupGapModal
+        gap={connectSetupGap}
+        connectShell={connectShellMode}
+        onClose={() => setConnectSetupGap(null)}
+        onPrimaryAction={handleConnectSetupGapPrimary}
       />
 
       <BetterMatchesCompleteCelebration

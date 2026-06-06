@@ -143,6 +143,55 @@ export function connectSetupGapPrimaryActionLabel(first: ConnectSetupMissing): s
   return first === 'name' ? 'Open Settings' : 'Open Profile';
 }
 
+export function connectSetupGapModalTitle(gap: ConnectSetupMissing): string {
+  switch (gap) {
+    case 'age':
+      return 'Add your age';
+    case 'gender':
+      return 'Add your gender';
+    case 'location':
+      return 'Add your location';
+    case 'name':
+      return 'Add your name';
+    case 'photos':
+      return 'Add a photo';
+    default:
+      return 'Finish your profile';
+  }
+}
+
+export function connectSetupGapModalEmoji(gap: ConnectSetupMissing): string {
+  switch (gap) {
+    case 'age':
+      return '🎂';
+    case 'gender':
+      return '⚧️';
+    case 'location':
+      return '📍';
+    case 'name':
+      return '👋';
+    case 'photos':
+      return '📷';
+    default:
+      return '✨';
+  }
+}
+
+export function connectSetupGapLeadSub(gap: ConnectSetupMissing): string | null {
+  switch (gap) {
+    case 'age':
+      return 'It helps us show you better local matches — takes about 30 seconds.';
+    case 'gender':
+      return 'So we can match you with people who fit your preferences.';
+    case 'location':
+      return 'Southern Oregon matches work best when we know your city.';
+    case 'name':
+      return 'A first name is all we need so matches know who they\'re talking to.';
+    default:
+      return null;
+  }
+}
+
 export type ConnectSetupNavigationTarget = {
   screen: 'Settings' | 'MyProfile';
   params?: { scrollToPhotos?: boolean };
