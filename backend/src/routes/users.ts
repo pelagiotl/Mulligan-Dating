@@ -434,10 +434,20 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       const p = filteredProfiles[0] as ProfileWithMetadata;
       let photoUrl: string | null = p.photo_url;
       if (!photoUrl || !String(photoUrl).trim()) {
-        const primaryPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1').get([p.id]) as { url: string } | undefined;
+        const primaryPhotoResult = db
+          .prepare('SELECT url FROM photos WHERE profile_id = ? AND is_primary = 1 LIMIT 1')
+          .get([p.id]);
+        const primaryPhoto = (primaryPhotoResult instanceof Promise
+          ? await primaryPhotoResult
+          : primaryPhotoResult) as { url: string } | undefined;
         if (primaryPhoto?.url) photoUrl = primaryPhoto.url;
         else {
-          const firstPhoto = db.prepare('SELECT url FROM photos WHERE profile_id = ? ORDER BY display_order ASC, id ASC LIMIT 1').get([p.id]) as { url: string } | undefined;
+          const firstPhotoResult = db
+            .prepare('SELECT url FROM photos WHERE profile_id = ? ORDER BY display_order ASC, id ASC LIMIT 1')
+            .get([p.id]);
+          const firstPhoto = (firstPhotoResult instanceof Promise
+            ? await firstPhotoResult
+            : firstPhotoResult) as { url: string } | undefined;
           if (firstPhoto?.url) photoUrl = firstPhoto.url;
         }
       }

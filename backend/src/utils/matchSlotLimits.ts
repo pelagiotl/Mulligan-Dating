@@ -4,6 +4,8 @@ import {
   DEFAULT_MATCH_SLOT_LIMIT,
 } from "../config/matchSlots.js";
 
+const usePostgres = !!process.env.DATABASE_URL;
+
 /** Launch active-connection cap (independent of stale per-user rows or low MATCH_SLOT_LIMIT). */
 const PLATFORM_CONNECTION_LIMIT = 10;
 
@@ -60,21 +62,25 @@ export async function getWeeklyIncomingMatchCount(userId: string): Promise<{
     | undefined;
   const anchorGrantedAt = anchorRow?.granted_at ?? null;
 
+  const countSql = anchorGrantedAt
+    ? usePostgres
+      ? `SELECT COUNT(*) as count FROM matches
+         WHERE user2_id = ?
+           AND created_at >= ?::timestamp`
+      : `SELECT COUNT(*) as count FROM matches
+         WHERE user2_id = ?
+           AND datetime(created_at) >= datetime(?)`
+    : usePostgres
+      ? `SELECT COUNT(*) as count FROM matches
+         WHERE user2_id = ?
+           AND created_at >= NOW() - INTERVAL '7 days'`
+      : `SELECT COUNT(*) as count FROM matches
+         WHERE user2_id = ?
+           AND datetime(created_at) >= datetime('now', '-7 day')`;
+
   const countResult = anchorGrantedAt
-    ? db
-        .prepare(
-          `SELECT COUNT(*) as count FROM matches
-           WHERE user2_id = ?
-             AND datetime(created_at) >= datetime(?)`,
-        )
-        .get([userId, anchorGrantedAt])
-    : db
-        .prepare(
-          `SELECT COUNT(*) as count FROM matches
-           WHERE user2_id = ?
-             AND datetime(created_at) >= datetime('now', '-7 day')`,
-        )
-        .get([userId]);
+    ? db.prepare(countSql).get([userId, anchorGrantedAt])
+    : db.prepare(countSql).get([userId]);
   const countRow = (countResult instanceof Promise ? await countResult : countResult) as {
     count: number | string;
   };
