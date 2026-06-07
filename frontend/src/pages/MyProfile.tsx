@@ -429,6 +429,7 @@ export default function MyProfile() {
   const [editBio, setEditBio] = useState("");
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
+  const [preferredModalError, setPreferredModalError] = useState("");
   const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
 
   const [showInterestsModal, setShowInterestsModal] = useState(false);
@@ -574,7 +575,7 @@ export default function MyProfile() {
       minAge: prefs?.min_age ?? null,
       maxAge: prefs?.max_age ?? null,
       preferredGenders: preferredGenders ?? null,
-      maxDistance: prefs?.max_distance ?? null,
+      maxDistance: clampMaxDistanceMiles(prefs?.max_distance ?? null),
     };
   };
 
@@ -786,18 +787,16 @@ export default function MyProfile() {
     if (!data?.profile) return;
     setUpdatingField(true);
     setError("");
+    setPreferredModalError("");
     try {
-      const prefs = data.preferences;
       const cleaned = editPreferredGenders.filter((g) => g === "Man" || g === "Woman");
       const payload =
         editPreferredGenders.includes("Everyone") || editPreferredGenders.length === 0 || cleaned.length === 0
           ? null
           : cleaned;
+      // Partial update only — avoids re-validating stale age/distance fields when saving gender pref.
       await api.put("/profile/preferences", {
-        minAge: prefs?.min_age ?? null,
-        maxAge: prefs?.max_age ?? null,
         preferredGenders: payload,
-        maxDistance: prefs?.max_distance ?? null,
       });
       setData((prev) =>
         prev?.preferences
@@ -811,10 +810,13 @@ export default function MyProfile() {
           : prev
       );
       setShowPreferredModal(false);
+      setPreferredModalError("");
       await refreshProfile();
       restoreCapturedScrollPosition();
     } catch (e: unknown) {
-      setError((e as Error)?.message || "Failed to update preferred matches.");
+      const msg = (e as Error)?.message || "Failed to update preferred matches.";
+      setPreferredModalError(msg);
+      setError(msg);
     } finally {
       setUpdatingField(false);
     }
@@ -1262,6 +1264,7 @@ export default function MyProfile() {
                 onClick={() => {
                   captureProfileScrollAnchor("my-profile-preferred-matches");
                   setEditPreferredGenders(parsePreferredGendersInitial(data.preferences?.preferred_genders));
+                  setPreferredModalError("");
                   setShowPreferredModal(true);
                 }}
               >
@@ -2107,6 +2110,11 @@ export default function MyProfile() {
                   {preferredMatchesChoice === "women" ? <span className="my-profile-pref-chip-check">✓</span> : null}
                 </button>
               </div>
+              {preferredModalError ? (
+                <p className="auth-error" role="alert" style={{ marginTop: "0.75rem" }}>
+                  {preferredModalError}
+                </p>
+              ) : null}
             </div>
             <div className="my-profile-modal-actions">
               <button type="button" className="btn btn-ghost" onClick={() => setShowPreferredModal(false)}>

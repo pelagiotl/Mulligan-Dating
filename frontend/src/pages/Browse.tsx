@@ -787,9 +787,11 @@ export default function Browse() {
         setHasMore(data.hasMore);
         setHasFetched(true);
         setBrowseSessionActive(false);
-        setGateError(
-          "No one new to match with right now. Try widening distance or check back later."
-        );
+        const poolHint =
+          typeof data.total === "number" && data.total === 0
+            ? " No one fits your filters right now — check preferred matches, distance, age range, and whether you've already connected with everyone available in Southern Oregon."
+            : " Try widening distance or check back later.";
+        setGateError(`No one new to match with right now.${poolHint}`);
         return;
       }
 

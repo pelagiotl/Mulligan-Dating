@@ -3,11 +3,18 @@
  * Empty / missing list = open to all (same as weekly matching).
  */
 
+function normalizeGenderToken(g: string): string {
+  if (g === 'Women') return 'Woman';
+  if (g === 'Men') return 'Man';
+  return g;
+}
+
 export function parsePreferredGenders(preferredGendersJson: string | null | undefined): string[] {
   if (preferredGendersJson == null || !String(preferredGendersJson).trim()) return [];
   try {
     const arr = JSON.parse(preferredGendersJson) as unknown;
-    return Array.isArray(arr) ? (arr as string[]) : [];
+    if (!Array.isArray(arr)) return [];
+    return (arr as string[]).map((g) => normalizeGenderToken(String(g)));
   } catch {
     return [];
   }

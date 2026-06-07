@@ -209,7 +209,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       // Filter by gender preferences: women only → only profiles with gender Woman; men only → only Man; everyone → all
       if (userPrefs.preferred_genders) {
         try {
-          const preferredGenders = JSON.parse(userPrefs.preferred_genders) as string[];
+          const preferredGenders = (JSON.parse(userPrefs.preferred_genders) as string[]).map((g) =>
+            g === 'Women' ? 'Woman' : g === 'Men' ? 'Man' : g
+          );
           console.log('🔍 Gender filter:', { preferredGenders, raw: userPrefs.preferred_genders });
           const isEveryone = preferredGenders.includes('Everyone');
           if (preferredGenders.length > 0 && !isEveryone) {
