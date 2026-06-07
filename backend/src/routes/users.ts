@@ -199,7 +199,8 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       // Filter by user's age preferences (candidate's age must match user's preferences)
       // Only apply if preferences are set (not NULL)
       if (userPrefs.min_age != null && userPrefs.max_age != null) {
-        query += ` AND p.age >= ? AND p.age <= ?`;
+        // Include candidates with no age on file (common during onboarding) instead of SQL NULL false negatives.
+        query += ` AND (p.age IS NULL OR (p.age >= ? AND p.age <= ?))`;
         params.push(userPrefs.min_age, userPrefs.max_age);
         console.log('✅ Applied age filter:', { min: userPrefs.min_age, max: userPrefs.max_age });
       } else {
