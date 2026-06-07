@@ -579,22 +579,39 @@ export default function Browse() {
     };
   }, [matchedProfile, celebrationFetchedOther]);
 
+  /** Landing Connect uses gateError; in-session browse uses error. */
+  const surfaceConnectFailure = useCallback((message: string, fromLanding: boolean) => {
+    if (fromLanding) {
+      setGateError(message);
+      setError("");
+    } else {
+      setError(message);
+    }
+  }, []);
+
   const handleConnect = useCallback(
     async (profile: Profile, expandSlot?: boolean) => {
       if (connecting) return;
 
+      const hadBrowseSession = browseSessionActiveRef.current;
+
       if (isAtCapacity) {
         setShowMatchLimitModal(true);
+        if (!hadBrowseSession) {
+          surfaceConnectFailure(
+            "You're at your connection limit. Unmatch someone or wait for a match to expire to connect again.",
+            true
+          );
+        }
         return;
       }
 
       unlockMatchAudio();
       markConnectInitiatorPending();
 
-      const hadBrowseSession = browseSessionActiveRef.current;
-
       setConnecting(true);
       setError("");
+      if (!hadBrowseSession) setGateError("");
       clearMatchNotification();
       setMatchedProfile(profile);
       setCelebrationMatchId(null);
@@ -621,8 +638,7 @@ export default function Browse() {
           setShowMatchCelebration(false);
           setMatchedProfile(null);
           setCelebrationMatchId(null);
-          setError("Connection did not complete. Please try again.");
-          setTimeout(() => setError(""), 8000);
+          surfaceConnectFailure("Connection did not complete. Please try again.", !hadBrowseSession);
           if (!hadBrowseSession) setBrowseSessionActive(false);
           return;
         }
@@ -695,19 +711,14 @@ export default function Browse() {
               newLimit?: number;
             };
             if (apiErr.status === 400 && apiErr.code === "TARGET_AT_MATCH_LIMIT") {
-              setError(
+              errorMessage =
                 err.message ||
-                  "This person has the maximum number of active connections right now. Try someone else or check back later."
-              );
-              setTimeout(() => setError(""), 8000);
-              return;
-            }
-            if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT") {
+                "This person isn't available to match right now. Try again later.";
+            } else if (apiErr.status === 400 && apiErr.code === "AT_MATCH_LIMIT") {
               setShowMatchLimitModal(true);
               void refreshMatchSlots();
-              return;
-            }
-            if (apiErr.status === 400) {
+              errorMessage = `You've reached your limit of ${apiErr.currentLimit ?? 10} active connections.`;
+            } else if (apiErr.status === 400) {
               errorMessage =
                 err.message ||
                 "Cannot connect. Please check that both you and the other person have photos uploaded and you have available tokens.";
@@ -723,11 +734,18 @@ export default function Browse() {
           errorMessage = String((err as { message: unknown }).message) || errorMessage;
         }
 
-        setError(errorMessage);
-        setTimeout(() => setError(""), 8000);
+        surfaceConnectFailure(errorMessage, !hadBrowseSession);
+        if (!hadBrowseSession) setBrowseSessionActive(false);
       }
     },
-    [connecting, navigate, clearMatchNotification, isAtCapacity, refreshMatchSlots]
+    [
+      connecting,
+      navigate,
+      clearMatchNotification,
+      isAtCapacity,
+      refreshMatchSlots,
+      surfaceConnectFailure,
+    ]
   );
 
   handleConnectRef.current = handleConnect;
@@ -758,8 +776,23 @@ export default function Browse() {
     return false;
   }, [resolveReadyPhotoCount, userProfile]);
 
+  const returnToConnectLanding = useCallback(() => {
+    setBrowseSessionActive(false);
+    setCurrentProfile(null);
+    setHasFetched(false);
+    setOffset(0);
+    setError("");
+    setGateError("");
+    setIsAutoMatching(false);
+    setUnlockingBrowse(false);
+  }, []);
+
   const handleUnlockBrowse = useCallback(async () => {
-    if (unlockingBrowse || !userProfile || isAutoMatching) return;
+    if (!userProfile) return;
+    if (unlockingBrowse || isAutoMatching) {
+      setGateError("Still working on your last Connect — hang tight a moment.");
+      return;
+    }
 
     if (!(await ensureReadyToConnect())) return;
 
@@ -1114,6 +1147,19 @@ export default function Browse() {
             <p>
               You&apos;ve seen everyone for now. Check back later for new people.
             </p>
+            {gateError ? (
+              <div className="browse-native-error" role="alert" style={{ marginTop: "1rem" }}>
+                ⚠️ {gateError}
+              </div>
+            ) : null}
+            <button
+              type="button"
+              className="btn btn-primary"
+              style={{ marginTop: "1.25rem" }}
+              onClick={returnToConnectLanding}
+            >
+              Try Connect again
+            </button>
           </div>
         </div>
       ) : browseSessionActive &&
