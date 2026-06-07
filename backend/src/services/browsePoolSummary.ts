@@ -33,7 +33,7 @@ export function buildBrowsePoolHint(f: BrowsePoolFunnel): string {
 
   if (f.afterPreferencesQuery === 0) {
     if (f.activeMatchCount >= 5) {
-      return 'You may have already connected with everyone who fits your age and gender preferences. Check your Matches tab or try widening preferences in Profile.';
+      return "Nice work — you've built a full lineup already. New people are joining every day; we'll surface your next match here when someone's a fit. Your Matches tab is a great place to keep conversations going.";
     }
     return 'No profiles match your age or gender preferences. Try widening age range or preferred matches in Profile.';
   }
