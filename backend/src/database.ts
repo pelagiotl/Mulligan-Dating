@@ -1188,15 +1188,15 @@ export async function initDatabase() {
   }
 
   try {
-    const { backfillHiddenFromBrowseFromDefaultPhones } = await import(
+    const { unhideLegacyAutoHiddenFromBrowsePhones } = await import(
       './config/hiddenFromBrowse.js',
     );
-    const n = await backfillHiddenFromBrowseFromDefaultPhones();
+    const n = await unhideLegacyAutoHiddenFromBrowsePhones();
     if (n > 0) {
-      console.log(`✅ hidden_from_browse backfill applied to ${n} user(s) on default internal phones`);
+      console.log(`✅ hidden_from_browse cleared for ${n} legacy internal phone account(s)`);
     }
   } catch (e) {
-    console.warn('⚠️  hidden_from_browse backfill skipped:', e);
+    console.warn('⚠️  legacy hidden_from_browse unhide skipped:', e);
   }
 
   console.log("✅ Database initialized");
