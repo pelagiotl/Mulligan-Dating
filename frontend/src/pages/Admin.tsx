@@ -223,6 +223,8 @@ export default function Admin() {
   const [onboardingNudgeMessage, setOnboardingNudgeMessage] = useState<string | null>(null);
   const [launchAnnouncementLoading, setLaunchAnnouncementLoading] = useState(false);
   const [launchAnnouncementMessage, setLaunchAnnouncementMessage] = useState<string | null>(null);
+  const [browsePoolLoading, setBrowsePoolLoading] = useState(false);
+  const [browsePoolMessage, setBrowsePoolMessage] = useState<string | null>(null);
 
   // Check if current user is the super admin
   const isSuperAdmin = user?.email === 'pelagiotl@gmail.com';
@@ -480,6 +482,21 @@ export default function Admin() {
       setMessage({ type: 'error', text: 'Failed to load users' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchBrowsePool = async (userId: string) => {
+    setBrowsePoolLoading(true);
+    setBrowsePoolMessage(null);
+    try {
+      const data = await api.get<{ message: string; poolSummary?: { eligible: number } }>(
+        `/admin/users/${userId}/browse-pool`,
+      );
+      setBrowsePoolMessage(data.message);
+    } catch (err: unknown) {
+      setBrowsePoolMessage(err instanceof Error ? err.message : 'Failed to load browse pool');
+    } finally {
+      setBrowsePoolLoading(false);
     }
   };
 
@@ -1260,6 +1277,25 @@ export default function Admin() {
                 <p>
                   <strong>Platform:</strong> {adminClientPlatformPill(selectedUser)}
                 </p>
+                <div className="admin-onboarding-nudge-actions" style={{ marginTop: '0.75rem' }}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm"
+                    disabled={browsePoolLoading}
+                    onClick={() => void fetchBrowsePool(selectedUser.id)}
+                  >
+                    {browsePoolLoading ? 'Checking…' : 'Check Connect pool'}
+                  </button>
+                </div>
+                {browsePoolMessage ? (
+                  <pre
+                    className="admin-onboarding-nudge-result"
+                    style={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem', marginTop: '0.5rem' }}
+                    role="status"
+                  >
+                    {browsePoolMessage}
+                  </pre>
+                ) : null}
               </div>
 
               {selectedUser.profile && (

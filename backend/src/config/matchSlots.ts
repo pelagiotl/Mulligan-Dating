@@ -19,7 +19,7 @@ export const DEFAULT_MATCH_SLOT_LIMIT = parseMatchSlotLimit();
  */
 function parseIncomingMatchSlotLimit(): number {
   const raw = process.env.INCOMING_MATCH_SLOT_LIMIT?.trim();
-  if (!raw) return 3;
+  if (!raw) return 7;
   const n = parseInt(raw, 10);
   if (!Number.isFinite(n) || n < 1) return 3;
   return Math.min(n, 50);

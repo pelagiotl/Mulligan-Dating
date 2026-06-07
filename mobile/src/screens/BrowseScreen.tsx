@@ -269,6 +269,7 @@ export default function BrowseScreen() {
   const [matchLimitCurrent, setMatchLimitCurrent] = useState(DEFAULT_MATCH_SLOT_LIMIT);
   const [matchLimitProfile, setMatchLimitProfile] = useState<Profile | null>(null);
   const [showNoProfilesModal, setShowNoProfilesModal] = useState(false);
+  const [noProfilesPoolHint, setNoProfilesPoolHint] = useState<string | null>(null);
   const [noProfilesDistanceMode, setNoProfilesDistanceMode] = useState(false);
   const [noProfilesSelectedDistance, setNoProfilesSelectedDistance] = useState(50);
   const [noProfilesCurrentPrefs, setNoProfilesCurrentPrefs] = useState<{ min_age: number; max_age: number | null; preferred_genders: string | string[] | null } | null>(null);
@@ -582,6 +583,7 @@ export default function BrowseScreen() {
         hasMore: boolean;
         offset: number;
         total: number;
+        poolSummary?: { hint?: string | null };
       }>(`/users/browse?offset=0`, false);
 
           if (data.profile) {
@@ -618,7 +620,7 @@ export default function BrowseScreen() {
             // Explicitly set browseUnlocked to false to show landing page
             setBrowseUnlocked(false);
             console.log('🔄 Set browseUnlocked to false, should show landing page');
-            // Show custom "no profiles available" modal
+            setNoProfilesPoolHint(data.poolSummary?.hint?.trim() || null);
             setTimeout(() => setShowNoProfilesModal(true), 100);
             return; // Exit early to prevent any further state changes
           }
@@ -661,6 +663,7 @@ export default function BrowseScreen() {
             hasMore: boolean;
             offset: number;
             total: number;
+            poolSummary?: { hint?: string | null };
           }>(`/users/browse?offset=0`, false);
 
           console.log('📊 Browse API response:', { 
@@ -704,7 +707,7 @@ export default function BrowseScreen() {
             // Explicitly set browseUnlocked to false to show landing page
             setBrowseUnlocked(false);
             console.log('🔄 Set browseUnlocked to false, should show landing page');
-            // Show custom "no profiles available" modal
+            setNoProfilesPoolHint(data.poolSummary?.hint?.trim() || null);
             setTimeout(() => setShowNoProfilesModal(true), 100);
             return; // Exit early to prevent any further state changes
           }
@@ -1878,12 +1881,15 @@ export default function BrowseScreen() {
           clearTokenCache();
           AsyncStorage.removeItem('token');
         }
-        setError(errorMessage);
-        setTimeout(() => setError(''), 8000);
         if (isAutoMatching) {
           setIsAutoMatching(false);
-          setBrowseUnlocked(true);
+          setBrowseUnlocked(false);
+          setCurrentProfile(null);
+          Alert.alert('Could not connect', errorMessage);
+          return;
         }
+        setError(errorMessage);
+        setTimeout(() => setError(''), 8000);
       });
   }, [
     isAutoMatching,
@@ -2710,6 +2716,7 @@ export default function BrowseScreen() {
         onRequestClose={() => {
           setShowNoProfilesModal(false);
           setNoProfilesDistanceMode(false);
+          setNoProfilesPoolHint(null);
           setBrowseUnlocked(false);
           setIsAutoMatching(false);
         }}
@@ -2735,7 +2742,8 @@ export default function BrowseScreen() {
                   </View>
                   <Text style={styles.noProfilesModalTitle}>No profiles available</Text>
                   <Text style={styles.noProfilesModalBody}>
-                    There are no other profiles to match with right now. New people join every day — check back soon!
+                    {noProfilesPoolHint ||
+                      'There are no other profiles to match with right now. New people join every day — check back soon!'}
                   </Text>
                   <TouchableOpacity
                     style={styles.noProfilesModalButton}

@@ -3,9 +3,7 @@ import { db } from '../database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
-import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { expireOldMatches } from '../utils/expireMatches.js';
-import { getHiddenFromBrowseUserIds } from '../config/hiddenFromBrowse.js';
 import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from '../config/matchmaking.js';
 import {
   connectSetupErrorPayload,
@@ -17,11 +15,8 @@ import {
   interestSimilarityFromNames,
   countPartnerQualityInterestHits,
 } from '../utils/interestSimilarity.js';
-import { checkDealbreakers } from '../utils/dealbreakers.js';
-import { isAtWeeklyIncomingMatchLimit } from '../utils/matchSlotLimits.js';
-
-// Check if using PostgreSQL
-const usePostgres = !!process.env.DATABASE_URL;
+import { resolveBrowseCandidatePool } from '../services/browseCandidatePool.js';
+import { buildBrowsePoolSummary } from '../services/browsePoolSummary.js';
 
 export const usersRouter = Router();
 
@@ -127,310 +122,26 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     const limit = 1;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    // Get current user's profile and preferences
-    const userProfile = await (db.prepare('SELECT * FROM profiles WHERE user_id = ?').get([req.userId]) as Promise<ProfileRow | undefined>);
-    
-    if (!userProfile) {
-      return res.status(400).json({ error: 'Please complete your profile first' });
+    const poolResult = await resolveBrowseCandidatePool(req.userId!);
+    if (!poolResult.ok) {
+      const code =
+        poolResult.status === 403 && poolResult.error.includes('add your location')
+          ? 'REGION_REQUIRES_LOCATION'
+          : poolResult.status === 403
+            ? 'OUTSIDE_ACTIVE_REGION'
+            : undefined;
+      return res.status(poolResult.status).json({ error: poolResult.error, ...(code ? { code } : {}) });
     }
 
-    const userPrefs = await (db.prepare('SELECT * FROM preferences WHERE profile_id = ?').get([userProfile.id]) as Promise<{
-      min_age: number;
-      max_age: number;
-      preferred_genders: string | null;
-      max_distance: number;
-    } | undefined>);
+    const { userProfile, candidates, funnel, distanceByProfileId } = poolResult;
+    let filteredProfiles = candidates;
+    const poolSummary = buildBrowsePoolSummary(funnel);
 
-    // Get list of user IDs that current user is already matched with
-    const existingMatches = await (db
-      .prepare(
-        `SELECT 
-          CASE 
-            WHEN user1_id = ? THEN user2_id 
-            ELSE user1_id 
-          END as matched_user_id
-         FROM matches 
-         WHERE (user1_id = ? OR user2_id = ?) 
-         AND stage != 'expired'`
-      )
-      .all([req.userId, req.userId, req.userId]) as Promise<{ matched_user_id: string }[]>);
-    
-    const matchedUserIds = existingMatches.map(m => m.matched_user_id);
+    console.log('📊 Browse pool funnel:', poolSummary);
 
-    const { getAllExcludedUserIdsForBrowse } = await import('../services/blockedMatching.js');
-    const blockedUserIds = await getAllExcludedUserIdsForBrowse(req.userId!);
-
-    const hiddenFromBrowseIds = await getHiddenFromBrowseUserIds();
-
-    // Build query with preference filters
-    // Use PostgreSQL-compatible string_agg or SQLite GROUP_CONCAT
-    // Check at runtime, not module load time
-    const isPostgres = !!process.env.DATABASE_URL;
-    const interestsAgg = isPostgres 
-      ? `COALESCE((SELECT string_agg(name, ',') FROM interests WHERE profile_id = p.id), '')`
-      : `(SELECT GROUP_CONCAT(name) FROM interests WHERE profile_id = p.id)`;
-    
-    let query = `
-      SELECT p.*, 
-             ${interestsAgg} as interests_list,
-             pref.min_age as candidate_min_age,
-             pref.max_age as candidate_max_age,
-             pref.preferred_genders as candidate_preferred_genders
-      FROM profiles p
-      LEFT JOIN preferences pref ON pref.profile_id = p.id
-      LEFT JOIN users u ON u.id = p.user_id
-      WHERE p.user_id != ?
-      AND (u.is_restricted IS NULL OR u.is_restricted = 0)
-    `;
-
-    const params: any[] = [req.userId];
-
-    // Exclude matched, blocked, and founder/internal accounts (never shown as dating candidates)
-    const excludedUserIds = [...new Set([...matchedUserIds, ...blockedUserIds, ...hiddenFromBrowseIds])];
-    if (excludedUserIds.length > 0) {
-      const placeholders = excludedUserIds.map(() => '?').join(',');
-      query += ` AND p.user_id NOT IN (${placeholders})`;
-      params.push(...excludedUserIds);
-    }
-
-    // Filter by age range and gender preferences
-    // Make filtering less strict to avoid filtering out all profiles
-    if (userPrefs) {
-      // Filter by user's age preferences (candidate's age must match user's preferences)
-      // Only apply if preferences are set (not NULL)
-      if (userPrefs.min_age != null && userPrefs.max_age != null) {
-        // Include candidates with no age on file (common during onboarding) instead of SQL NULL false negatives.
-        query += ` AND (p.age IS NULL OR (p.age >= ? AND p.age <= ?))`;
-        params.push(userPrefs.min_age, userPrefs.max_age);
-        console.log('✅ Applied age filter:', { min: userPrefs.min_age, max: userPrefs.max_age });
-      } else {
-        console.log('ℹ️  No age preferences set - showing all ages');
-      }
-      
-      // Filter by gender preferences: women only → only profiles with gender Woman; men only → only Man; everyone → all
-      if (userPrefs.preferred_genders) {
-        try {
-          const preferredGenders = (JSON.parse(userPrefs.preferred_genders) as string[]).map((g) =>
-            g === 'Women' ? 'Woman' : g === 'Men' ? 'Man' : g
-          );
-          console.log('🔍 Gender filter:', { preferredGenders, raw: userPrefs.preferred_genders });
-          const isEveryone = preferredGenders.includes('Everyone');
-          if (preferredGenders.length > 0 && !isEveryone) {
-            // Build list of profile genders to match: include "Non-binary" when user selected "Other"
-            const gendersForQuery = new Set<string>(preferredGenders);
-            for (const g of preferredGenders) {
-              if (g === 'Other') gendersForQuery.add('Non-binary');
-            }
-            const genderList = Array.from(gendersForQuery);
-            const placeholders = genderList.map(() => '?').join(',');
-            query += ` AND p.gender IN (${placeholders})`;
-            params.push(...genderList);
-            console.log('✅ Applied gender filter:', genderList);
-          } else if (isEveryone) {
-            console.log('ℹ️  Preferred genders is "Everyone" - showing all genders');
-          } else {
-            console.log('⚠️  Preferred genders array is empty - showing all genders');
-          }
-        } catch (error) {
-          // Invalid JSON, skip gender filter
-          console.error('❌ Failed to parse preferred_genders:', error, 'Raw value:', userPrefs.preferred_genders);
-        }
-      } else {
-        console.log('ℹ️  No preferred_genders set in preferences - showing all genders');
-      }
-    } else {
-      console.log('⚠️  No user preferences found - showing all profiles');
-    }
-
-    query += ` ORDER BY p.created_at DESC`;
-    // Note: We'll apply distance filtering after fetching, so we get more results to filter
-
-    console.log('🔍 Executing browse query');
-    console.log('🔍 Query:', query);
-    console.log('🔍 Params:', params);
-    console.log('🔍 User preferences:', {
-      min_age: userPrefs?.min_age,
-      max_age: userPrefs?.max_age,
-      preferred_genders: userPrefs?.preferred_genders,
-      max_distance: userPrefs?.max_distance
-    });
-    const allProfilesStmt = db.prepare(query);
-    const allProfilesResult = allProfilesStmt.all(params);
-    // Handle both sync (SQLite) and async (PostgreSQL)
-    const allProfiles = (allProfilesResult instanceof Promise)
-      ? await allProfilesResult
-      : allProfilesResult as ProfileWithMetadata[];
-    
-    console.log('📊 Found profiles before distance/dealbreaker filtering:', allProfiles.length);
-    if (allProfiles.length > 0) {
-      console.log('📊 Sample profiles found:', allProfiles.slice(0, 3).map((p: ProfileWithMetadata) => ({
-        name: p.display_name,
-        age: p.age,
-        gender: p.gender,
-        location: p.location
-      })));
-    } else {
-      console.log('⚠️  No profiles found after initial query - checking why...');
-      // Debug: Check if any profiles exist at all
-      const allProfilesCheck = await (db.prepare('SELECT COUNT(*) as count FROM profiles WHERE user_id != ?').get([req.userId]) as Promise<{ count: number } | undefined>);
-      console.log('📊 Total profiles in database (excluding self):', allProfilesCheck?.count || 0);
-    }
-    if (allProfiles.length === 0) {
-      console.warn('⚠️  No profiles found after initial query. User preferences might be filtering out all candidates.');
-      console.warn('   User age:', userProfile.age);
-      console.warn('   User preferences:', userPrefs);
-    }
-
-    // Geo-lock: when ACTIVE_MATCHING_REGION is set (e.g. southern_oregon), only users in that region can match
-    const activeRegion = getActiveMatchingRegion();
-    if (activeRegion) {
-      if (!userProfile.location || !userProfile.location.trim()) {
-        return res.status(403).json({
-          error: 'Matching is currently only available in Southern Oregon. Please add your location to your profile.',
-          code: 'REGION_REQUIRES_LOCATION',
-        });
-      }
-      const userLocationResult = await geocodeLocation(userProfile.location);
-      const userInRegionByCoords = userLocationResult.coordinates
-        ? isInRegion(userLocationResult.coordinates.lat, userLocationResult.coordinates.lng, activeRegion)
-        : false;
-      const userInRegionByText = isLikelyInRegionByText(userProfile.location, activeRegion);
-      if (!userInRegionByCoords && !userInRegionByText) {
-        return res.status(403).json({
-          error: 'Matching is only available in Southern Oregon. Use a city and state in your profile (e.g. Medford, OR or Ashland, Oregon).',
-          code: 'OUTSIDE_ACTIVE_REGION',
-        });
-      }
-    }
-
-    // Apply distance filter (and region filter for candidates when geo-lock is on)
-    let filteredProfiles = allProfiles;
-    const distanceByProfileId = new Map<string, number | null>();
-    const needGeocodeLoop = (userProfile.location && userPrefs && userPrefs.max_distance !== undefined) || activeRegion;
-    if (needGeocodeLoop && userProfile.location) {
-      const userLocationResult = await geocodeLocation(userProfile.location);
-      if (userLocationResult.coordinates) {
-        const profilesWithDistance = await Promise.all(
-          allProfiles.map(async (p: ProfileWithMetadata) => {
-            if (!p.location) return { profile: p, distance: null, inRegion: false };
-            const candidateLocationResult = await geocodeLocation(p.location);
-            const coords = candidateLocationResult.coordinates;
-            const inRegion = !activeRegion
-              || (coords ? isInRegion(coords.lat, coords.lng, activeRegion) : false)
-              || (activeRegion ? isLikelyInRegionByText(p.location, activeRegion) : false);
-            const distance = coords
-              ? calculateDistanceMiles(userLocationResult.coordinates, coords)
-              : null;
-            return { profile: p, distance, inRegion };
-          })
-        );
-        const maxDist = userPrefs?.max_distance;
-        let maxDistMiles = (maxDist != null && typeof maxDist === 'number' && maxDist > 0) ? maxDist : null;
-        // When region lock is on, cap at REGION_MAX_DISTANCE_MILES (e.g. 100 mi) so "Any" doesn't mean entire region
-        if (activeRegion && (maxDistMiles === null || maxDistMiles > REGION_MAX_DISTANCE_MILES)) {
-          maxDistMiles = REGION_MAX_DISTANCE_MILES;
-        }
-        for (const row of profilesWithDistance) {
-          distanceByProfileId.set(row.profile.id, row.distance);
-        }
-        filteredProfiles = profilesWithDistance
-          .filter(({ distance, inRegion }) => {
-            if (activeRegion && !inRegion) return false;
-            if (maxDistMiles === null) return true;
-            return distance === null || distance <= maxDistMiles;
-          })
-          .sort((a, b) => {
-            if (a.distance === null) return 1;
-            if (b.distance === null) return -1;
-            return a.distance - b.distance;
-          })
-          .map(({ profile }) => profile);
-        const excludedByRegion = activeRegion ? profilesWithDistance.filter(({ inRegion }) => !inRegion).length : 0;
-        const excludedByDistance = allProfiles.length - filteredProfiles.length - excludedByRegion;
-        console.log(`📊 After region/distance: ${filteredProfiles.length} profiles (excluded: ${excludedByRegion} region, ${Math.max(0, excludedByDistance)} distance)`);
-      }
-    }
-
-    // Only show people whose gender prefs also include the browser (empty prefs = open to all)
-    {
-      const beforeMutual = filteredProfiles.length;
-      filteredProfiles = filteredProfiles.filter((p: ProfileWithMetadata) =>
-        mutualGenderPreferencesMet(
-          userProfile.gender || '',
-          userPrefs?.preferred_genders ?? null,
-          p.gender || '',
-          p.candidate_preferred_genders ?? null
-        )
-      );
-      if (beforeMutual !== filteredProfiles.length) {
-        console.log(
-          `📊 After mutual gender prefs: ${filteredProfiles.length} profiles (excluded ${beforeMutual - filteredProfiles.length})`
-        );
-      }
-    }
-
-    // Exclude pairs that violate either side's dealbreakers vs the other's lifestyle/interests
-    {
-      const beforeDeal = filteredProfiles.length;
-      const kept: ProfileWithMetadata[] = [];
-      for (const p of filteredProfiles) {
-        const okTowardCandidate = await checkDealbreakers(userProfile.id, p.id);
-        const okTowardUser = await checkDealbreakers(p.id, userProfile.id);
-        if (okTowardCandidate && okTowardUser) kept.push(p);
-      }
-      filteredProfiles = kept;
-      if (beforeDeal !== filteredProfiles.length) {
-        console.log(
-          `📊 After mutual dealbreakers: ${filteredProfiles.length} profiles (${beforeDeal - filteredProfiles.length} excluded)`
-        );
-      }
-    }
-
-    // Hide candidates at weekly incoming cap (no special in-app message; skip in browse)
-    {
-      const beforeIncoming = filteredProfiles.length;
-      const kept: ProfileWithMetadata[] = [];
-      for (const p of filteredProfiles) {
-        if (await isAtWeeklyIncomingMatchLimit(p.user_id)) continue;
-        kept.push(p);
-      }
-      filteredProfiles = kept;
-      if (beforeIncoming !== filteredProfiles.length) {
-        console.log(
-          `📊 After weekly incoming cap: ${filteredProfiles.length} profiles (${beforeIncoming - filteredProfiles.length} excluded)`
-        );
-      }
-    }
-
-    // Rank by shared "my interests" + overlap between "what I'm looking for" and their interests
-    const userInterestsForRanking = await (db
-      .prepare('SELECT name FROM interests WHERE profile_id = ?')
-      .all([userProfile.id]) as Promise<{ name: string }[]>);
-    const userInterestNameSet = new Set(userInterestsForRanking.map((i) => i.name.toLowerCase()));
-
-    const userPQRaw = await (db
-      .prepare('SELECT quality FROM partner_qualities WHERE profile_id = ?')
-      .all([userProfile.id]) as Promise<{ quality: string }[]>);
-    const userPQLower = (Array.isArray(userPQRaw) ? userPQRaw : []).map((r) => r.quality.toLowerCase());
-
-    filteredProfiles.sort((a: ProfileWithMetadata, b: ProfileWithMetadata) => {
-      const namesA = interestNamesFromAggregate(a.interests_list);
-      const namesB = interestNamesFromAggregate(b.interests_list);
-      const simA = interestSimilarityFromNames(userInterestNameSet, namesA);
-      const simB = interestSimilarityFromNames(userInterestNameSet, namesB);
-      const pqHitsA = countPartnerQualityInterestHits(userPQLower, namesA);
-      const pqHitsB = countPartnerQualityInterestHits(userPQLower, namesB);
-      const totalA = simA.sharedCount + pqHitsA;
-      const totalB = simB.sharedCount + pqHitsB;
-      if (totalB !== totalA) return totalB - totalA;
-      if (Math.abs(simB.blend01 - simA.blend01) > 0.0001) return simB.blend01 - simA.blend01;
-      const distA = distanceByProfileId.get(a.id);
-      const distB = distanceByProfileId.get(b.id);
-      if (distA != null && distB != null) return distA - distB;
-      if (distA != null) return -1;
-      if (distB != null) return 1;
-      return 0;
-    });
+    const userPrefs = await (db
+      .prepare('SELECT max_distance FROM preferences WHERE profile_id = ?')
+      .get([userProfile.id]) as Promise<{ max_distance: number } | undefined>);
 
     // Fast path for offset=0 (Connect flow): best interest overlap among filtered candidates
     if (offset === 0 && filteredProfiles.length > 0) {
@@ -473,8 +184,14 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         hasMore: filteredProfiles.length > 1,
         offset: 0,
         total: filteredProfiles.length,
+        poolSummary,
       });
     }
+
+    const userInterestsForRanking = await (db
+      .prepare('SELECT name FROM interests WHERE profile_id = ?')
+      .all([userProfile.id]) as Promise<{ name: string }[]>);
+    const userInterestNameSet = new Set(userInterestsForRanking.map((i) => i.name.toLowerCase()));
 
     // Score by shared interests (primary) + proximity — same interest blend as pre-sort above
     const maxDistForScore =
@@ -540,7 +257,8 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         profile: null,
         hasMore: false,
         offset: offset,
-        total: filteredProfiles.length
+        total: filteredProfiles.length,
+        poolSummary,
       });
     }
 
@@ -582,7 +300,8 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       profile: formattedProfile,
       hasMore: offset + 1 < filteredProfiles.length,
       offset: offset,
-      total: filteredProfiles.length
+      total: filteredProfiles.length,
+      poolSummary,
     });
   } catch (error) {
     console.error('Browse error:', error);

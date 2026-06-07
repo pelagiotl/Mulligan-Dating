@@ -813,6 +813,7 @@ export default function Browse() {
         hasMore: boolean;
         offset: number;
         total: number;
+        poolSummary?: { hint?: string | null; eligible?: number };
       }>(`/users/browse?offset=0`);
 
       if (!data.profile) {
@@ -820,11 +821,13 @@ export default function Browse() {
         setHasMore(data.hasMore);
         setHasFetched(true);
         setBrowseSessionActive(false);
-        const poolHint =
-          typeof data.total === "number" && data.total === 0
-            ? " No one fits your filters right now — check preferred matches, distance, age range, and whether you've already connected with everyone available in Southern Oregon."
-            : " Try widening distance or check back later.";
-        setGateError(`No one new to match with right now.${poolHint}`);
+        const serverHint = data.poolSummary?.hint?.trim();
+        setGateError(
+          serverHint ||
+            (typeof data.total === "number" && data.total === 0
+              ? "No one new to match with right now. Try widening distance or preferred matches in Profile."
+              : "No one new to match with right now. Try again later.")
+        );
         return;
       }
 

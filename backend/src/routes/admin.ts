@@ -1748,6 +1748,52 @@ adminRouter.post('/onboarding/complete-profile-sms-nudge', authenticateToken, re
   }
 });
 
+// Browse pool funnel for a user (why Connect shows nobody)
+adminRouter.get('/users/:userId/browse-pool', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const { userId } = req.params;
+    const { expireOldMatches } = await import('../utils/expireMatches.js');
+    await expireOldMatches();
+
+    const profileRow = await (db
+      .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+      .get([userId]) as Promise<{ display_name: string } | undefined>);
+
+    const { resolveBrowseCandidatePool } = await import('../services/browseCandidatePool.js');
+    const {
+      buildBrowsePoolSummary,
+      formatBrowsePoolSummaryForAdmin,
+    } = await import('../services/browsePoolSummary.js');
+
+    const poolResult = await resolveBrowseCandidatePool(userId);
+    if (!poolResult.ok) {
+      return res.status(poolResult.status).json({
+        error: poolResult.error,
+        displayName: profileRow?.display_name ?? null,
+      });
+    }
+
+    const poolSummary = buildBrowsePoolSummary(poolResult.funnel);
+    const displayName = profileRow?.display_name ?? userId;
+
+    res.json({
+      userId,
+      displayName,
+      poolSummary,
+      message: formatBrowsePoolSummaryForAdmin(displayName, poolSummary),
+      sampleCandidates: poolResult.candidates.slice(0, 5).map((p) => ({
+        userId: p.user_id,
+        displayName: p.display_name,
+        gender: p.gender,
+        location: p.location,
+      })),
+    });
+  } catch (error: any) {
+    console.error('Admin browse-pool error:', error);
+    res.status(500).json({ error: 'Failed to compute browse pool', details: error.message });
+  }
+});
+
 // Delete a single user
 adminRouter.delete('/users/:userId', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
