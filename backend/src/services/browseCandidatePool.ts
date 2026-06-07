@@ -1,6 +1,12 @@
 import { db } from '../database.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
-import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
+import {
+  effectiveMaxDistanceMiles,
+  getActiveMatchingRegion,
+  isInRegion,
+  isLikelyInRegionByText,
+  REGION_MAX_DISTANCE_MILES,
+} from '../config/regions.js';
 import { getHiddenFromBrowseUserIds } from '../config/hiddenFromBrowse.js';
 import { mutualGenderPreferencesMet } from '../utils/genderPreferences.js';
 import {
@@ -31,6 +37,7 @@ export type BrowseProfileWithMetadata = BrowseProfileRow & {
   candidate_min_age: number;
   candidate_max_age: number;
   candidate_preferred_genders: string | null;
+  candidate_max_distance: number | null;
 };
 
 export type ResolveBrowsePoolResult =
@@ -90,7 +97,8 @@ export async function resolveBrowseCandidatePool(userId: string): Promise<Resolv
              ${interestsAgg} as interests_list,
              pref.min_age as candidate_min_age,
              pref.max_age as candidate_max_age,
-             pref.preferred_genders as candidate_preferred_genders
+             pref.preferred_genders as candidate_preferred_genders,
+             pref.max_distance as candidate_max_distance
       FROM profiles p
       LEFT JOIN preferences pref ON pref.profile_id = p.id
       LEFT JOIN users u ON u.id = p.user_id
@@ -207,10 +215,16 @@ export async function resolveBrowseCandidatePool(userId: string): Promise<Resolv
         distanceByProfileId.set(row.profile.id, row.distance);
       }
       filteredProfiles = profilesWithDistance
-        .filter(({ distance, inRegion }) => {
+        .filter(({ distance, inRegion, profile }) => {
           if (activeRegion && !inRegion) return false;
-          if (maxDistMiles === null) return true;
-          return distance === null || distance <= maxDistMiles;
+          if (maxDistMiles !== null && distance !== null && distance > maxDistMiles) {
+            return false;
+          }
+          const theirMaxMiles = effectiveMaxDistanceMiles(profile.candidate_max_distance);
+          if (theirMaxMiles !== null && distance !== null && distance > theirMaxMiles) {
+            return false;
+          }
+          return true;
         })
         .map(({ profile }) => profile);
     }

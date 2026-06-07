@@ -53,6 +53,16 @@ export function isInRegion(
 /** When a region is active, matches are capped at this distance (miles) within the region. */
 export const REGION_MAX_DISTANCE_MILES = 100;
 
+/**
+ * User-facing max distance for matching. null / 0 / invalid = unlimited ("Any").
+ * Matches POST /matches/connect distance checks.
+ */
+export function effectiveMaxDistanceMiles(value: number | null | undefined): number | null {
+  if (value === null || value === undefined) return null;
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
 /** Clamp user max-distance preference to the regional cap. */
 export function normalizeMaxDistanceMiles(value: number | null | undefined): number {
   if (value == null || typeof value !== 'number' || !Number.isFinite(value)) {

@@ -53,6 +53,21 @@ import {
 } from "../utils/profileEnhancementChecklist";
 import { fetchProfileEnhancementSnapshot } from "../utils/fetchProfileEnhancementSnapshot";
 
+/** Connect failed for this candidate only — try the next browse result. */
+const CONNECT_TRY_NEXT_CODES = new Set([
+  "DISTANCE_EXCEEDS_THEIR_MAX",
+  "DISTANCE_EXCEEDS_YOUR_MAX",
+  "TARGET_AT_MATCH_LIMIT",
+]);
+
+function connectApiErrorCode(err: unknown): string | undefined {
+  if (err && typeof err === "object" && "code" in err) {
+    const code = (err as { code?: string }).code;
+    return typeof code === "string" ? code : undefined;
+  }
+  return undefined;
+}
+
 interface Photo {
   id: string;
   url: string;
@@ -808,33 +823,125 @@ export default function Browse() {
     setError("");
 
     const runBrowseAndConnect = async () => {
-      const data = await api.get<{
+      type BrowsePayload = {
         profile: Profile | null;
         hasMore: boolean;
         offset: number;
         total: number;
         poolSummary?: { hint?: string | null; eligible?: number };
-      }>(`/users/browse?offset=0`);
+      };
+      type ConnectResult = {
+        message?: string;
+        matchId?: string;
+        existingMatch?: boolean;
+      };
 
-      if (!data.profile) {
-        setCurrentProfile(null);
-        setHasMore(data.hasMore);
-        setHasFetched(true);
-        setBrowseSessionActive(false);
-        const serverHint = data.poolSummary?.hint?.trim();
-        setGateError(
-          serverHint ||
-            (typeof data.total === "number" && data.total === 0
-              ? "No one new to match with right now. Try widening distance or preferred matches in Profile."
-              : "No one new to match with right now. Try again later.")
-        );
-        return;
+      const maxTries = 25;
+      let emptyPool: BrowsePayload | null = null;
+
+      for (let offset = 0; offset < maxTries; offset++) {
+        const data = await api.get<BrowsePayload>(`/users/browse?offset=${offset}`);
+
+        if (!data.profile) {
+          emptyPool = data;
+          break;
+        }
+
+        try {
+          const result = await api.post<ConnectResult>("/matches/connect", {
+            targetUserId: data.profile.userId,
+          });
+
+          if (!result?.matchId) {
+            throw new Error("Connection did not complete. Please try again.");
+          }
+
+          if (result.existingMatch) {
+            navigate("/matches", { state: { openMatchId: result.matchId } });
+            return;
+          }
+
+          unlockMatchAudio();
+          markConnectInitiatorPending();
+          markConnectInitiator(result.matchId);
+          setCurrentProfile(data.profile);
+          setHasMore(data.hasMore);
+          setHasFetched(true);
+          setMatchedProfile(data.profile);
+          setCelebrationMatchId(result.matchId);
+          setShowMatchCelebration(true);
+          setBrowseSessionActive(true);
+          setGateError("");
+          setError("");
+
+          try {
+            const td = await api.get<{ availableTokens: number }>("/tokens");
+            emitTokenBalanceUpdated(td.availableTokens);
+          } catch {
+            /* non-fatal */
+          }
+          emitMatchSlotsUpdated();
+          void refreshMatchSlots();
+
+          const profile = data.profile;
+          const hasPhoto =
+            !!profile.photoUrl || !!(profile.photos && profile.photos.length > 0);
+          if (!hasPhoto && profile.id) {
+            api
+              .get<{ photos: Photo[] }>(`/photos/profile/${profile.id}`)
+              .then((photosData) => {
+                if (photosData?.photos?.length) {
+                  const primary =
+                    photosData.photos.find((p) => p.isPrimary) || photosData.photos[0];
+                  setMatchedProfile((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          photos: photosData.photos,
+                          photoUrl: primary?.url ?? prev.photoUrl,
+                        }
+                      : null
+                  );
+                }
+              })
+              .catch(() => {});
+          }
+          return;
+        } catch (err) {
+          const code = connectApiErrorCode(err);
+          if (CONNECT_TRY_NEXT_CODES.has(code ?? "") && offset + 1 < maxTries) {
+            continue;
+          }
+
+          let errorMessage = "Failed to connect. Please try again.";
+          if (err instanceof Error) {
+            errorMessage = err.message || errorMessage;
+            if ("status" in err && (err as { status: number }).status === 400) {
+              if (code === "AT_MATCH_LIMIT") {
+                setShowMatchLimitModal(true);
+                void refreshMatchSlots();
+              }
+            }
+          }
+          setBrowseSessionActive(false);
+          setCurrentProfile(null);
+          setGateError(errorMessage);
+          return;
+        }
       }
 
-      setCurrentProfile(data.profile);
-      setHasMore(data.hasMore);
+      const data = emptyPool;
+      setCurrentProfile(null);
+      setHasMore(data?.hasMore ?? false);
       setHasFetched(true);
-      await handleConnectRef.current(data.profile);
+      setBrowseSessionActive(false);
+      const serverHint = data?.poolSummary?.hint?.trim();
+      setGateError(
+        serverHint ||
+          (typeof data?.total === "number" && data.total === 0
+            ? "No one new to match with right now. Try widening distance or preferred matches in Profile."
+            : "No one new to match with right now. Try again later.")
+      );
     };
 
     try {
@@ -893,6 +1000,8 @@ export default function Browse() {
     user,
     resolveReadyPhotoCount,
     ensureReadyToConnect,
+    navigate,
+    refreshMatchSlots,
   ]);
 
   /** After “Keep Browsing”: return to Connect landing (user taps Connect again for a new match). */
