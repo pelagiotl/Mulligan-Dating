@@ -2083,17 +2083,6 @@ export default function Matches() {
             aria-label={`Photo ${photoLightbox.index + 1} of ${photoLightbox.urls.length}`}
             onClick={closeLightbox}
           >
-            <button
-              type="button"
-              className="match-photo-lightbox-close"
-              aria-label="Close"
-              onClick={(e) => {
-                e.stopPropagation();
-                closeLightbox();
-              }}
-            >
-              ×
-            </button>
             {photoLightbox.urls.length > 1 && (
               <button
                 type="button"
@@ -2151,6 +2140,17 @@ export default function Matches() {
                 </p>
               ) : null}
             </div>
+            <button
+              type="button"
+              className="match-photo-lightbox-close"
+              aria-label={partnerDrawerOpen ? "Back to profile" : "Close photo viewer"}
+              onClick={(e) => {
+                e.stopPropagation();
+                closeLightbox();
+              }}
+            >
+              ×
+            </button>
           </div>,
           document.body
         )}
