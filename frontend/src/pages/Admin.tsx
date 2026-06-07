@@ -221,6 +221,8 @@ export default function Admin() {
   const [statDrillPagination, setStatDrillPagination] = useState({ total: 0, totalPages: 1 });
   const [onboardingNudgeLoading, setOnboardingNudgeLoading] = useState(false);
   const [onboardingNudgeMessage, setOnboardingNudgeMessage] = useState<string | null>(null);
+  const [launchAnnouncementLoading, setLaunchAnnouncementLoading] = useState(false);
+  const [launchAnnouncementMessage, setLaunchAnnouncementMessage] = useState<string | null>(null);
 
   // Check if current user is the super admin
   const isSuperAdmin = user?.email === 'pelagiotl@gmail.com';
@@ -280,6 +282,7 @@ export default function Admin() {
           else if (statDrill === 'restricted') params.set('filter', 'restricted');
           else if (statDrill === 'active7d') params.set('filter', 'active');
           else if (statDrill === 'onboarding') params.set('filter', 'onboarding');
+          else if (statDrill === 'totalUsers') params.set('filter', 'complete');
           const data = await api.get<{ users: User[]; pagination: { total: number; totalPages: number } }>(
             `/admin/users?${params}`
           );
@@ -317,8 +320,9 @@ export default function Admin() {
     if (!key) return { title: '', subtitle: '' };
     const map: Record<StatDrillKey, { title: string; subtitle: string }> = {
       totalUsers: {
-        title: 'All users',
-        subtitle: 'Every registered account (newest first). Click a row to open details in the side panel.',
+        title: 'Complete profiles',
+        subtitle:
+          'Active accounts with at least 1 photo uploaded — raffle-eligible. Click a row to open details in the side panel.',
       },
       profiles: {
         title: 'Users with a profile',
@@ -397,6 +401,28 @@ export default function Admin() {
       setStats(data);
     } catch (error) {
       console.error('Failed to fetch stats:', error);
+    }
+  };
+
+  const sendLaunchAnnouncement = async (dryRun: boolean) => {
+    setLaunchAnnouncementLoading(true);
+    setLaunchAnnouncementMessage(null);
+    try {
+      const data = await api.post<{ message: string }>('/admin/announcements/launch-live-push', {
+        dryRun,
+        limit: 2000,
+        title: 'Mulligan is live ✨',
+        body: "Connect's open — tap in and meet someone new when you're ready.",
+      });
+      const summary = `Launch push: ${data.message}`;
+      setLaunchAnnouncementMessage(summary);
+      setMessage({ type: 'success', text: summary });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to send launch announcement';
+      setLaunchAnnouncementMessage(msg);
+      setMessage({ type: 'error', text: msg });
+    } finally {
+      setLaunchAnnouncementLoading(false);
     }
   };
 
@@ -736,7 +762,7 @@ export default function Admin() {
           >
             <div className="stat-icon" aria-hidden>👥</div>
             <div className="stat-value">{stats.totalUsers}</div>
-            <div className="stat-label">Total Users</div>
+            <div className="stat-label">Complete Profiles</div>
             <span className="stat-card-hint">View list</span>
           </button>
           <button
@@ -799,6 +825,49 @@ export default function Admin() {
 
       <div className="admin-actions-section">
         <h2>Bulk Actions</h2>
+        <div className="admin-launch-announcement">
+          <p className="admin-onboarding-nudge-hint">
+            <strong>Launch push</strong> — chill one-time alert for users who allowed notifications (Android
+            Expo + iPhone/web PWA). Does not SMS everyone. Preview reach first.
+          </p>
+          <p className="admin-onboarding-nudge-hint admin-onboarding-nudge-hint--secondary">
+            Message: <em>Mulligan is live ✨</em> — Connect&apos;s open — tap in and meet someone new when
+            you&apos;re ready.
+          </p>
+          <div className="admin-onboarding-nudge-actions">
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              disabled={launchAnnouncementLoading}
+              onClick={() => void sendLaunchAnnouncement(true)}
+            >
+              {launchAnnouncementLoading ? 'Previewing…' : 'Preview launch push reach'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={launchAnnouncementLoading}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    'Send launch push to all users with notifications enabled?\n\n' +
+                      'Title: Mulligan is live ✨\n' +
+                      "Body: Connect's open — tap in and meet someone new when you're ready.",
+                  )
+                ) {
+                  void sendLaunchAnnouncement(false);
+                }
+              }}
+            >
+              {launchAnnouncementLoading ? 'Sending…' : 'Send launch push'}
+            </button>
+          </div>
+          {launchAnnouncementMessage ? (
+            <p className="admin-onboarding-nudge-result" role="status">
+              {launchAnnouncementMessage}
+            </p>
+          ) : null}
+        </div>
         <div className="admin-actions-row">
         <button
           type="button"
@@ -806,7 +875,7 @@ export default function Admin() {
           onClick={async () => {
             const confirmed = window.confirm(
               'Email a CSV of all users to mulligandating@gmail.com for retention review?\n\n' +
-                'Includes phone, email, profile, tokens, and account status.',
+                'Includes phone, email, profile, tokens, account status, and photo count. Filter active + Photo Count ≥ 1 for raffle.',
             );
             if (!confirmed) return;
 
@@ -894,7 +963,7 @@ export default function Admin() {
         </button>
         </div>
         <p className="admin-actions-note">
-          Export sends a CSV to mulligandating@gmail.com (requires RESEND_API_KEY on the backend).
+          Export sends a CSV to mulligandating@gmail.com (requires RESEND_API_KEY on the backend). Complete Profiles stat = active with ≥1 photo.
           Delete removes test email patterns (test@, newtest@, testing@, etc.) and all associated data.
         </p>
       </div>

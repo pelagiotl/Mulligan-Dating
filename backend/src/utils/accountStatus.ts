@@ -1,5 +1,8 @@
 import { db } from '../database.js';
-import { getActivationSetupViolationsForUser } from './connectRequirements.js';
+import {
+  getActivationSetupViolationsForUser,
+  MIN_PHOTOS_TO_CONNECT,
+} from './connectRequirements.js';
 
 export const ACCOUNT_STATUS_ONBOARDING = 'onboarding';
 export const ACCOUNT_STATUS_ACTIVE = 'active';
@@ -17,6 +20,23 @@ export function sqlOnlyActiveAccounts(userAlias = 'u'): string {
 
 export function sqlOnlyOnboardingAccounts(userAlias = 'u'): string {
   return ` AND COALESCE(${userAlias}.account_status, '${ACCOUNT_STATUS_ACTIVE}') = '${ACCOUNT_STATUS_ONBOARDING}'`;
+}
+
+/** Active accounts with at least MIN_PHOTOS_TO_CONNECT uploaded (raffle / “complete profile” definition). */
+export function sqlUserHasMinPhotos(
+  userAlias = 'u',
+  minPhotos: number = MIN_PHOTOS_TO_CONNECT,
+): string {
+  const n = Math.max(1, Math.floor(minPhotos));
+  return ` AND (
+    SELECT COUNT(*) FROM photos ph
+    INNER JOIN profiles p ON p.id = ph.profile_id
+    WHERE p.user_id = ${userAlias}.id
+  ) >= ${n}`;
+}
+
+export function sqlCompleteProfileAccounts(userAlias = 'u'): string {
+  return `${sqlOnlyActiveAccounts(userAlias)}${sqlUserHasMinPhotos(userAlias)}`;
 }
 
 export async function activateUserAccount(userId: string): Promise<{

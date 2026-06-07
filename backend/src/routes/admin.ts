@@ -7,7 +7,11 @@ import {
   fetchAllUsersForAdminExport,
   sendAdminUsersExportEmail,
 } from '../services/adminUsersExportEmail.js';
-import { sqlOnlyActiveAccounts, sqlOnlyOnboardingAccounts } from '../utils/accountStatus.js';
+import {
+  sqlCompleteProfileAccounts,
+  sqlOnlyActiveAccounts,
+  sqlOnlyOnboardingAccounts,
+} from '../utils/accountStatus.js';
 import {
   clientPlatformLabel,
   inferClientPlatformFromSignals,
@@ -464,10 +468,11 @@ adminRouter.post('/create-unique-test-users', authenticateToken, requireAdmin, a
 // Get admin statistics
 adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
   try {
-    // Total users
+    // Complete profiles: active accounts with at least one uploaded photo
     const activeOnly = sqlOnlyActiveAccounts('u');
+    const completeOnly = sqlCompleteProfileAccounts('u');
     const totalUsersResult = await (db
-      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${activeOnly}`)
+      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${completeOnly}`)
       .get([]) as Promise<{ count: number }>);
     const totalUsers = totalUsersResult?.count || 0;
 
@@ -524,10 +529,11 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
   try {
     const limit = Math.min(parseInt(req.query.limit as string) || 500, 1000);
     const activeOnly = sqlOnlyActiveAccounts('u');
+    const completeOnly = sqlCompleteProfileAccounts('u');
 
     // Stats (same logic as /stats)
     const totalUsersResult = await (db
-      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${activeOnly}`)
+      .prepare(`SELECT COUNT(*) as count FROM users u WHERE 1=1${completeOnly}`)
       .get([]) as Promise<{ count: number }>);
     const totalUsers = totalUsersResult?.count || 0;
 
@@ -563,7 +569,7 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
         p.display_name, p.age, p.gender, p.location
       FROM users u
       LEFT JOIN profiles p ON p.user_id = u.id
-      WHERE 1=1${activeOnly}
+      WHERE 1=1${completeOnly}
       ORDER BY u.created_at DESC
       LIMIT ?
     `).all([limit]) as Promise<any[]>);
@@ -590,7 +596,7 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
     const report = {
       exportedAt: new Date().toISOString(),
       stats: {
-        totalUsers,
+        totalUsers, // complete profiles: active + ≥1 photo
         totalProfiles,
         totalMatches,
         restrictedUsers,
@@ -813,6 +819,54 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         tokensResult.forEach((row: any) => {
           tokenCounts[row.user_id] = parseInt(row.count) || 0;
         });
+      }
+
+      const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+      const users = usersResult.map((u: any) => mapAdminListUser(u, tokenCounts, platformSignals));
+
+      return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+
+    // Active accounts with min photos — aligns with Total Users stat / raffle eligibility
+    if (filter === 'complete' || filter === 'complete_profile') {
+      const completeOnly = sqlCompleteProfileAccounts('u');
+      const searchWhere = search
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
+        : '';
+      const searchTerm = `%${search}%`;
+      const query = `
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
+          u.created_at, u.last_active_at,
+          p.display_name, p.age, p.gender, p.location,
+          (SELECT COUNT(*) FROM photos ph WHERE ph.profile_id = p.id) as photo_count
+        FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE 1=1${completeOnly}${tayaHide}${searchWhere}
+        ORDER BY u.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      const params = search ? [searchTerm, searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
+
+      const countQuery = `
+        SELECT COUNT(DISTINCT u.id) as count FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE 1=1${completeOnly}${tayaHide}${searchWhere}
+      `;
+      const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
+      const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
+      const total = totalResult?.count || 0;
+
+      const userIds = usersResult.map((u: any) => u.id);
+      let tokenCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const tokensResult = await (db.prepare(`
+          SELECT user_id, COUNT(*) as count FROM mulligan_tokens
+          WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL
+          GROUP BY user_id
+        `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+        tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
       }
 
       const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
@@ -1600,6 +1654,33 @@ adminRouter.delete('/delete-test-users', authenticateToken, requireAdmin, async 
   } catch (error: any) {
     console.error('Error deleting test users:', error);
     res.status(500).json({ error: 'Failed to delete test users', details: error.message });
+  }
+});
+
+// One-shot launch announcement to all users with push (Expo + Web Push)
+adminRouter.post('/announcements/launch-live-push', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const dryRun = req.body?.dryRun === true;
+    const limit =
+      typeof req.body?.limit === 'number' && Number.isFinite(req.body.limit)
+        ? req.body.limit
+        : undefined;
+    const title = typeof req.body?.title === 'string' ? req.body.title : undefined;
+    const body = typeof req.body?.body === 'string' ? req.body.body : undefined;
+
+    const { sendLaunchLivePushAnnouncement, formatLaunchAnnouncementSummary } = await import(
+      '../services/launchAnnouncement.js'
+    );
+    const result = await sendLaunchLivePushAnnouncement({ dryRun, limit, title, body });
+
+    res.json({
+      ...result,
+      channel: 'push',
+      message: formatLaunchAnnouncementSummary(result),
+    });
+  } catch (error: any) {
+    console.error('Launch announcement push error:', error);
+    res.status(500).json({ error: 'Failed to send launch announcement', details: error.message });
   }
 });
 

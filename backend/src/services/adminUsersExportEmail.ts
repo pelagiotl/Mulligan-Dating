@@ -1,5 +1,4 @@
 import { db } from '../database.js';
-import { sqlOnlyOnboardingAccounts } from '../utils/accountStatus.js';
 
 const DEFAULT_EXPORT_TO = 'mulligandating@gmail.com';
 
@@ -13,6 +12,7 @@ export type AdminExportUserRow = {
   is_admin: number;
   is_restricted: number;
   account_status: string | null;
+  photo_count: number;
   created_at: string;
   last_active_at: string | null;
   tokenCount: number;
@@ -41,6 +41,7 @@ export function buildAdminUsersCsv(rows: AdminExportUserRow[]): string {
     'Location',
     'Available Tokens',
     'Account Status',
+    'Photo Count',
     'Admin',
     'Restricted',
     'Created',
@@ -58,6 +59,7 @@ export function buildAdminUsersCsv(rows: AdminExportUserRow[]): string {
         u.location ?? '',
         String(u.tokenCount),
         u.account_status ?? 'active',
+        String(u.photo_count ?? 0),
         u.is_admin ? 'yes' : 'no',
         u.is_restricted ? 'yes' : 'no',
         u.created_at,
@@ -81,7 +83,8 @@ export async function fetchAllUsersForAdminExport(
         u.id, u.email, u.phone_number, u.is_admin, u.is_restricted,
         u.created_at, u.last_active_at,
         COALESCE(u.account_status, 'active') AS account_status,
-        p.display_name, p.age, p.location
+        p.display_name, p.age, p.location,
+        (SELECT COUNT(*) FROM photos ph WHERE ph.profile_id = p.id) AS photo_count
       FROM users u
       LEFT JOIN profiles p ON p.user_id = u.id
       WHERE 1=1${tayaHideSql}
@@ -108,14 +111,17 @@ export async function fetchAllUsersForAdminExport(
 
   const rows = usersResult.map((u) => ({
     ...u,
+    photo_count: Math.floor(Number(u.photo_count ?? 0)),
     tokenCount: tokenCounts[u.id] || 0,
   }));
 
-  const onboardingOnly = sqlOnlyOnboardingAccounts('u');
   const totalUsers = rows.length;
   const activeUsers = rows.filter((u) => (u.account_status ?? 'active') === 'active').length;
   const onboardingUsers = rows.filter((u) => u.account_status === 'onboarding').length;
   const withProfile = rows.filter((u) => Boolean(u.display_name?.trim())).length;
+  const completeProfiles = rows.filter(
+    (u) => (u.account_status ?? 'active') === 'active' && (u.photo_count ?? 0) >= 1,
+  ).length;
 
   return {
     rows,
@@ -124,6 +130,7 @@ export async function fetchAllUsersForAdminExport(
       activeUsers,
       onboardingUsers,
       withProfile,
+      completeProfiles,
       exportedAt: new Date().toISOString(),
     },
   };
@@ -134,6 +141,7 @@ export type AdminExportStats = {
   activeUsers: number;
   onboardingUsers: number;
   withProfile: number;
+  completeProfiles: number;
   exportedAt: string;
 };
 
@@ -173,9 +181,10 @@ export async function sendAdminUsersExportEmail(params: {
         <tr><td style="padding:6px 12px 6px 0;font-weight:600;">Active</td><td>${params.stats.activeUsers}</td></tr>
         <tr><td style="padding:6px 12px 6px 0;font-weight:600;">Onboarding</td><td>${params.stats.onboardingUsers}</td></tr>
         <tr><td style="padding:6px 12px 6px 0;font-weight:600;">With profile name</td><td>${params.stats.withProfile}</td></tr>
+        <tr><td style="padding:6px 12px 6px 0;font-weight:600;">Complete profiles (active + photo)</td><td>${params.stats.completeProfiles}</td></tr>
       </table>
       <p style="margin:16px 0 0 0;font-size:13px;color:#555;">
-        The full user list is attached as <strong>mulligan-users.csv</strong> (phone, email, profile, tokens, status).
+        The full user list is attached as <strong>mulligan-users.csv</strong> (phone, email, profile, tokens, status, photo count). Filter <strong>Account Status = active</strong> and <strong>Photo Count ≥ 1</strong> for raffle eligibility.
       </p>
     </div>
   `;
