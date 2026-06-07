@@ -15,7 +15,10 @@ import {
   interestSimilarityFromNames,
   countPartnerQualityInterestHits,
 } from '../utils/interestSimilarity.js';
-import { resolveBrowseCandidatePool } from '../services/browseCandidatePool.js';
+import {
+  resolveBrowseCandidatePool,
+  type BrowseProfileWithMetadata,
+} from '../services/browseCandidatePool.js';
 import { buildBrowsePoolSummary } from '../services/browsePoolSummary.js';
 
 export const usersRouter = Router();
@@ -31,13 +34,6 @@ interface ProfileRow {
   photo_url: string | null;
   looking_for: string | null;
 }
-
-type ProfileWithMetadata = ProfileRow & { 
-  interests_list: string | null;
-  candidate_min_age: number;
-  candidate_max_age: number;
-  candidate_preferred_genders: string | null;
-};
 
 // Unlock browsing — requires at least one unused token (eligibility gate only).
 // Tokens are consumed only when the user taps Connect (POST /matches/connect), not here.
@@ -145,7 +141,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
     // Fast path for offset=0 (Connect flow): best interest overlap among filtered candidates
     if (offset === 0 && filteredProfiles.length > 0) {
-      const p = filteredProfiles[0] as ProfileWithMetadata;
+      const p = filteredProfiles[0];
       let photoUrl: string | null = p.photo_url;
       if (!photoUrl || !String(photoUrl).trim()) {
         const primaryPhotoResult = db
@@ -199,7 +195,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         ? userPrefs.max_distance
         : 100;
 
-    const profilesWithScores = await Promise.all(filteredProfiles.map(async (p: ProfileWithMetadata) => {
+    const profilesWithScores = await Promise.all(filteredProfiles.map(async (p: BrowseProfileWithMetadata) => {
       const sim = interestSimilarityFromNames(
         userInterestNameSet,
         interestNamesFromAggregate(p.interests_list)
