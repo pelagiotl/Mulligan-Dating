@@ -927,14 +927,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                   </Text>
                 </View>
               )}
-              {item.compatibilityScore != null && item.stage !== 'pending' ? (
-                <View style={styles.matchCardCompatibilityInline}>
-                  <Text style={styles.matchCardCompatibilityIcon}>💫</Text>
-                  <Text style={[styles.matchCardCompatibilityText, { color: cardColors.compatText }]}>
-                    {Math.round(item.compatibilityScore)}
-                  </Text>
-                </View>
-              ) : null}
               {item.stage === 'pending' ? (
                 <View style={styles.stageContainer}>
                   <LinearGradient
@@ -984,7 +976,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
     prevProps.item.profileCompatibility === nextProps.item.profileCompatibility &&
-    prevProps.item.compatibilityScore === nextProps.item.compatibilityScore &&
     prevProps.photoUrl === nextProps.photoUrl &&
     prevProps.cardColors.perimeterGlow === nextProps.cardColors.perimeterGlow
   );

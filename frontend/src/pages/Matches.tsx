@@ -2323,23 +2323,13 @@ export default function Matches() {
                       </p>
                     ) : null}
                     {match.stage !== "pending" &&
-                      (match.profileCompatibility != null ||
-                        match.compatibilityScore != null ||
-                        match.expiresAt) && (
+                      (match.profileCompatibility != null || match.expiresAt) && (
                         <div className="match-item-signals" aria-label="Match signals">
-                          {(match.profileCompatibility != null || match.compatibilityScore != null) && (
+                          {match.profileCompatibility != null && (
                             <div className="match-compat-badges">
                               {match.profileCompatibility != null ? (
                                 <span className="match-compat-badge match-compat-badge--interest" title="Interest match">
                                   🎯 {match.profileCompatibility}%
-                                </span>
-                              ) : null}
-                              {match.compatibilityScore != null ? (
-                                <span
-                                  className="match-compat-badge match-compat-badge--pulse"
-                                  title="Compatibility pulse — updates as you chat"
-                                >
-                                  💫 {Math.round(match.compatibilityScore)}
                                 </span>
                               ) : null}
                             </div>
