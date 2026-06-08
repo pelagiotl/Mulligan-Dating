@@ -112,6 +112,18 @@ export function computeOnboardingProgress(
   };
 }
 
+export async function getProfilePhotoCount(profileId: string): Promise<number> {
+  const countResult = db.prepare('SELECT COUNT(*) as c FROM photos WHERE profile_id = ?').get([profileId]);
+  const countRow = (countResult instanceof Promise ? await countResult : countResult) as
+    | { c: number | string }
+    | undefined;
+  return Math.floor(Number(countRow?.c ?? 0));
+}
+
+export async function profileHasMinPhotosForConnect(profileId: string): Promise<boolean> {
+  return (await getProfilePhotoCount(profileId)) >= MIN_PHOTOS_TO_CONNECT;
+}
+
 export async function getConnectSetupViolationsForUser(userId: string): Promise<string[]> {
   const activation = await getActivationSetupViolationsForUser(userId);
   if (activation.length > 0) return activation;
@@ -124,12 +136,7 @@ export async function getConnectSetupViolationsForUser(userId: string): Promise<
 
   if (!hasValidProfileAge(profile.age)) return ['age'];
 
-  const countResult = db.prepare('SELECT COUNT(*) as c FROM photos WHERE profile_id = ?').get([profile.id]);
-  const countRow = (countResult instanceof Promise ? await countResult : countResult) as
-    | { c: number | string }
-    | undefined;
-  const photoCount = Math.floor(Number(countRow?.c ?? 0));
-  if (photoCount < MIN_PHOTOS_TO_CONNECT) return [...activation, 'photos'];
+  if (!(await profileHasMinPhotosForConnect(profile.id))) return [...activation, 'photos'];
 
   return [];
 }

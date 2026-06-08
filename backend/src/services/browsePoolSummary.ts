@@ -2,7 +2,7 @@
 export type BrowsePoolFunnel = {
   /** Active non-expired matches this user already has. */
   activeMatchCount: number;
-  /** After SQL age/gender + excluding matched/blocked/hidden. */
+  /** After SQL age/gender + excluding matched/blocked/hidden + zero-photo profiles. */
   afterPreferencesQuery: number;
   /** After Southern Oregon + max distance. */
   afterRegionDistance: number;

@@ -13,6 +13,7 @@ import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from "../confi
 import {
   connectSetupErrorPayload,
   getConnectSetupViolationsForUser,
+  profileHasMinPhotosForConnect,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
 import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
@@ -776,21 +777,12 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       });
     }
 
-    // Photo requirement temporarily removed - will be added back later
-    // const targetPhotoCountResult = db
-    //   .prepare("SELECT COUNT(*) as count FROM photos WHERE profile_id = ?")
-    //   .get([targetProfile.id]);
-    // const targetPhotoCount = (targetPhotoCountResult instanceof Promise
-    //   ? await targetPhotoCountResult
-    //   : targetPhotoCountResult) as { count: number } | undefined;
-
-    // if (!targetPhotoCount || targetPhotoCount.count < 1) {
-    //   return res.status(400).json({ 
-    //     error: "This user needs to upload at least 1 photo before you can match with them",
-    //     photoCount: targetPhotoCount?.count || 0,
-    //     required: 1
-    //   });
-    // }
+    if (!(await profileHasMinPhotosForConnect(targetProfile.id))) {
+      return res.status(400).json({
+        error: "This person hasn't added a photo yet. Try connecting with someone else.",
+        code: "TARGET_PHOTOS_REQUIRED",
+      });
+    }
 
     const tokensNeeded = 1;
     const tokenResult = db

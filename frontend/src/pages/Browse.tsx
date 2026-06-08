@@ -58,6 +58,7 @@ const CONNECT_TRY_NEXT_CODES = new Set([
   "DISTANCE_EXCEEDS_THEIR_MAX",
   "DISTANCE_EXCEEDS_YOUR_MAX",
   "TARGET_AT_MATCH_LIMIT",
+  "TARGET_PHOTOS_REQUIRED",
 ]);
 
 function connectApiErrorCode(err: unknown): string | undefined {

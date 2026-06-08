@@ -1850,8 +1850,13 @@ export default function BrowseScreen() {
             }
             return;
           }
-          // Distance preference: person is outside range — go back to landing so user can tap Connect for a new profile
-          if (apiErr.status === 400 && (apiErr.code === 'DISTANCE_EXCEEDS_YOUR_MAX' || apiErr.code === 'DISTANCE_EXCEEDS_THEIR_MAX')) {
+          // Candidate-only failures — go back to landing so user can tap Connect for a new profile
+          if (
+            apiErr.status === 400 &&
+            (apiErr.code === 'DISTANCE_EXCEEDS_YOUR_MAX' ||
+              apiErr.code === 'DISTANCE_EXCEEDS_THEIR_MAX' ||
+              apiErr.code === 'TARGET_PHOTOS_REQUIRED')
+          ) {
             setCurrentProfile(null);
             setBrowseUnlocked(false);
             if (isAutoMatching) {

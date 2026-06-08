@@ -16,6 +16,7 @@ import {
 } from '../utils/interestSimilarity.js';
 import { checkDealbreakers } from '../utils/dealbreakers.js';
 import { isAtWeeklyIncomingMatchLimit } from '../utils/matchSlotLimits.js';
+import { sqlUserHasMinPhotos } from '../utils/accountStatus.js';
 import { type BrowsePoolFunnel } from './browsePoolSummary.js';
 
 const usePostgres = !!process.env.DATABASE_URL;
@@ -104,6 +105,7 @@ export async function resolveBrowseCandidatePool(userId: string): Promise<Resolv
       LEFT JOIN users u ON u.id = p.user_id
       WHERE p.user_id != ?
       AND (u.is_restricted IS NULL OR u.is_restricted = 0)
+      ${sqlUserHasMinPhotos('u')}
     `;
 
   const params: unknown[] = [userId];
