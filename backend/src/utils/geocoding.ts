@@ -53,19 +53,27 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult> 
     geocodeWithNominatim, // Free fallback
   ];
 
-  // Check which providers are configured
+  // Check which geocoding providers are configured (separate from GOOGLE_PLACES_API_KEY for venue search)
   const mapboxKey = process.env.MAPBOX_ACCESS_TOKEN;
-  const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+  const googleGeocodeKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
+  const placesKey = process.env.GOOGLE_PLACES_API_KEY;
   
-  if (!mapboxKey && !googleKey) {
-    console.log('ℹ️  No API keys configured - using Nominatim (free fallback)');
+  if (!mapboxKey && !googleGeocodeKey) {
+    console.log('ℹ️  No geocoding API keys (MAPBOX_ACCESS_TOKEN / GOOGLE_MAPS_API_KEY) — trying local lookup then Nominatim');
   } else {
     if (mapboxKey) {
-      console.log('✅ Mapbox API key found');
+      console.log('✅ Mapbox geocoding API key found');
     }
-    if (googleKey) {
-      console.log('✅ Google Maps API key found');
+    if (googleGeocodeKey) {
+      console.log(
+        process.env.GOOGLE_MAPS_API_KEY
+          ? '✅ Google Maps geocoding API key found'
+          : '✅ Google geocoding via GOOGLE_PLACES_API_KEY',
+      );
     }
+  }
+  if (placesKey) {
+    console.log('✅ Google Places API key found (venue search)');
   }
   
   const providerNames = ['Mapbox', 'Google Maps', 'Nominatim'];
@@ -140,7 +148,7 @@ async function geocodeWithMapbox(location: string): Promise<GeocodeResult> {
  * Geocode using Google Maps Geocoding API
  */
 async function geocodeWithGoogle(location: string): Promise<GeocodeResult> {
-  const apiKey = process.env.GOOGLE_MAPS_API_KEY;
+  const apiKey = process.env.GOOGLE_MAPS_API_KEY ?? process.env.GOOGLE_PLACES_API_KEY;
   if (!apiKey) {
     // Silently skip if not configured - will fall back to Nominatim
     return { coordinates: null, formatted: null };

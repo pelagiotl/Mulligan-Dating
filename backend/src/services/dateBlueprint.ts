@@ -108,7 +108,10 @@ async function searchVenuesNearby(
       }>;
       status: string;
     };
-    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') return [];
+    if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+      console.warn(`⚠️  Google Places nearby search status: ${data.status}`);
+      return [];
+    }
     const results = data.results ?? [];
     return results.slice(0, 12).map((place) => ({
       name: place.name || 'Unknown',
@@ -154,6 +157,11 @@ async function searchVenues(
         key: googleApiKey,
       },
     });
+
+    const status = response.data?.status;
+    if (status && status !== 'OK' && status !== 'ZERO_RESULTS') {
+      console.warn(`⚠️  Google Places text search status: ${status} (query: "${query}")`);
+    }
 
     const results = response.data?.results;
     if (results && results.length > 0) {
@@ -973,7 +981,8 @@ export async function gatherDatePlanVenues(
     }
   }
 
-  if (venues.length === 0 && !quickSearch) {
+  // Text search works without geocoded coordinates — required when geocoding fails or in quick mode.
+  if (venues.length === 0) {
     for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5).slice(0, maxKeywordAttempts)) {
       tryVenues(await searchVenues(meetingLocation, keyword));
       if (venues.length > 0) break;
