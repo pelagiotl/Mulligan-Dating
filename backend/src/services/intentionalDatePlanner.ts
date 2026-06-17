@@ -80,53 +80,81 @@ function withSafetyNote(description: string): string {
   return `${description.trim()}\n\n${HANGOUT_SAFETY_NOTE}`;
 }
 
-async function finalizeDatePlanIdeas(
-  ideas: DatePlanIdea[],
-  laneVenueSets: Array<{ lane: DatePlanLane; venues: VenueSearchResult[] }>,
+function venueIsUsable(
+  venue: VenueSearchResult,
+  lane: DatePlanLane,
   meetingLocation: string,
   meetingLat: number | null,
   meetingLng: number | null,
-): Promise<DatePlanIdea[]> {
-  return Promise.all(
-    ideas.map(async (idea, index) => {
-      const lane = laneVenueSets[index]?.lane ?? DATE_PLAN_LANES.find((entry) => entry.id === idea.laneId);
-      if (!lane || !idea.venueName) {
-        return { ...idea, description: withSafetyNote(idea.description) };
-      }
+): boolean {
+  if (!venue.name) return false;
+  if (!venueFitsLane(venue, lane)) return false;
+  if (!venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng)) return false;
+  if (venue.businessStatus && venue.businessStatus !== 'OPERATIONAL') return false;
+  return true;
+}
 
-      const venue = laneVenueSets[index]?.venues.find(
-        (candidate) => candidate.name.toLowerCase() === idea.venueName!.toLowerCase(),
-      );
-      if (
-        !venue ||
-        !venueFitsLane(venue, lane) ||
-        !venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng) ||
-        (venue.businessStatus && venue.businessStatus !== 'OPERATIONAL')
-      ) {
-        return {
-          ...idea,
-          venueName: undefined,
-          venueAddress: undefined,
-          venueLat: undefined,
-          venueLng: undefined,
-          description: withSafetyNote(idea.description),
-        };
-      }
+function resolvePickedVenue(
+  idea: DatePlanIdea,
+  pickedVenue: VenueSearchResult | null,
+  venues: VenueSearchResult[],
+): VenueSearchResult | null {
+  if (pickedVenue?.name) return pickedVenue;
+  if (!idea.venueName) return null;
+  const target = idea.venueName.toLowerCase();
+  return (
+    venues.find((candidate) => candidate.name.toLowerCase() === target) ??
+    venues.find(
+      (candidate) =>
+        candidate.name.toLowerCase().includes(target) || target.includes(candidate.name.toLowerCase()),
+    ) ??
+    null
+  );
+}
 
-      const description = withSafetyNote(
-        fallbackDatePlanCopy([], meetingLocation, venue, lane).description,
-      );
+function finalizeDatePlanIdea(
+  idea: DatePlanIdea,
+  lane: DatePlanLane,
+  pickedVenue: VenueSearchResult | null,
+  venues: VenueSearchResult[],
+  meetingLocation: string,
+  meetingLat: number | null,
+  meetingLng: number | null,
+): DatePlanIdea {
+  let venue = resolvePickedVenue(idea, pickedVenue, venues);
+  if (venue && !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng)) {
+    venue = null;
+  }
+  if (!venue) {
+    venue = pickVenueForIdea(venues, new Set(), lane, meetingLocation, meetingLat, meetingLng);
+  }
+  if (!venue || !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng)) {
+    return { ...idea, description: withSafetyNote(idea.description) };
+  }
 
-      return {
-        ...idea,
-        title: scrubDateTerminology(pickVenueAwareTitle(lane, venue, [idea.title])),
-        description,
-        venueName: venue.name,
-        venueAddress: formatVenueDisplayAddress(venue, meetingLocation),
-        venueLat: venue.lat,
-        venueLng: venue.lng,
-      };
-    }),
+  const description = withSafetyNote(
+    fallbackDatePlanCopy([], meetingLocation, venue, lane).description,
+  );
+
+  return {
+    ...idea,
+    title: scrubDateTerminology(pickVenueAwareTitle(lane, venue, [idea.title])),
+    description,
+    venueName: venue.name,
+    venueAddress: formatVenueDisplayAddress(venue, meetingLocation),
+    venueLat: venue.lat,
+    venueLng: venue.lng,
+  };
+}
+
+function finalizeDatePlanIdeas(
+  drafts: Array<{ idea: DatePlanIdea; lane: DatePlanLane; pickedVenue: VenueSearchResult | null; venues: VenueSearchResult[] }>,
+  meetingLocation: string,
+  meetingLat: number | null,
+  meetingLng: number | null,
+): DatePlanIdea[] {
+  return drafts.map(({ idea, lane, pickedVenue, venues }) =>
+    finalizeDatePlanIdea(idea, lane, pickedVenue, venues, meetingLocation, meetingLat, meetingLng),
   );
 }
 
@@ -357,9 +385,9 @@ export async function generateDatePlanIdeas(
     })),
   );
 
-  const ideas = await finalizeDatePlanIdeas(
+  const ideas = finalizeDatePlanIdeas(
     laneVenues.map(({ lane, venues }) => {
-      const venue = pickVenueForIdea(
+      const pickedVenue = pickVenueForIdea(
         venues,
         excludeVenueSet,
         lane,
@@ -367,9 +395,13 @@ export async function generateDatePlanIdeas(
         meetingLat,
         meetingLng,
       );
-      return ideaFromLane(lane, sharedInterests, meetingLocation, venue, excludeTitles);
+      return {
+        idea: ideaFromLane(lane, sharedInterests, meetingLocation, pickedVenue, excludeTitles),
+        lane,
+        pickedVenue,
+        venues,
+      };
     }),
-    laneVenues,
     meetingLocation,
     meetingLat,
     meetingLng,

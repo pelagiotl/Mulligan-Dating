@@ -209,12 +209,14 @@ function DatePlanIdeaCard({
       </ImageBackground>
       <View style={styles.ideaBody}>
         <Text style={styles.ideaTitle}>{idea.title}</Text>
+        {idea.venueName || idea.venueAddress ? (
+          <Text style={styles.meta}>
+            📍 {formatVenuePinLabel(idea.venueName ?? 'Suggested spot', idea.venueAddress)}
+          </Text>
+        ) : null}
         <Text style={styles.ideaDesc}>
           {idea.description.split('\n\n')[0]}
         </Text>
-        {idea.venueName ? (
-          <Text style={styles.meta}>📍 {formatVenuePinLabel(idea.venueName, idea.venueAddress)}</Text>
-        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -294,7 +296,7 @@ export default function IntentionalDatePlanner({
     }
   }, [matchId, isPreview]);
 
-  const fetchIdeas = useCallback(async (previousIdeas: DatePlanIdea[] = []) => {
+  const fetchIdeas = useCallback(async (previousIdeas: DatePlanIdea[] = [], options?: { silent?: boolean }) => {
     const excludeLaneIds = [
       ...new Set([...seenLaneIdsRef.current, ...previousIdeas.map((idea) => idea.laneId)]),
     ];
@@ -332,7 +334,9 @@ export default function IntentionalDatePlanner({
       setLoadingIdeas(false);
       return;
     }
-    setLoadingIdeas(true);
+    if (!options?.silent) {
+      setLoadingIdeas(true);
+    }
     setError('');
     try {
       const body: {
@@ -400,6 +404,7 @@ export default function IntentionalDatePlanner({
         setIdeas(cached.ideas);
         setMeetingLocation(cached.meetingLocation);
         setSharedInterests(cached.sharedInterests);
+        void fetchIdeas([], { silent: true });
         return;
       }
     }
@@ -846,7 +851,7 @@ const styles = StyleSheet.create({
   },
   skeletonLineShort: { width: '55%' },
   ideaTitle: { fontSize: 16, fontWeight: '800', color: '#1e1b4b' },
-  ideaDesc: { fontSize: 13, color: '#475569', marginTop: 4, lineHeight: 20 },
+  ideaDesc: { fontSize: 13, color: '#475569', marginTop: 6, lineHeight: 20 },
   meta: { fontSize: 12, color: '#334155', marginTop: 6 },
   proposePanel: {
     marginTop: 8,

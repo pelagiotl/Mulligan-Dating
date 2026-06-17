@@ -945,7 +945,8 @@ export async function gatherDatePlanVenues(
     const nearbyOnly = candidates.filter((venue) =>
       venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
     );
-    const pool = contextual.length > 0 ? contextual : nearbyOnly;
+    const pool =
+      contextual.length > 0 ? contextual : nearbyOnly.length > 0 ? nearbyOnly : candidates;
     const ranked = rankDateVenues(pool, existingVenueNames);
     if (ranked.length > 0) venues = ranked;
     else {
@@ -1068,7 +1069,8 @@ export async function generateDatePlan(
     const nearbyOnly = candidates.filter((venue) =>
       venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
     );
-    const pool = contextual.length > 0 ? contextual : nearbyOnly;
+    const pool =
+      contextual.length > 0 ? contextual : nearbyOnly.length > 0 ? nearbyOnly : candidates;
     const ranked = rankDateVenues(pool, existingVenueNames);
     if (ranked.length > 0) {
       venues = ranked;

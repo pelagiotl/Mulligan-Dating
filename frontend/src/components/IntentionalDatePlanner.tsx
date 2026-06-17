@@ -123,10 +123,12 @@ function DatePlanIdeaCard({
       </div>
       <div className="idp-idea-body">
         <h3 className="idp-idea-title">{idea.title}</h3>
-        <p className="idp-idea-desc">{idea.description.split("\n\n")[0]}</p>
-        {idea.venueName ? (
-          <p className="idp-venue">📍 {formatVenuePinLabel(idea.venueName, idea.venueAddress)}</p>
+        {idea.venueName || idea.venueAddress ? (
+          <p className="idp-venue">
+            📍 {formatVenuePinLabel(idea.venueName ?? "Suggested spot", idea.venueAddress)}
+          </p>
         ) : null}
+        <p className="idp-idea-desc">{idea.description.split("\n\n")[0]}</p>
       </div>
     </button>
   );
@@ -196,7 +198,7 @@ export default function IntentionalDatePlanner({
     }
   }, [matchId]);
 
-  const fetchIdeas = useCallback(async (previousIdeas: DatePlanIdea[] = []) => {
+  const fetchIdeas = useCallback(async (previousIdeas: DatePlanIdea[] = [], options?: { silent?: boolean }) => {
     const excludeLaneIds = [
       ...new Set([...seenLaneIdsRef.current, ...previousIdeas.map((idea) => idea.laneId)]),
     ];
@@ -211,7 +213,9 @@ export default function IntentionalDatePlanner({
       ]),
     ];
 
-    setLoadingIdeas(true);
+    if (!options?.silent) {
+      setLoadingIdeas(true);
+    }
     setError("");
     try {
       const body: {
@@ -272,6 +276,7 @@ export default function IntentionalDatePlanner({
       setIdeas(cached.ideas);
       setMeetingLocation(cached.meetingLocation);
       setSharedInterests(cached.sharedInterests);
+      void fetchIdeas([], { silent: true });
       return;
     }
     void fetchIdeas();
