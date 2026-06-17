@@ -45,6 +45,44 @@ export const SOUTHERN_OREGON_SERVICE_CENTER = {
   lng: -122.8756,
 } as const;
 
+/** Offline geocode fallback for common Southern Oregon cities (no API required). */
+export const SOUTHERN_OREGON_CITY_COORDINATES: Record<string, { lat: number; lng: number }> = {
+  medford: { lat: 42.3265, lng: -122.8756 },
+  ashland: { lat: 42.1945, lng: -122.7095 },
+  'central point': { lat: 42.376, lng: -122.9167 },
+  'grants pass': { lat: 42.439, lng: -123.3284 },
+  jacksonville: { lat: 42.3137, lng: -122.967 },
+  talent: { lat: 42.2457, lng: -122.7887 },
+  phoenix: { lat: 42.2754, lng: -122.8181 },
+  'rogue river': { lat: 42.4359, lng: -123.172 },
+  'gold hill': { lat: 42.4318, lng: -123.0506 },
+  'klamath falls': { lat: 42.2249, lng: -121.7817 },
+  trail: { lat: 42.6482, lng: -122.8101 },
+  brookings: { lat: 42.0526, lng: -124.284 },
+  'crescent city': { lat: 41.7559, lng: -124.2017 },
+  'eagle point': { lat: 42.4726, lng: -122.8028 },
+  'white city': { lat: 42.434, lng: -122.8317 },
+  'cave junction': { lat: 42.1632, lng: -123.6481 },
+  merlin: { lat: 42.5173, lng: -123.4198 },
+  'shady cove': { lat: 42.6107, lng: -122.8126 },
+  prospect: { lat: 42.7512, lng: -122.4881 },
+  williams: { lat: 42.2187, lng: -123.2739 },
+  applegate: { lat: 42.0676, lng: -123.0642 },
+  selma: { lat: 42.2782, lng: -123.6159 },
+  'wolf creek': { lat: 42.6932, lng: -123.394 },
+  'butte falls': { lat: 42.5432, lng: -122.5656 },
+  wimer: { lat: 42.339, lng: -123.147 },
+};
+
+export function lookupSouthernOregonCityCoordinates(
+  location: string,
+): { lat: number; lng: number } | null {
+  const normalized = normalizeRegionLocationInput(location);
+  const city = normalized.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (!city) return null;
+  return SOUTHERN_OREGON_CITY_COORDINATES[city] ?? null;
+}
+
 /**
  * Check if (lat, lng) is inside the given region's bounding box.
  */

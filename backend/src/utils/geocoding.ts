@@ -3,6 +3,8 @@
  * Supports multiple providers: Mapbox, Google Maps, and Nominatim (free fallback)
  */
 
+import { lookupSouthernOregonCityCoordinates } from '../config/regions.js';
+
 interface Coordinates {
   lat: number;
   lng: number;
@@ -33,6 +35,15 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult> 
   
   if (cached && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
     return cached;
+  }
+
+  const localCoords = lookupSouthernOregonCityCoordinates(location);
+  if (localCoords) {
+    const result = { coordinates: localCoords, formatted: location.trim() };
+    geocodeCache.set(cacheKey, result);
+    cacheTimestamps.set(cacheKey, Date.now());
+    console.log(`✅ Geocoded "${location}" using local Southern Oregon lookup:`, localCoords);
+    return result;
   }
 
   // Try providers in order of preference

@@ -2,6 +2,7 @@ import { db } from '../database.js';
 import { v4 as uuidv4 } from 'uuid';
 import { Client } from '@googlemaps/google-maps-services-js';
 import { geocodeLocation } from '../utils/geocoding.js';
+import { getCuratedSouthernOregonVenues } from '../data/southernOregonCuratedVenues.js';
 
 export interface DatePlan {
   id: string;
@@ -980,6 +981,14 @@ export async function gatherDatePlanVenues(
   }
   if (venues.length === 0 && !quickSearch) {
     tryVenues(await searchVenues(meetingLocation));
+  }
+
+  if (venues.length === 0) {
+    const curated = getCuratedSouthernOregonVenues(lane.id);
+    tryVenues(curated);
+    if (venues.length > 0) {
+      console.log(`ℹ️  Using curated Southern Oregon venues for lane "${lane.id}" (${venues.length} options)`);
+    }
   }
 
   return venues;
