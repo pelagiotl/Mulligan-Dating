@@ -39,6 +39,8 @@ interface MatchCelebrationProps {
   onKeepBrowsing?: () => void;
   /** Browse: dismiss overlay and open Matches (parent handles navigation). */
   onOpenChat?: () => void;
+  /** Open Smart Intentional Date Planner for this match. */
+  onSeeDateIdeas?: () => void;
   matchId?: string | null;
   explanation?: MatchExplanation | null;
   /** Recipient flows can skip the “finding match” beat. */
@@ -182,6 +184,7 @@ export default function MatchCelebration({
   onClose,
   onKeepBrowsing,
   onOpenChat,
+  onSeeDateIdeas,
   matchId,
   explanation,
   skipLoadingReveal = false,
@@ -426,6 +429,15 @@ export default function MatchCelebration({
 
             {showButton && (
               <div className="match-celebration-actions">
+                {onSeeDateIdeas && matchId ? (
+                  <button
+                    type="button"
+                    className="match-celebration-button match-celebration-button-date-ideas"
+                    onClick={onSeeDateIdeas}
+                  >
+                    See Date Ideas for You Two 📅
+                  </button>
+                ) : null}
                 <button type="button" className="match-celebration-button match-celebration-button-primary" onClick={handleSendMessage}>
                   Send a Message 💌
                 </button>

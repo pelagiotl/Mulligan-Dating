@@ -23,6 +23,8 @@ export interface DatePlan {
   user2Accepted: boolean;
   user1Modifications?: string;
   user2Modifications?: string;
+  isProposed?: boolean;
+  proposedAt?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -55,7 +57,7 @@ async function getUserLocation(userId: string): Promise<{ city: string; state: s
 }
 
 /** Venue from search (includes place_id for fetching details) */
-type VenueSearchResult = {
+export type VenueSearchResult = {
   name: string;
   address: string;
   lat: number;
@@ -212,6 +214,99 @@ const QUALITY_VENUE_TYPES = new Set([
 const LOW_QUALITY_VENUE_NAME_RE =
   /\b(pilot|flying\s*j|love'?s|ta\s+travel|travel\s*center|truck\s*stop|gas\s*station|shell|chevron|arco|exxon|mobil|bp|circle\s*k|7-?eleven|speedway|maverik|walmart|supercenter|costco|target|motel|inn|u-?haul|auto\s*parts|car\s*wash|playground|snack\s*(stop|run)|tasty\s+snacks)\b/i;
 
+const LANE_VENUE_REJECT_PATTERNS: Record<DatePlanLane['id'], RegExp[]> = {
+  games: [
+    /\bmakerspace\b/i,
+    /\bmaker\s*space\b/i,
+    /\bwood\s*work/i,
+    /\bwelding\b/i,
+    /\b3d\s*print/i,
+    /\bfabricat/i,
+    /\bcommercial\s*kitchen\s*for\s*community\b/i,
+  ],
+  coffee: [/\bbowling\s*alley\b/i, /\bmini\s*golf\b/i, /\bdrive[\s-]?thr(u|ough)\b/i, /\bdrive[\s-]?up\s*only\b/i, /\bhuman\s*bean\b/i, /\bdutch\s*bros?\b/i],
+  walk: [/\brestaurant\b/i, /\bdeli\b/i, /\bbakery\b/i, /\broastery\b/i],
+  dessert: [/\bmakerspace\b/i, /\bart\s*gallery\b/i],
+  meal: [/\bmakerspace\b/i, /\bart\s*gallery\b/i, /\btrail\b/i, /\bpark\b/i],
+  culture: [/\bgas\s*station\b/i, /\bmakerspace\b/i, /\btruck\s*stop\b/i],
+  market: [/\bmakerspace\b/i, /\bgas\s*station\b/i],
+};
+
+const FAR_AWAY_LOCATION_MARKERS = [
+  /\bsan francisco\b/i,
+  /\blos angeles\b/i,
+  /,\s*ca\b/i,
+  /\bcalifornia\s+94\d{3}\b/i,
+  /\bnew york,\s*ny\b/i,
+];
+
+function parseMeetingRegion(meetingLocation: string): { city?: string; stateAbbrev?: string } {
+  const parts = meetingLocation.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 2) return { city: parts[0] };
+  const statePart = parts[parts.length - 1].toUpperCase();
+  return { city: parts[0], stateAbbrev: statePart.length === 2 ? statePart : undefined };
+}
+
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLng = toRad(lng2 - lng1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+export function venueNearMeetingLocation(
+  venue: VenueSearchResult,
+  meetingLocation: string,
+  meetingLat: number | null,
+  meetingLng: number | null,
+  maxKm = 65,
+): boolean {
+  const haystack = `${venue.name} ${venue.address}`.toLowerCase();
+  const region = parseMeetingRegion(meetingLocation);
+  const meetingLower = meetingLocation.toLowerCase();
+
+  if (
+    (region.stateAbbrev === 'OR' || meetingLower.includes('oregon')) &&
+    /\bsan francisco\b|\blos angeles\b|,\s*ca\b|\bcalifornia\b/.test(haystack) &&
+    !/\boregon\b|\bor\b/.test(haystack)
+  ) {
+    return false;
+  }
+
+  if (meetingLat != null && meetingLng != null && venue.lat && venue.lng) {
+    return haversineKm(meetingLat, meetingLng, venue.lat, venue.lng) <= maxKm;
+  }
+
+  if (!meetingLower.includes('san francisco') && FAR_AWAY_LOCATION_MARKERS.some((re) => re.test(haystack))) {
+    return false;
+  }
+
+  return true;
+}
+
+export function venueFitsLane(venue: VenueSearchResult, lane: DatePlanLane): boolean {
+  const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
+  const rejects = LANE_VENUE_REJECT_PATTERNS[lane.id] ?? [];
+  return !rejects.some((re) => re.test(haystack));
+}
+
+function filterVenuesForLaneContext(
+  candidates: VenueSearchResult[],
+  lane: DatePlanLane,
+  meetingLocation: string,
+  meetingLat: number | null,
+  meetingLng: number | null,
+): VenueSearchResult[] {
+  return candidates.filter(
+    (venue) =>
+      venueFitsLane(venue, lane) &&
+      venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
+  );
+}
+
 function isLowQualityDateVenue(venue: VenueSearchResult): boolean {
   const haystack = `${venue.name} ${venue.address}`.toLowerCase();
   if (LOW_QUALITY_VENUE_NAME_RE.test(haystack)) return true;
@@ -228,6 +323,8 @@ function scoreVenue(venue: VenueSearchResult): number {
   if (venue.types?.some((type) => QUALITY_VENUE_TYPES.has(type))) score += 2.5;
   if (venue.priceLevel != null && venue.priceLevel >= 1 && venue.priceLevel <= 3) score += 0.75;
   if (venue.name && venue.address) score += 0.5;
+  const haystack = `${venue.name} ${venue.address}`.toLowerCase();
+  if (/\b(human bean|dutch bros|drive[\s-]?thr(u|ough))\b/.test(haystack)) score -= 10;
   return score;
 }
 
@@ -268,14 +365,14 @@ function venueKeywordsForInterest(interest: string): string[] {
   return mapped[key] ?? [`${interest} class`, `${interest} event`, `${interest} cafe`];
 }
 
-type DatePlanLane = {
+export type DatePlanLane = {
   id: 'coffee' | 'meal' | 'walk' | 'games' | 'culture' | 'market' | 'dessert';
   label: string;
   keywords: string[];
   promptHint: string;
 };
 
-const DATE_PLAN_LANES: DatePlanLane[] = [
+export const DATE_PLAN_LANES: DatePlanLane[] = [
   {
     id: 'coffee',
     label: 'coffee or tea',
@@ -358,7 +455,7 @@ function buildVenueSearchKeywords(sharedInterests: string[], lane: DatePlanLane)
   return [...new Set([...lane.keywords, ...adultDefaultKeywords, ...interestKeywords.slice(0, 4)])];
 }
 
-function fallbackDatePlanCopy(
+export function fallbackDatePlanCopy(
   sharedInterests: string[],
   meetingLocation: string,
   venue?: VenueSearchResult | null,
@@ -366,6 +463,10 @@ function fallbackDatePlanCopy(
 ): { title: string; description: string; conversationTopics: string[]; budgetRange: 'low' | 'medium' | 'high' } {
   const primaryInterest = sharedInterests[0];
   if (venue) {
+    const coffeeDescription =
+      lane?.id === 'coffee'
+        ? `Meet at ${venue.name} for a relaxed sit-down coffee — order at the counter, find a table, and ease into conversation.`
+        : `Meet at ${venue.name} for a polished, low-pressure plan that leaves room to actually talk. Keep it simple: arrive, order or browse what the place is known for, and see if the conversation has momentum.`;
     return {
       title: lane?.id === 'meal'
         ? 'Table for Two Conversations'
@@ -378,7 +479,7 @@ function fallbackDatePlanCopy(
               : lane?.id === 'dessert'
                 ? 'Dessert and a Stroll'
                 : 'Coffee and Easy Conversation',
-      description: `Meet at ${venue.name} for a polished, low-pressure plan that leaves room to actually talk. Keep it simple: arrive, order or browse what the place is known for, and see if the conversation has momentum.`,
+      description: coffeeDescription,
       conversationTopics: primaryInterest
         ? [`What first got you into ${primaryInterest}?`, `Your favorite ${primaryInterest} experience lately`, 'A place nearby you have been meaning to try']
         : ['A place nearby you have been meaning to try', 'The best low-key outing you have had recently', 'What makes a first meetup feel easy'],
@@ -461,6 +562,123 @@ async function getVenueDescription(placeId: string, apiKey: string): Promise<str
 }
 
 /**
+ * Build a user-facing description grounded in Google Place facts when available.
+ * Falls back to lane-aware template copy — never invents venue features.
+ */
+export async function buildGroundedVenueDescription(
+  venue: VenueSearchResult,
+  lane: DatePlanLane,
+  meetingLocation: string,
+): Promise<string> {
+  const fallback = fallbackDatePlanCopy([], meetingLocation, venue, lane).description;
+  const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
+  if (!venue.place_id || !googleApiKey) {
+    return fallback;
+  }
+
+  const venueFacts = await getVenueDescription(venue.place_id, googleApiKey);
+  if (!venueFacts) {
+    return fallback;
+  }
+
+  const factSentence = venueFacts.split(/[.!?]/)[0]?.trim();
+  if (!factSentence) {
+    return fallback;
+  }
+
+  const laneTail =
+    lane.id === 'coffee'
+      ? 'Grab a drink, find a table, and ease into conversation.'
+      : lane.id === 'walk'
+        ? 'Stroll, comment on what you see, and keep things easy.'
+        : lane.id === 'games'
+          ? 'Playful stakes, plenty to talk about between turns.'
+          : 'Low pressure, public, and easy to talk.';
+
+  return scrubDateTerminology(`Meet at ${venue.name} — ${factSentence}. ${laneTail}`);
+}
+
+/**
+ * Search venues for intentional date planner batch generation.
+ */
+export async function gatherDatePlanVenues(
+  matchId: string,
+  meetingLocation: string,
+  meetingLat: number | null,
+  meetingLng: number | null,
+  sharedInterests: string[],
+  lane: DatePlanLane,
+  sessionExcludeVenueNames: string[] = [],
+): Promise<VenueSearchResult[]> {
+  const existingPlansResult = db
+    .prepare('SELECT title, venue_name FROM date_plans WHERE match_id = ? ORDER BY created_at DESC LIMIT 10')
+    .all([matchId]);
+  const existingPlans = (existingPlansResult instanceof Promise
+    ? await existingPlansResult
+    : existingPlansResult) as Array<{ title: string | null; venue_name: string | null }>;
+  const existingVenueNames = new Set(
+    [
+      ...existingPlans.filter((p) => p.venue_name).map((p) => (p.venue_name as string).toLowerCase()),
+      ...sessionExcludeVenueNames.map((name) => name.toLowerCase()),
+    ],
+  );
+
+  const searchKeywords = buildVenueSearchKeywords(sharedInterests, lane);
+  let venues: VenueSearchResult[] = [];
+
+  const tryVenues = (candidates: VenueSearchResult[]) => {
+    const contextual = filterVenuesForLaneContext(
+      candidates,
+      lane,
+      meetingLocation,
+      meetingLat,
+      meetingLng,
+    );
+    const nearbyOnly = candidates.filter((venue) =>
+      venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
+    );
+    const pool = contextual.length > 0 ? contextual : nearbyOnly;
+    const ranked = rankDateVenues(pool, existingVenueNames);
+    if (ranked.length > 0) venues = ranked;
+    else {
+      const rankedIncludingRecent = pool
+        .filter((venue) => !isLowQualityDateVenue(venue))
+        .filter((venue) => venueFitsLane(venue, lane))
+        .filter((venue) => venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng))
+        .sort((a, b) => scoreVenue(b) - scoreVenue(a));
+      if (rankedIncludingRecent.length > 0) venues = rankedIncludingRecent;
+    }
+  };
+
+  if (meetingLat != null && meetingLng != null) {
+    for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5)) {
+      tryVenues(await searchVenuesNearby(meetingLat, meetingLng, keyword));
+      if (venues.length > 0) break;
+    }
+    if (venues.length === 0) {
+      tryVenues(await searchVenuesNearby(meetingLat, meetingLng));
+    }
+  }
+
+  if (venues.length === 0) {
+    for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5)) {
+      tryVenues(await searchVenues(meetingLocation, keyword));
+      if (venues.length > 0) break;
+    }
+  }
+  if (venues.length === 0) {
+    tryVenues(await searchVenues(meetingLocation));
+  }
+
+  return venues;
+}
+
+/** Avoid accidental "date" wording in user-visible strings (whole word only). */
+export function scrubDateTerminology(s: string) {
+  return s.replace(/\bdate\b/gi, 'meetup').replace(/\bdating\b/gi, 'connecting');
+}
+
+/**
  * Generate AI date plan
  */
 export async function generateDatePlan(
@@ -529,13 +747,26 @@ export async function generateDatePlan(
   const searchKeywords = buildVenueSearchKeywords(sharedInterests, selectedPlanLane);
 
   const tryVenues = (candidates: VenueSearchResult[]) => {
-    const ranked = rankDateVenues(candidates, existingVenueNames);
+    const contextual = filterVenuesForLaneContext(
+      candidates,
+      selectedPlanLane,
+      meetingLocation,
+      meetingLat,
+      meetingLng,
+    );
+    const nearbyOnly = candidates.filter((venue) =>
+      venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
+    );
+    const pool = contextual.length > 0 ? contextual : nearbyOnly;
+    const ranked = rankDateVenues(pool, existingVenueNames);
     if (ranked.length > 0) {
       venues = ranked;
       return;
     }
-    const rankedIncludingRecent = candidates
+    const rankedIncludingRecent = pool
       .filter((venue) => !isLowQualityDateVenue(venue))
+      .filter((venue) => venueFitsLane(venue, selectedPlanLane))
+      .filter((venue) => venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng))
       .sort((a, b) => scoreVenue(b) - scoreVenue(a));
     if (rankedIncludingRecent.length > 0) venues = rankedIncludingRecent;
   };
@@ -732,8 +963,6 @@ Return ONLY a JSON object with this exact format:
   }
 
   /** Avoid accidental "date" wording in user-visible strings (whole word only). */
-  const scrubDateTerminology = (s: string) => s.replace(/\bdate\b/gi, 'meetup').replace(/\bdating\b/gi, 'connecting');
-
   planTitle = scrubDateTerminology(planTitle);
   planDescription = scrubDateTerminology(planDescription);
   conversationTopics = conversationTopics.map((t) => scrubDateTerminology(t));
@@ -835,10 +1064,10 @@ export async function getDatePlan(matchId: string): Promise<DatePlan | null> {
               venue_name, venue_address, venue_lat, venue_lng,
               suggested_date, suggested_time, budget_range, conversation_topics,
               status, user1_accepted, user2_accepted, user1_modifications, user2_modifications,
-              created_at, updated_at
+              is_proposed, proposed_at, created_at, updated_at
        FROM date_plans
        WHERE match_id = ? AND status != 'declined'
-       ORDER BY created_at DESC
+       ORDER BY is_proposed DESC, created_at DESC
        LIMIT 1`
     )
     .get([matchId]);
@@ -862,6 +1091,8 @@ export async function getDatePlan(matchId: string): Promise<DatePlan | null> {
     user2_accepted: number;
     user1_modifications: string | null;
     user2_modifications: string | null;
+    is_proposed: number | null;
+    proposed_at: string | null;
     created_at: string;
     updated_at: string;
   } | undefined;
@@ -897,6 +1128,8 @@ export async function getDatePlan(matchId: string): Promise<DatePlan | null> {
     user2Accepted: plan.user2_accepted === 1,
     user1Modifications: plan.user1_modifications || undefined,
     user2Modifications: plan.user2_modifications || undefined,
+    isProposed: plan.is_proposed === 1,
+    proposedAt: plan.proposed_at || undefined,
     createdAt: plan.created_at,
     updatedAt: plan.updated_at,
   };
@@ -909,7 +1142,9 @@ export async function updateDatePlanStatus(
   planId: string,
   userId: string,
   action: 'accept' | 'decline' | 'modify',
-  modifications?: string
+  modifications?: string,
+  counterDate?: string,
+  counterTime?: string,
 ): Promise<DatePlan> {
   // Get plan and match info
   const planResult = db
@@ -948,9 +1183,24 @@ export async function updateDatePlanStatus(
       .prepare('UPDATE date_plans SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')
       .run(['declined', planId]) as Promise<any>);
   } else if (action === 'modify' && modifications) {
-    await (db
-      .prepare(`UPDATE date_plans SET ${modField} = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`)
-      .run([modifications, 'modified', planId]) as Promise<any>);
+    const sets = [
+      `${modField} = ?`,
+      `status = ?`,
+      'user1_accepted = 0',
+      'user2_accepted = 0',
+      'updated_at = CURRENT_TIMESTAMP',
+    ];
+    const vals: unknown[] = [modifications, 'modified'];
+    if (counterDate !== undefined) {
+      sets.push('suggested_date = ?');
+      vals.push(counterDate);
+    }
+    if (counterTime !== undefined) {
+      sets.push('suggested_time = ?');
+      vals.push(counterTime);
+    }
+    vals.push(planId);
+    await (db.prepare(`UPDATE date_plans SET ${sets.join(', ')} WHERE id = ?`).run(vals) as Promise<any>);
   }
 
   const updatedPlan = await getDatePlan(planMatch.match_id);

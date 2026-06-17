@@ -10,6 +10,7 @@ import {
 } from "../utils/connectProfileEligibility";
 import { getPhotoUrl } from "../utils/photoUrl";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
+import IntentionalDatePlanner from "../components/IntentionalDatePlanner";
 import TokenDisplay from "../components/TokenDisplay";
 import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
@@ -291,6 +292,7 @@ export default function Browse() {
   const [showMatchCelebration, setShowMatchCelebration] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [celebrationMatchId, setCelebrationMatchId] = useState<string | null>(null);
+  const [datePlannerOpen, setDatePlannerOpen] = useState(false);
   const [celebrationFetchedOther, setCelebrationFetchedOther] = useState<MatchCelebrationHydration | null>(
     null
   );
@@ -1032,6 +1034,16 @@ export default function Browse() {
     }
   }, [celebrationMatchId, navigate, clearMatchNotification]);
 
+  const handleProposalSentNavigateToChat = useCallback(() => {
+    const mid = celebrationMatchId?.trim();
+    if (!mid) return;
+    setDatePlannerOpen(false);
+    setShowMatchCelebration(false);
+    setMatchedProfile(null);
+    setCelebrationMatchId(null);
+    navigate("/matches", { state: { openMatchId: mid } });
+  }, [celebrationMatchId, navigate]);
+
   const showConnectGate =
     !!userProfile &&
     !browseSessionActive &&
@@ -1426,6 +1438,19 @@ export default function Browse() {
           revealWhenMatchIdReady
           onKeepBrowsing={handleCelebrationKeepBrowsing}
           onOpenChat={handleCelebrationOpenChat}
+          onSeeDateIdeas={() => setDatePlannerOpen(true)}
+        />
+      ) : null}
+
+      {datePlannerOpen && celebrationMatchId && user?.id ? (
+        <IntentionalDatePlanner
+          open={datePlannerOpen}
+          onClose={() => setDatePlannerOpen(false)}
+          matchId={celebrationMatchId}
+          partnerName={matchedProfile?.displayName ?? "your match"}
+          currentUserId={user.id}
+          isCurrentUserMatchUser1
+          onProposalSent={handleProposalSentNavigateToChat}
         />
       ) : null}
     </div>

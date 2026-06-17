@@ -49,7 +49,7 @@ import { playMatchSound, playMessageSound } from '../utils/sounds';
 import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 import MulliganMoments from '../components/MulliganMoments';
-import DateBlueprint from '../components/DateBlueprint';
+import HangoutPlanHeaderButton from '../components/HangoutPlanHeaderButton';
 import TruthOrDare, {
   truthOrDareMessageThresholdMet,
   truthOrDareMessageCounts,
@@ -61,6 +61,7 @@ import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
+import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import BlockMatchConfirmModal from '../components/BlockMatchConfirmModal';
@@ -1368,6 +1369,8 @@ export default function MatchesScreen() {
   const suppressInputEchoRef = useRef(false);
   const mulliganDismissStarterRef = useRef<(() => void) | null>(null);
   const [mulliganOpenerUsedByMatchId, setMulliganOpenerUsedByMatchId] = useState<Record<string, boolean>>({});
+  const [celebrationDatePlannerOpen, setCelebrationDatePlannerOpen] = useState(false);
+  const [chatDatePlannerOpen, setChatDatePlannerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
@@ -2305,6 +2308,28 @@ export default function MatchesScreen() {
     },
     [clearOpenMatchRouteParams]
   );
+
+  const handleCelebrationProposalSent = useCallback(() => {
+    const rp = route.params as { showMatchCelebration?: boolean; matchId?: string } | undefined;
+    const celebrationMatchId = rp?.showMatchCelebration ? rp?.matchId : undefined;
+    if (!celebrationMatchId) return;
+    setCelebrationDatePlannerOpen(false);
+    navigation.setParams({
+      matchId: undefined,
+      showMatchCelebration: undefined,
+      matchName: undefined,
+    });
+    const match = matches.find((m) => m.id === celebrationMatchId);
+    if (match) {
+      openMatchChat(match, false);
+      return;
+    }
+    setPendingOpenMatchId(celebrationMatchId);
+    void fetchMatches().then((fetched) => {
+      const found = fetched.find((m) => m.id === celebrationMatchId);
+      if (found) openMatchChat(found, true);
+    });
+  }, [route.params, navigation, matches, openMatchChat, fetchMatches]);
 
   const refreshConnectionLimits = useCallback(async () => {
     if (!isAuthenticated) {
@@ -3511,15 +3536,7 @@ export default function MatchesScreen() {
                       headerMode
                     />
                   )}
-                  <DateBlueprint
-                    matchId={selectedMatch.id}
-                    socket={socketRef.current}
-                    currentUserId={user?.id || ''}
-                    chatPartnerUserId={selectedMatch.otherUser.userId}
-                    messages={messages}
-                    headerMode
-                    onInviteToChat={(text) => handleSendMessage(text)}
-                  />
+                  <HangoutPlanHeaderButton onPress={() => setChatDatePlannerOpen(true)} />
               </View>
             )}
           </View>
@@ -3966,9 +3983,40 @@ export default function MatchesScreen() {
               const m = matches.find(x => x.id === celebrationMatchId);
               if (m) setSelectedMatch(m);
             }}
+            onSeeDateIdeas={() => setCelebrationDatePlannerOpen(true)}
             skipLoadingReveal={true}
           />
         ) : null;
+      })()}
+
+      {chatDatePlannerOpen && selectedMatch && user?.id ? (
+        <IntentionalDatePlanner
+          visible={chatDatePlannerOpen}
+          onClose={() => setChatDatePlannerOpen(false)}
+          matchId={selectedMatch.id}
+          partnerName={selectedMatch.otherUser.displayName || 'your match'}
+          currentUserId={user.id}
+          isCurrentUserMatchUser1={selectedMatch.isInitiator}
+          onProposalSent={() => setChatDatePlannerOpen(false)}
+        />
+      ) : null}
+
+      {celebrationDatePlannerOpen && (() => {
+        const rp = route.params as { showMatchCelebration?: boolean; matchId?: string; matchName?: string } | undefined;
+        const celebrationMatchId = rp?.showMatchCelebration ? rp?.matchId : undefined;
+        if (!celebrationMatchId || !user?.id) return null;
+        const celebrationMatch = matches.find(m => m.id === celebrationMatchId);
+        return (
+          <IntentionalDatePlanner
+            visible={celebrationDatePlannerOpen}
+            onClose={() => setCelebrationDatePlannerOpen(false)}
+            matchId={celebrationMatchId}
+            partnerName={rp?.matchName || celebrationMatch?.otherUser?.displayName || 'your match'}
+            currentUserId={user.id}
+            isCurrentUserMatchUser1={celebrationMatch?.isInitiator ?? false}
+            onProposalSent={handleCelebrationProposalSent}
+          />
+        );
       })()}
 
       {/* New Features: Mulligan Moments - fixed at top (Date Blueprint moved to header) */}

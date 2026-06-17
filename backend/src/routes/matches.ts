@@ -76,12 +76,11 @@ function bothUsersMetChatMediaThreshold(user1Count: number, user2Count: number):
   return user1Count >= CHAT_MEDIA_MIN_MESSAGES_EACH && user2Count >= CHAT_MEDIA_MIN_MESSAGES_EACH;
 }
 
-/** Games, NHIE, and date-plan generation require more chat back-and-forth than photo/media unlock */
+/** Games and NHIE require more chat back-and-forth than photo/media unlock */
 const MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH = 7;
 
 const TRUTH_OR_DARE_LOCKED_MESSAGE = `Truth or Dare unlocks after you and your match have each sent at least ${MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH} messages in this chat.`;
 const NEVER_HAVE_I_EVER_LOCKED_MESSAGE = `Never Have I Ever unlocks after you and your match have each sent at least ${MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH} messages in this chat.`;
-const DATE_PLAN_LOCKED_MESSAGE = `Hangout plans unlock after you and your match have each sent at least ${MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH} messages in this chat.`;
 
 function bothUsersMetMatchChatDepthThreshold(user1Count: number, user2Count: number): boolean {
   return user1Count >= MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH && user2Count >= MATCH_CHAT_DEPTH_MIN_MESSAGES_EACH;
@@ -3470,8 +3469,162 @@ matchesRouter.post("/:matchId/never-have-i-ever/send-to-chat", authenticateToken
 });
 
 // ============================================
-// DATE BLUEPRINT
+// DATE BLUEPRINT — Smart Intentional Date Planner
 // ============================================
+
+// Generate 3–5 tailored hangout ideas (no chat-depth gate — available right after matching)
+matchesRouter.post("/:matchId/generate-date-ideas", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const count = Math.min(5, Math.max(3, parseInt(String(req.body?.count ?? 4), 10) || 4));
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
+      | { user1_id: string; user2_id: string }
+      | undefined;
+    if (!match) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    const { generateDatePlanIdeas } = await import('../services/intentionalDatePlanner.js');
+    const excludeLaneIds = Array.isArray(req.body?.excludeLaneIds)
+      ? req.body.excludeLaneIds.filter((id: unknown) => typeof id === 'string')
+      : [];
+    const excludeTitles = Array.isArray(req.body?.excludeTitles)
+      ? req.body.excludeTitles.filter((title: unknown) => typeof title === 'string')
+      : [];
+    const excludeVenueNames = Array.isArray(req.body?.excludeVenueNames)
+      ? req.body.excludeVenueNames.filter((name: unknown) => typeof name === 'string')
+      : [];
+    const result = await generateDatePlanIdeas(matchId, count, {
+      excludeLaneIds,
+      excludeTitles,
+      excludeVenueNames,
+    });
+    res.json({
+      success: true,
+      ideas: result.ideas,
+      meetingLocation: result.meetingLocation,
+      sharedInterests: result.sharedInterests,
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Generate date ideas error:', errorMessage);
+    res.status(500).json({ error: `Failed to generate date ideas: ${errorMessage}` });
+  }
+});
+
+// Propose a selected idea with date/time — sends to match as formal proposal
+matchesRouter.post("/:matchId/date-plan/propose", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const { matchId } = req.params;
+    const { idea, suggestedDate, suggestedTime } = req.body ?? {};
+
+    if (!idea || typeof idea !== 'object' || !idea.title || !suggestedDate || !suggestedTime) {
+      return res.status(400).json({ error: 'idea, suggestedDate, and suggestedTime are required' });
+    }
+
+    const matchResult = db
+      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .get([matchId, userId, userId]);
+    const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
+      | { user1_id: string; user2_id: string }
+      | undefined;
+    if (!match) {
+      return res.status(404).json({ error: 'Match not found' });
+    }
+
+    const { proposeDatePlan } = await import('../services/intentionalDatePlanner.js');
+    const plan = await proposeDatePlan(matchId, userId, idea, String(suggestedDate), String(suggestedTime));
+
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const profileResult = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]);
+    const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+      | { display_name: string | null }
+      | undefined;
+    const proposerName = profile?.display_name || 'Someone';
+
+    const dateLabel = new Date(`${suggestedDate}T${suggestedTime}`).toLocaleString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit',
+    });
+
+    try {
+      const systemMessageId = uuidv4();
+      const systemContent = `📅 ${proposerName} proposed a hangout: "${plan.title}" — ${dateLabel}`;
+      db.prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`).run([
+        systemMessageId,
+        matchId,
+        userId,
+        systemContent,
+      ]);
+      const { getIO } = await import('../socket.js');
+      const io = getIO();
+      if (io) {
+        io.to(`match:${matchId}`).emit('new_message', {
+          id: systemMessageId,
+          matchId,
+          content: systemContent,
+          imageUrl: null,
+          senderId: userId,
+          senderName: proposerName,
+          sentAt: new Date().toISOString(),
+          readAt: null,
+        });
+        io.to(`match:${matchId}`).emit('date_plan_proposed', { matchId, plan });
+      }
+    } catch (msgErr) {
+      console.warn('⚠️  Date plan propose chat message failed:', msgErr);
+    }
+
+    try {
+      const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import(
+        '../services/pushNotifications.js'
+      );
+      const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
+      if (isPushNotificationConfigured()) {
+        const otherUserRowResult = db
+          .prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?')
+          .get([otherUserId]);
+        const otherUserRow = (otherUserRowResult instanceof Promise ? await otherUserRowResult : otherUserRowResult) as
+          | { push_token: string | null; push_notify_messages: number | null }
+          | undefined;
+        const wantsPush =
+          otherUserRow?.push_notify_messages === undefined ||
+          otherUserRow?.push_notify_messages === null ||
+          otherUserRow.push_notify_messages !== 0;
+        const pushBody = `proposed "${plan.title}" — ${dateLabel}`;
+        if (wantsPush && otherUserRow?.push_token && isExpoPushToken(otherUserRow.push_token)) {
+          await sendMessagePushNotification(otherUserRow.push_token, proposerName, pushBody, matchId, userId, plan.id);
+        }
+        if (wantsPush && isWebPushConfigured()) {
+          await sendWebPushToUser(otherUserId, {
+            title: `📅 ${proposerName}`,
+            body: pushBody,
+            tag: `dateplan-propose-${plan.id}`,
+            url: '/matches',
+            data: { type: 'date_plan_proposed', matchId, planId: plan.id },
+          });
+        }
+      }
+    } catch (pushErr) {
+      console.warn('⚠️  Date plan propose push failed:', pushErr);
+    }
+
+    res.json({ success: true, plan });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error('Propose date plan error:', errorMessage);
+    res.status(500).json({ error: `Failed to propose date plan: ${errorMessage}` });
+  }
+});
 
 // Generate date plan
 matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
@@ -3489,11 +3642,6 @@ matchesRouter.post("/:matchId/generate-date-plan", authenticateToken, rateLimitA
 
     if (!match) {
       return res.status(404).json({ error: "Match not found" });
-    }
-
-    const counts = await getSenderMessageCounts(matchId, match.user1_id, match.user2_id);
-    if (!bothUsersMetMatchChatDepthThreshold(counts.user1, counts.user2)) {
-      return res.status(403).json({ error: DATE_PLAN_LOCKED_MESSAGE });
     }
 
     // Get shared interests
@@ -3573,7 +3721,7 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
   try {
     const userId = req.userId!;
     const { matchId, planId } = req.params;
-    const { action, modifications } = req.body; // action: 'accept' | 'decline' | 'modify'
+    const { action, modifications, counterDate, counterTime } = req.body; // action: 'accept' | 'decline' | 'modify'
 
     if (!['accept', 'decline', 'modify'].includes(action)) {
       return res.status(400).json({ error: "Invalid action. Must be 'accept', 'decline', or 'modify'" });
@@ -3592,7 +3740,14 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
     }
 
     const { updateDatePlanStatus } = await import('../services/dateBlueprint.js');
-    const plan = await updateDatePlanStatus(planId, userId, action, modifications);
+    const plan = await updateDatePlanStatus(
+      planId,
+      userId,
+      action,
+      modifications,
+      counterDate,
+      counterTime,
+    );
 
     // Determine the other user (the one who should be notified)
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
@@ -3606,8 +3761,8 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
       : currentUserProfileResult) as { display_name: string | null } | undefined;
     const currentUserName = currentUserProfile?.display_name || 'Someone';
 
-    // Send push notification when date plan is accepted
-    if (action === 'accept') {
+    // Push notification for accept / decline / counter
+    if (action === 'accept' || action === 'decline' || action === 'modify') {
       try {
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
@@ -3616,16 +3771,24 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
           const otherUserRowResult = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
           const otherUserRow = (otherUserRowResult instanceof Promise ? await otherUserRowResult : otherUserRowResult) as { push_token: string | null; push_notify_messages: number | null } | undefined;
           const wantsMessagePush = otherUserRow?.push_notify_messages === undefined || otherUserRow?.push_notify_messages === null || otherUserRow.push_notify_messages !== 0;
-          const dateBody = `wants to confirm the date plan: "${plan.title}"`;
+          const dateBody =
+            action === 'accept'
+              ? plan.user1Accepted && plan.user2Accepted
+                ? `confirmed your hangout: "${plan.title}"`
+                : `accepted your hangout proposal: "${plan.title}"`
+              : action === 'decline'
+                ? 'declined the hangout proposal'
+                : `suggested a different time for "${plan.title}"`;
           if (wantsMessagePush && otherUserRow?.push_token && isExpoPushToken(otherUserRow.push_token)) {
             await sendMessagePushNotification(
               otherUserRow.push_token,
               currentUserName,
               dateBody,
               matchId,
-              userId
+              userId,
+              plan.id,
             );
-            console.log(`✅ Sent push notification for date plan acceptance to user ${otherUserId}`);
+            console.log(`✅ Sent push notification for date plan ${action} to user ${otherUserId}`);
           } else if (!wantsMessagePush) {
             console.log(`ℹ️  User ${otherUserId} has message notifications disabled, skipping push`);
           } else {
@@ -3637,14 +3800,13 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
               body: dateBody,
               tag: `dateplan-${planId}`,
               url: "/matches",
-              data: { type: "new_message", matchId, senderId: userId, planId },
+              data: { type: "date_plan_updated", matchId, senderId: userId, planId, action },
             });
-            if (n > 0) console.log(`✅ Web Push (date plan) → ${otherUserId} (${n})`);
+            if (n > 0) console.log(`✅ Web Push (date plan ${action}) → ${otherUserId} (${n})`);
           }
         }
       } catch (pushError) {
-        // Push notifications are optional, don't fail date plan action if push fails
-        console.warn('⚠️  Failed to send push notification for date plan acceptance (non-critical):', pushError);
+        console.warn('⚠️  Failed to send push notification for date plan action (non-critical):', pushError);
       }
     }
 
@@ -3653,11 +3815,13 @@ matchesRouter.post("/:matchId/date-plan/:planId/action", authenticateToken, rate
       const systemMessageId = uuidv4();
       let systemContent = '';
       if (action === 'accept') {
-        systemContent = `📅 ${currentUserName} accepted the date plan!`;
+        systemContent = plan.user1Accepted && plan.user2Accepted
+          ? `📅 Hangout confirmed! ${currentUserName} and you are set for "${plan.title}".`
+          : `📅 ${currentUserName} accepted the hangout proposal!`;
       } else if (action === 'decline') {
-        systemContent = `📅 ${currentUserName} declined the date plan`;
+        systemContent = `📅 ${currentUserName} declined the hangout proposal`;
       } else if (action === 'modify') {
-        systemContent = `📅 ${currentUserName} suggested modifications to the date plan`;
+        systemContent = `📅 ${currentUserName} suggested a different time: ${modifications || 'see proposal'}`;
       }
       if (systemContent) {
         db.prepare(

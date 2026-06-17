@@ -37,6 +37,7 @@ interface MatchCelebrationProps {
   onClose: () => void;
   explanation?: MatchExplanation | null;
   matchId?: string | null;
+  onSeeDateIdeas?: () => void;
   /** When true (recipient / User B), skip loading card and show celebration immediately. When false (initiator / User A), show loading then reveal. */
   skipLoadingReveal?: boolean;
   /** When true (Connect flow), show loading until matchId is set, then reveal after a short delay. When false, use fixed REVEAL_DELAY_MS. */
@@ -185,6 +186,7 @@ export default function MatchCelebration({
   onClose,
   explanation,
   matchId,
+  onSeeDateIdeas,
   skipLoadingReveal = false,
   revealWhenMatchIdReady = false,
 }: MatchCelebrationProps) {
@@ -655,6 +657,22 @@ export default function MatchCelebration({
                   transform: [{ scale: buttonScaleAnim }],
                 }}
               >
+                {onSeeDateIdeas && matchId ? (
+                  <TouchableOpacity
+                    style={[styles.dateIdeasButton, { borderColor: theme.secondaryBorder }]}
+                    onPress={onSeeDateIdeas}
+                    activeOpacity={0.85}
+                  >
+                    <LinearGradient
+                      colors={['#7c3aed', '#a855f7', '#c084fc']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={styles.dateIdeasGradient}
+                    >
+                      <Text style={styles.dateIdeasText}>See Date Ideas for You Two 📅</Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : null}
                 <Animated.View
                   style={{
                     transform: [{ scale: buttonPulseAnim }],
@@ -1068,6 +1086,23 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
+  },
+  dateIdeasButton: {
+    marginBottom: 12,
+    borderRadius: 20,
+    overflow: 'hidden',
+    borderWidth: 2,
+  },
+  dateIdeasGradient: {
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+  },
+  dateIdeasText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
   },
   secondaryButton: {
     marginTop: 16,

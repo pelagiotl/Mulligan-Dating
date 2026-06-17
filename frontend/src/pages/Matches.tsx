@@ -14,7 +14,8 @@ import PhotoGalleryUnlockCelebration from "../components/PhotoGalleryUnlockCeleb
 import PhotoUnlockExplainerModalWeb from "../components/PhotoUnlockExplainerModalWeb";
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
 import NeverHaveIEverWeb from "../components/NeverHaveIEverWeb";
-import DateBlueprintWeb from "../components/DateBlueprintWeb";
+import HangoutPlanHeaderButton from "../components/HangoutPlanHeaderButton";
+import IntentionalDatePlanner from "../components/IntentionalDatePlanner";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
 import ReportUserModal from "../components/ReportUserModal";
@@ -265,6 +266,7 @@ export default function Matches() {
   >(null);
   const [galleryUnlockCelebrationOpen, setGalleryUnlockCelebrationOpen] = useState(false);
   const [photoUnlockExplainerOpen, setPhotoUnlockExplainerOpen] = useState(false);
+  const [chatDatePlannerOpen, setChatDatePlannerOpen] = useState(false);
   const galleryUnlockCelebrationDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
 
   const [reportModalOpen, setReportModalOpen] = useState(false);
@@ -2570,22 +2572,7 @@ export default function Matches() {
 
               {selectedMatch.stage !== "pending" && user && (
                 <div className="chat-header-games">
-                  <DateBlueprintWeb
-                    matchId={selectedMatch.id}
-                    socket={socketRef.current}
-                    currentUserId={user.id}
-                    isCurrentUserMatchUser1={selectedMatch.isInitiator}
-                    onInviteToChat={sendChatText}
-                    onPlanGenerated={() =>
-                      setNotification({
-                        message: "🎉 Date Plan Generator unlocked! Your first hangout plan is ready.",
-                        type: "success",
-                        duration: 5000,
-                      })
-                    }
-                    messages={messages}
-                    chatPartnerUserId={selectedMatch.otherUser.userId}
-                  />
+                  <HangoutPlanHeaderButton onPress={() => setChatDatePlannerOpen(true)} />
                   <TruthOrDareWeb
                     matchId={selectedMatch.id}
                     socket={socketRef.current}
@@ -3132,6 +3119,19 @@ export default function Matches() {
             )}
           </>
         </div>
+      ) : null}
+
+      {chatDatePlannerOpen && selectedMatch && user ? (
+        <IntentionalDatePlanner
+          open={chatDatePlannerOpen}
+          onClose={() => setChatDatePlannerOpen(false)}
+          matchId={selectedMatch.id}
+          partnerName={selectedMatch.otherUser.displayName || "your match"}
+          currentUserId={user.id}
+          isCurrentUserMatchUser1={selectedMatch.isInitiator}
+          socket={socketRef.current}
+          onProposalSent={() => setChatDatePlannerOpen(false)}
+        />
       ) : null}
     </div>
   );

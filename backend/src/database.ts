@@ -1180,6 +1180,17 @@ export async function initDatabase() {
   }
 
   try {
+    await execSQL(`ALTER TABLE date_plans ADD COLUMN is_proposed ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`);
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    await execSQL(`ALTER TABLE date_plans ADD COLUMN proposed_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
+  } catch (e) {
+    // Column already exists
+  }
+
+  try {
     const { syncAccountStatusFromProfileReadiness } = await import('./utils/accountStatus.js');
     await syncAccountStatusFromProfileReadiness();
     console.log('✅ User account_status synced from profile readiness');

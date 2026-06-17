@@ -18275,6 +18275,17 @@ button.match-celebration-photo-btn:disabled:focus-visible {
   border-color: rgba(255, 255, 255, 0.7) !important;
 }
 
+.match-celebration-button-date-ideas {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 50%, #c084fc 100%) !important;
+  border: none !important;
+  box-shadow: 0 10px 28px rgba(124, 58, 237, 0.45);
+  margin-bottom: var(--space-2);
+}
+
+.match-celebration-button-date-ideas:hover {
+  background: linear-gradient(135deg, #6d28d9 0%, #9333ea 50%, #a855f7 100%) !important;
+}
+
 .match-celebration-explanation {
   text-align: left;
   max-width: 26rem;

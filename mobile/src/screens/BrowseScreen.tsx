@@ -73,6 +73,7 @@ import ConnectButtonShimmerEffect, {
 } from '../components/ConnectButtonShimmerEffect';
 import ConnectButtonHeartFireworks from '../components/ConnectButtonHeartFireworks';
 import MatchCelebration from '../components/MatchCelebration';
+import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
@@ -85,6 +86,10 @@ import {
   getConnectSetupMissing,
   type ConnectSetupMissing,
 } from '../utils/connectSetup';
+import {
+  DEV_DATE_PLAN_PREVIEW_MATCH_ID,
+  subscribeDatePlanPreview,
+} from '../utils/datePlanPreviewDemo';
 import {
   endMatchCelebrationDemoSession,
   isMatchCelebrationDemoSession,
@@ -276,6 +281,8 @@ export default function BrowseScreen() {
   const [noProfilesUpdating, setNoProfilesUpdating] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
   const [matchId, setMatchId] = useState<string | null>(null);
+  const [datePlannerOpen, setDatePlannerOpen] = useState(false);
+  const [datePlanPreviewOpen, setDatePlanPreviewOpen] = useState(false);
   const [matchExplanation, setMatchExplanation] = useState<{
     reasons: string[];
     sharedInterests: string[];
@@ -1021,6 +1028,11 @@ export default function BrowseScreen() {
     if (!__DEV__) return;
     return subscribeMatchCelebrationDemo(launchMatchCelebrationDemo);
   }, [launchMatchCelebrationDemo]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    return subscribeDatePlanPreview(() => setDatePlanPreviewOpen(true));
+  }, []);
 
   // When navigated with resetToLanding (e.g. "Back to Connect" from celebration), show Connect landing page
   useFocusEffect(
@@ -1911,6 +1923,29 @@ export default function BrowseScreen() {
     clearCelebrationAndConnectingState();
   }, [clearCelebrationAndConnectingState]);
 
+  const handleProposalSentNavigateToChat = useCallback(() => {
+    const idToOpen = matchId;
+    if (!idToOpen || idToOpen === DEV_DATE_PLAN_PREVIEW_MATCH_ID) return;
+    setDatePlannerOpen(false);
+    setDatePlanPreviewOpen(false);
+    setShowMatchCelebration(false);
+    setMatchedProfile(null);
+    setMatchId(null);
+    matchIdFromConnectRef.current = null;
+    setMatchExplanation(null);
+    setPendingOpenMatchId(idToOpen);
+    if (navigationRef.current?.isReady()) {
+      navigationRef.current.dispatch(
+        CommonActions.navigate({
+          name: 'MainTabs',
+          params: { screen: 'Matches', params: { matchId: idToOpen } },
+        }),
+      );
+    } else {
+      navigation.navigate('Matches' as never, { matchId: idToOpen } as never);
+    }
+  }, [matchId, navigation]);
+
   const activeProfile = hasActiveProfile ? currentProfile : null;
   const photos = activeProfile?.photos || [];
   const primaryPhoto = photos.find((p) => p.isPrimary) || photos[0];
@@ -2574,8 +2609,27 @@ export default function BrowseScreen() {
           matchId={matchId}
           skipLoadingReveal={false}
           revealWhenMatchIdReady={true}
+          onSeeDateIdeas={() => setDatePlannerOpen(true)}
         />
       )}
+
+      {(datePlannerOpen || datePlanPreviewOpen) &&
+      (datePlanPreviewOpen ? true : matchId && user?.id) ? (
+        <IntentionalDatePlanner
+          visible={datePlannerOpen || datePlanPreviewOpen}
+          onClose={() => {
+            setDatePlannerOpen(false);
+            setDatePlanPreviewOpen(false);
+          }}
+          matchId={datePlanPreviewOpen ? DEV_DATE_PLAN_PREVIEW_MATCH_ID : matchId!}
+          partnerName={
+            datePlanPreviewOpen ? 'Alex' : matchedProfile.displayName || 'your match'
+          }
+          currentUserId={user?.id ?? 'dev-preview-user'}
+          isCurrentUserMatchUser1
+          onProposalSent={handleProposalSentNavigateToChat}
+        />
+      ) : null}
 
       <MatchmakingPausedModal
         visible={matchmakingPausedModalVisible}
