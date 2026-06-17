@@ -138,34 +138,52 @@ export function getActiveMatchingRegion(): string | null {
  * Fallback text-based region check for cases where geocoding fails or is rate-limited.
  * This is intentionally conservative and currently only supports southern_oregon.
  */
+export function normalizeRegionLocationInput(location: string): string {
+  const normalized = location.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (normalized.includes(',')) return normalized;
+  const withoutComma = normalized.match(/^(.+?)\s+(or|oregon|ore)\.?$/i);
+  if (withoutComma) {
+    return `${withoutComma[1].trim()}, ${withoutComma[2]}`;
+  }
+  return normalized;
+}
+
+/** Rogue Valley / Southern Oregon cities within the ~100 mi service area. */
+export const SOUTHERN_OREGON_CITY_PATTERNS: RegExp[] = [
+  /\bmedford\b/,
+  /\bashland\b/,
+  /\bcentral point\b/,
+  /\beagle point\b/,
+  /\bjacksonville\b/,
+  /\bwhite city\b/,
+  /\bphoenix\b/,
+  /\btalent\b/,
+  /\bgrants pass\b/,
+  /\bcave junction\b/,
+  /\brogue river\b/,
+  /\bgold hill\b/,
+  /\bklamath falls\b/,
+  /\bbrookings\b/,
+  /\bcrescent city\b/,
+  /\bmerlin\b/,
+  /\bwimer\b/,
+  /\bshady cove\b/,
+  /\btrail\b/,
+  /\bbutte falls\b/,
+  /\bprospect\b/,
+  /\bwilliams\b/,
+  /\bapplegate\b/,
+  /\bselma\b/,
+  /\bwolf creek\b/,
+];
+
 export function isLikelyInRegionByText(location: string | null | undefined, regionId: string): boolean {
   if (!location || !regionId) return false;
-  const normalized = location.toLowerCase().replace(/\s+/g, ' ').trim();
+  const normalized = normalizeRegionLocationInput(location);
 
   if (regionId !== 'southern_oregon') return false;
 
-  const cityPatterns: RegExp[] = [
-    /\bmedford\b/,
-    /\bashland\b/,
-    /\bcentral point\b/,
-    /\beagle point\b/,
-    /\bjacksonville\b/,
-    /\bwhite city\b/,
-    /\bphoenix\b/,
-    /\btalent\b/,
-    /\bgrants pass\b/,
-    /\bcave junction\b/,
-    /\brogue river\b/,
-    /\bgold hill\b/,
-    /\bklamath falls\b/,
-    /\bbrookings\b/,
-    /\bcrescent city\b/,
-    /\bmerlin\b/,
-    /\bwimer\b/,
-    /\bshady cove\b/,
-  ];
-
-  const hasRegionalCity = cityPatterns.some((re) => re.test(normalized));
+  const hasRegionalCity = SOUTHERN_OREGON_CITY_PATTERNS.some((re) => re.test(normalized));
   const hasOregonMarker = /\b(or|oregon)\b/.test(normalized);
   const hasCountyMarker = /\b(jackson county|josephine county)\b/.test(normalized);
   const hasNorthernCaliforniaMarker = /\b(ca|california)\b/.test(normalized);

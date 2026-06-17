@@ -55,32 +55,49 @@ export function hasCityAndState(location: string): boolean {
 }
 
 /** Fast local check for known Southern Oregon / nearby service-area cities (mirrors backend). */
+function normalizeRegionLocationInput(location: string): string {
+  const normalized = location.toLowerCase().replace(/\s+/g, ' ').trim();
+  if (normalized.includes(',')) return normalized;
+  const withoutComma = normalized.match(/^(.+?)\s+(or|oregon|ore)\.?$/i);
+  if (withoutComma) {
+    return `${withoutComma[1].trim()}, ${withoutComma[2]}`;
+  }
+  return normalized;
+}
+
+const SOUTHERN_OREGON_CITY_PATTERNS: RegExp[] = [
+  /\bmedford\b/,
+  /\bashland\b/,
+  /\bcentral point\b/,
+  /\beagle point\b/,
+  /\bjacksonville\b/,
+  /\bwhite city\b/,
+  /\bphoenix\b/,
+  /\btalent\b/,
+  /\bgrants pass\b/,
+  /\bcave junction\b/,
+  /\brogue river\b/,
+  /\bgold hill\b/,
+  /\bklamath falls\b/,
+  /\bbrookings\b/,
+  /\bcrescent city\b/,
+  /\bmerlin\b/,
+  /\bwimer\b/,
+  /\bshady cove\b/,
+  /\btrail\b/,
+  /\bbutte falls\b/,
+  /\bprospect\b/,
+  /\bwilliams\b/,
+  /\bapplegate\b/,
+  /\bselma\b/,
+  /\bwolf creek\b/,
+];
+
 export function isLikelyInSouthernOregonByText(location: string | null | undefined): boolean {
   if (!location?.trim()) return false;
-  const normalized = location.toLowerCase().replace(/\s+/g, ' ').trim();
+  const normalized = normalizeRegionLocationInput(location);
 
-  const cityPatterns: RegExp[] = [
-    /\bmedford\b/,
-    /\bashland\b/,
-    /\bcentral point\b/,
-    /\beagle point\b/,
-    /\bjacksonville\b/,
-    /\bwhite city\b/,
-    /\bphoenix\b/,
-    /\btalent\b/,
-    /\bgrants pass\b/,
-    /\bcave junction\b/,
-    /\brogue river\b/,
-    /\bgold hill\b/,
-    /\bklamath falls\b/,
-    /\bbrookings\b/,
-    /\bcrescent city\b/,
-    /\bmerlin\b/,
-    /\bwimer\b/,
-    /\bshady cove\b/,
-  ];
-
-  const hasRegionalCity = cityPatterns.some((re) => re.test(normalized));
+  const hasRegionalCity = SOUTHERN_OREGON_CITY_PATTERNS.some((re) => re.test(normalized));
   const hasOregonMarker = /\b(or|oregon)\b/.test(normalized);
   const hasCountyMarker = /\b(jackson county|josephine county)\b/.test(normalized);
   const hasNorthernCaliforniaMarker = /\b(ca|california)\b/.test(normalized);
