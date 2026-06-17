@@ -65,6 +65,10 @@ import {
 } from '../constants/matchingDistance';
 import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
+import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
+import IntroVideoExamplePlayer from '../components/IntroVideoExamplePlayer';
+import { INTRO_VIDEO_ENCOURAGEMENT, INTRO_VIDEO_PROMPT } from '../constants/introVideoCopy';
+import { hasIntroVideo } from '../utils/connectSetup';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import {
   deriveAppRegistrationComplete,
@@ -343,6 +347,9 @@ export default function CreateProfileScreen() {
   const [displayName, setDisplayName] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
+  const [introVideoUrl, setIntroVideoUrl] = useState<string | null>(null);
+  const [introVideoPreviewUri, setIntroVideoPreviewUri] = useState<string | null>(null);
+  const [showIntroVideoModal, setShowIntroVideoModal] = useState(false);
   const [location, setLocation] = useState('');
   const [locationRegionError, setLocationRegionError] = useState('');
   const [validatingLocation, setValidatingLocation] = useState(false);
@@ -410,7 +417,7 @@ export default function CreateProfileScreen() {
     };
   }, [isOnboardingWizard]);
 
-  // Keep gender card in view after location is confirmed (success row removed; footer no longer pops in).
+  // Keep intro video card in view after location is confirmed.
   useEffect(() => {
     if (!isOnboardingWizard || step !== 1) return;
     if (hasCityAndState(location)) {
@@ -446,7 +453,7 @@ export default function CreateProfileScreen() {
     const h = screenHeight;
     const scaleW = Math.min(Math.max(w / 375, 0.9), 1.15);
     const scaleH = Math.min(Math.max(h / 812, 0.85), 1.1);
-    // Fit three onboarding cards in the viewport without scrolling (name, location, gender).
+    // Fit three onboarding cards in the viewport without scrolling (name, location, intro video).
     const isOnboardingLayout = isOnboardingWizard && step === 1;
     const headerBudget = Platform.OS === 'android' ? 82 : 94;
     // Footer stays mounted during onboarding (compact while keyboard open) so layout does not jump.
@@ -467,7 +474,7 @@ export default function CreateProfileScreen() {
         : 0;
     const bodyBudget =
       h - insets.top - insets.bottom - headerBudget - footerBudget - keyboardOverlap;
-    const threeCardStackEstimate = 2 * 118 + 188 + 2 * 6;
+    const threeCardStackEstimate = 2 * 118 + 280 + 2 * 6;
     const rawSqueeze = bodyBudget / threeCardStackEstimate;
     const minSqueeze = isOnboardingLayout && keyboardHeight > 0 ? 0.56 : 0.64;
     const onboardingSqueeze = Math.min(1, Math.max(minSqueeze, rawSqueeze));
@@ -792,6 +799,9 @@ export default function CreateProfileScreen() {
         }
         if (data.profile.location) loc = data.profile.location ?? '';
         if (data.profile.bio) bioVal = data.profile.bio ?? '';
+        if (data.profile.intro_video_url) {
+          setIntroVideoUrl(data.profile.intro_video_url);
+        }
       }
       if (data?.interests?.length) {
         interestList = data.interests.map((i: { name: string }) => i.name);
@@ -911,14 +921,10 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
-  // Pre-save profile once name, location, and gender are valid so Complete Profile is fast.
+  // Pre-save profile once name and location are valid so Complete Profile is fast.
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileSaveStartedRef.current) return;
-    if (
-      displayName.trim().length < 2 ||
-      !hasCityAndState(location) ||
-      !isOnboardingGenderComplete(gender)
-    ) return;
+    if (displayName.trim().length < 2 || !hasCityAndState(location)) return;
     profileSaveStartedRef.current = true;
 
     const saveProfileOnLocationStep = async () => {
@@ -945,7 +951,6 @@ export default function CreateProfileScreen() {
               await api.post('/profile', {
                 displayName,
                 ...(ageNum == null ? {} : { age: ageNum }),
-                gender: gender.trim(),
                 location,
                 bio,
                 lookingFor: null,
@@ -1368,6 +1373,12 @@ export default function CreateProfileScreen() {
       setLoading(false);
       return;
     }
+
+    if (!hasIntroVideo({ intro_video_url: introVideoUrl })) {
+      setError('Record a short intro video to complete your profile.');
+      setLoading(false);
+      return;
+    }
     
     // Haptic feedback - vibrate when validation passes
     if (Platform.OS === 'ios') {
@@ -1377,9 +1388,6 @@ export default function CreateProfileScreen() {
     }
 
     try {
-      if (!isOnboardingGenderComplete(gender)) {
-        throw new Error('Please select your gender.');
-      }
       const prefGenders = resolveOnboardingPreferredGenders(preferredGenders);
       const minAgeVal = minAge != null && minAge >= 18 ? minAge : ONBOARDING_DEFAULT_MIN_AGE;
       const maxAgeVal =
@@ -1393,7 +1401,6 @@ export default function CreateProfileScreen() {
       await api.post('/profile', {
         displayName,
         ...(ageNum == null ? {} : { age: ageNum }),
-        gender: gender.trim(),
         location,
         bio,
         lookingFor: null,
@@ -1813,26 +1820,13 @@ export default function CreateProfileScreen() {
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           pointerEvents="box-none"
-            style={[
+          style={[
             styles.focusedFieldCard,
             styles.onboardingCompactCard,
-            rs.onboardingSqueeze < 0.82 && styles.onboardingGenderCardTight,
             { padding: rs.onboardingCardPadding },
           ]}
         >
-          {renderOnboardingStepPill('Step 3 · Your gender')}
-          {renderOnboardingCardEmoji('⚧️', 400)}
-          <Text
-            style={[
-              styles.focusedTitle,
-              {
-                fontSize: rs.onboardingTitleSizeSmall,
-                marginBottom: rs.onboardingTitleMargin,
-              },
-            ]}
-          >
-            What&apos;s your gender?
-          </Text>
+          {renderOnboardingStepPill('Step 3 · Intro video')}
           <Text
             style={[
               styles.focusedSubtitle,
@@ -1843,49 +1837,37 @@ export default function CreateProfileScreen() {
                 opacity: 0.92,
               },
             ]}
-            numberOfLines={1}
           >
-            This is how you show up on your profile.
+            {INTRO_VIDEO_PROMPT}
           </Text>
-          <View style={[styles.preferencesGenderGrid, styles.onboardingGenderGridAndroid]}>
-            {GENDER_OPTIONS.map((g) => {
-              const isSelected = gender === g;
-              const meta = GENDER_OPTION_META[g];
-              return (
-                <TouchableOpacity
-                  key={g}
-                  style={[styles.preferencesGenderCard, styles.onboardingGenderCardSlotAndroid]}
-                  onPress={() => setGender(g)}
-                  activeOpacity={0.7}
-                >
-                  {isSelected ? (
-                    <LinearGradient
-                      colors={['#f5576c', '#f093fb', '#667eea']}
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[styles.preferencesGenderCardSelected, styles.onboardingGenderOptionAndroid]}
-                    >
-                      <Text style={[styles.preferencesGenderEmoji, styles.onboardingGenderEmojiAndroid]}>
-                        {meta.emoji}
-                      </Text>
-                      <Text style={[styles.preferencesGenderTextSelected, styles.onboardingGenderLabelAndroid]}>
-                        {meta.label}
-                      </Text>
-                    </LinearGradient>
-                  ) : (
-                    <View style={[styles.preferencesGenderCardUnselected, styles.onboardingGenderOptionAndroid]}>
-                      <Text style={[styles.preferencesGenderEmoji, styles.onboardingGenderEmojiAndroid]}>
-                        {meta.emoji}
-                      </Text>
-                      <Text style={[styles.preferencesGenderText, styles.onboardingGenderLabelAndroid]}>
-                        {meta.label}
-                      </Text>
-                    </View>
-                  )}
-                </TouchableOpacity>
-              );
-            })}
+
+          <IntroVideoExamplePlayer compact showCaption={rs.onboardingSqueeze >= 0.72} />
+
+          <View style={styles.onboardingIntroEncourage}>
+            <Text style={styles.onboardingIntroEncourageText}>{INTRO_VIDEO_ENCOURAGEMENT}</Text>
           </View>
+
+          <TouchableOpacity
+            style={[styles.focusedLocationButton, styles.onboardingCompactLocButton, styles.onboardingIntroVideoButton]}
+            onPress={() => setShowIntroVideoModal(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.focusedLocationButtonText}>
+              {introVideoValid ? '✓ Re-record intro' : '● Record yours'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.onboardingIntroLibraryBtn}
+            onPress={() => setShowIntroVideoModal(true)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.onboardingIntroLibraryText}>Upload from camera roll</Text>
+          </TouchableOpacity>
+          {introVideoValid ? (
+            <Animated.View style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: genderOpacity }]}>
+              <Text style={styles.successText}>✓ Intro video saved!</Text>
+            </Animated.View>
+          ) : null}
         </LinearGradient>
       </Animated.View>
     </View>
@@ -2706,7 +2688,7 @@ export default function CreateProfileScreen() {
 
   const nameValid = displayName.trim().length >= 2;
   const locationValid = hasCityAndState(location) && !locationRegionError && !validatingLocation;
-  const genderValid = isOnboardingGenderComplete(gender);
+  const introVideoValid = hasIntroVideo({ intro_video_url: introVideoUrl });
   const completeProfileDisabled =
     loading ||
     savingProgress ||
@@ -2714,7 +2696,7 @@ export default function CreateProfileScreen() {
     validatingLocation ||
     !nameValid ||
     !locationValid ||
-    !genderValid;
+    !introVideoValid;
 
   return (
     <KeyboardAvoidingView
@@ -2842,7 +2824,7 @@ export default function CreateProfileScreen() {
           { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
         ]}
       >
-        {!(isOnboardingWizard && keyboardVisible) && (!nameValid || !locationValid || !genderValid) ? (
+        {!(isOnboardingWizard && keyboardVisible) && (!nameValid || !locationValid || !introVideoValid) ? (
           <Text
             style={[
               styles.actionsHint,
@@ -2853,7 +2835,7 @@ export default function CreateProfileScreen() {
               ? 'Enter at least 2 characters for your name'
               : !locationValid
                 ? 'Enter city and state (e.g. Medford, Oregon) to finish'
-                : 'Select your gender to finish'}
+                : 'Record your intro video to finish'}
           </Text>
         ) : null}
         <View style={styles.actions}>
@@ -2883,6 +2865,16 @@ export default function CreateProfileScreen() {
       </View>
       </>
       ) : null}
+      <IntroVideoRecordModal
+        visible={showIntroVideoModal}
+        onClose={() => setShowIntroVideoModal(false)}
+        existingVideoUrl={introVideoUrl}
+        onSaved={(url, localPreviewUri) => {
+          setIntroVideoUrl(url);
+          if (localPreviewUri) setIntroVideoPreviewUri(localPreviewUri);
+          setShowIntroVideoModal(false);
+        }}
+      />
       <ProfileCompleteCelebration
         visible={showCelebration}
         onClose={async () => {
@@ -4648,6 +4640,36 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 14,
     borderRadius: 14,
+  },
+  onboardingIntroVideoButton: {
+    alignSelf: 'stretch',
+  },
+  onboardingIntroEncourage: {
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+  },
+  onboardingIntroEncourageText: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  onboardingIntroLibraryBtn: {
+    alignSelf: 'center',
+    paddingVertical: 4,
+    marginBottom: 2,
+  },
+  onboardingIntroLibraryText: {
+    color: 'rgba(255,255,255,0.78)',
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   onboardingGenderCardTight: {
     marginTop: 0,

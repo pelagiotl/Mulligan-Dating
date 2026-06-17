@@ -51,13 +51,27 @@ export type ResolveBrowsePoolResult =
   | { ok: false; error: string; status: number };
 
 /** Shared browse funnel — used by GET /users/browse and admin browse-pool diagnostic. */
-export async function resolveBrowseCandidatePool(userId: string): Promise<ResolveBrowsePoolResult> {
+export async function resolveBrowseCandidatePool(
+  userId: string,
+  options?: { soberCircleOnly?: boolean },
+): Promise<ResolveBrowsePoolResult> {
   const userProfile = await (db
     .prepare('SELECT * FROM profiles WHERE user_id = ?')
     .get([userId]) as Promise<BrowseProfileRow | undefined>);
 
   if (!userProfile) {
     return { ok: false, error: 'Please complete your profile first', status: 400 };
+  }
+
+  const soberCircleOnly = options?.soberCircleOnly === true;
+  const userSoberLevel = (userProfile as BrowseProfileRow & { sober_circle_level?: string | null })
+    .sober_circle_level;
+  if (soberCircleOnly && !(userSoberLevel && String(userSoberLevel).trim())) {
+    return {
+      ok: false,
+      error: 'Select your sobriety level in Sober Circle before connecting here.',
+      status: 403,
+    };
   }
 
   const userPrefs = await (db
@@ -106,6 +120,10 @@ export async function resolveBrowseCandidatePool(userId: string): Promise<Resolv
       AND (u.is_restricted IS NULL OR u.is_restricted = 0)
       ${sqlUserHasMinPhotos('u')}
     `;
+
+  if (soberCircleOnly) {
+    query += ` AND p.sober_circle_level IS NOT NULL AND TRIM(p.sober_circle_level) != ''`;
+  }
 
   const params: unknown[] = [userId];
 

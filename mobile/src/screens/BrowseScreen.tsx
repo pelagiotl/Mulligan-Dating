@@ -73,6 +73,7 @@ import ConnectButtonShimmerEffect, {
 } from '../components/ConnectButtonShimmerEffect';
 import ConnectButtonHeartFireworks from '../components/ConnectButtonHeartFireworks';
 import MatchCelebration from '../components/MatchCelebration';
+import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
 import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
@@ -280,6 +281,8 @@ export default function BrowseScreen() {
   const [noProfilesCurrentPrefs, setNoProfilesCurrentPrefs] = useState<{ min_age: number; max_age: number | null; preferred_genders: string | string[] | null } | null>(null);
   const [noProfilesUpdating, setNoProfilesUpdating] = useState(false);
   const [matchedProfile, setMatchedProfile] = useState<Profile | null>(null);
+  const [matchedIntroVideoUrl, setMatchedIntroVideoUrl] = useState<string | null>(null);
+  const [showIntroVideoModal, setShowIntroVideoModal] = useState(false);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [datePlannerOpen, setDatePlannerOpen] = useState(false);
   const [datePlanPreviewOpen, setDatePlanPreviewOpen] = useState(false);
@@ -520,6 +523,11 @@ export default function BrowseScreen() {
 
   const handleConnectSetupGapPrimary = useCallback(() => {
     if (!connectSetupGap) return;
+    if (connectSetupGap === 'introVideo') {
+      setConnectSetupGap(null);
+      setShowIntroVideoModal(true);
+      return;
+    }
     const target = connectSetupGapNavigationTarget(connectSetupGap);
     setConnectSetupGap(null);
     (navigation as { navigate: (name: string, params?: object) => void }).navigate(
@@ -973,6 +981,7 @@ export default function BrowseScreen() {
     endMatchCelebrationDemoSession();
     setShowMatchCelebration(false);
     setMatchedProfile(null);
+    setMatchedIntroVideoUrl(null);
     setMatchId(null);
     matchIdFromConnectRef.current = null;
     initiatorMatchIdRef.current = null;
@@ -1743,6 +1752,7 @@ export default function BrowseScreen() {
       matchId: string;
       stage?: string;
       existingMatch?: boolean;
+      partnerIntroVideoUrl?: string | null;
       explanation?: { reasons: string[]; sharedInterests: string[]; sharedValues: number } | null;
     };
 
@@ -1785,6 +1795,7 @@ export default function BrowseScreen() {
         matchIdFromConnectRef.current = result.matchId;
         initiatorMatchIdRef.current = result.matchId; // So AuthContext skips in-app match notification (celebration only for User A)
         setMatchExplanation(result.explanation ?? null);
+        setMatchedIntroVideoUrl(result.partnerIntroVideoUrl ?? null);
         void refreshConnectLandingEconomy();
         // If profile has no photo (e.g. browse fast path didn't include it), fetch so celebration shows User B's picture
         const hasPhoto = profile.photoUrl || (profile.photos && profile.photos.length > 0);
@@ -2604,6 +2615,7 @@ export default function BrowseScreen() {
             matchedProfile.photoUrl ||
             undefined
           }
+          introVideoUrl={matchedIntroVideoUrl}
           onClose={handleCelebrationClose}
           explanation={matchExplanation}
           matchId={matchId}
@@ -2657,6 +2669,21 @@ export default function BrowseScreen() {
         connectShell={connectShellMode}
         onClose={() => setConnectSetupGap(null)}
         onPrimaryAction={handleConnectSetupGapPrimary}
+      />
+
+      <IntroVideoRecordModal
+        visible={showIntroVideoModal}
+        onClose={() => setShowIntroVideoModal(false)}
+        existingVideoUrl={
+          (userProfile as { intro_video_url?: string | null; introVideoUrl?: string | null } | null)
+            ?.intro_video_url ??
+          (userProfile as { introVideoUrl?: string | null } | null)?.introVideoUrl ??
+          null
+        }
+        onSaved={() => {
+          setShowIntroVideoModal(false);
+          void refreshProfile();
+        }}
       />
 
       <BetterMatchesCompleteCelebration

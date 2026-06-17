@@ -67,6 +67,7 @@ import DatePlanProposalMessageCard, {
 } from '../components/DatePlanProposalMessageCard';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
+import DateReflectionModal from '../components/DateReflectionModal';
 import BlockMatchConfirmModal from '../components/BlockMatchConfirmModal';
 import BlockMatchSuccessModal from '../components/BlockMatchSuccessModal';
 import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
@@ -133,6 +134,7 @@ interface Match {
     location: string | null;
     lookingFor?: string | null;
     photoUrl: string | null;
+    introVideoUrl?: string | null;
     profileId?: string;
     photos?: Photo[];
     interests: string[];
@@ -1400,6 +1402,7 @@ export default function MatchesScreen() {
   const [galleryUnlockCelebration, setGalleryUnlockCelebration] = useState(false);
   const [truthOrDareGateModalVisible, setTruthOrDareGateModalVisible] = useState(false);
   const [chatMediaGateModalVisible, setChatMediaGateModalVisible] = useState(false);
+  const [dateReflectionOpen, setDateReflectionOpen] = useState(false);
   const galleryUnlockCelebrationDedupeRef = useRef<{ matchId: string; at: number } | null>(null);
   const unlockCelebrateOpacity = useRef(new Animated.Value(0)).current;
   const unlockCelebrateTranslateY = useRef(new Animated.Value(-36)).current;
@@ -1959,6 +1962,19 @@ export default function MatchesScreen() {
           });
         }
       });
+
+      socket.on(
+        'second_date_match',
+        (data: { matchId: string; partnerName?: string; title?: string; body?: string }) => {
+          const title = data.title ?? 'Second date vibes ❤️';
+          const body =
+            data.body ??
+            (data.partnerName
+              ? `Great news! ${data.partnerName} also wants a second date. Ready to plan the next one?`
+              : 'You both want a second date!');
+          Alert.alert(title, body);
+        },
+      );
       
       // Handle message read receipts (backend marks all messages in match as read)
       socket.on('messages_read', (data: { matchId: string }) => {
@@ -3751,6 +3767,7 @@ export default function MatchesScreen() {
               stage: selectedMatch.stage === 'stage2' ? 'stage2' : 'stage1',
               otherUser: {
                 ...selectedMatch.otherUser,
+                introVideoUrl: selectedMatch.otherUser.introVideoUrl ?? null,
                 lastActiveLabel: formatLastActive(selectedMatch.otherUser.lastActiveAt),
               },
             }}
@@ -3990,6 +4007,7 @@ export default function MatchesScreen() {
                 ? getPhotoUrl(celebrationMatch.otherUser.photos[0].url)
                 : undefined
             }
+            introVideoUrl={celebrationMatch?.otherUser?.introVideoUrl ?? null}
             matchId={celebrationMatchId}
             onClose={() => {
               navigation.setParams({ matchId: undefined, showMatchCelebration: undefined, matchName: undefined });
@@ -4011,6 +4029,15 @@ export default function MatchesScreen() {
           currentUserId={user.id}
           isCurrentUserMatchUser1={selectedMatch.isInitiator}
           onProposalSent={() => setChatDatePlannerOpen(false)}
+        />
+      ) : null}
+
+      {selectedMatch && dateReflectionOpen ? (
+        <DateReflectionModal
+          visible={dateReflectionOpen}
+          matchId={selectedMatch.id}
+          partnerName={selectedMatch.otherUser.displayName || 'your match'}
+          onClose={() => setDateReflectionOpen(false)}
         />
       ) : null}
 
@@ -4202,11 +4229,21 @@ export default function MatchesScreen() {
               zIndex: 1000,
               elevation: 10,
               opacity: chatFadeAnim,
+              flexDirection: 'column',
             }
           ]}
           pointerEvents="box-none"
           collapsable={false}
         >
+          {selectedMatch && selectedMatch.stage !== 'pending' ? (
+            <TouchableOpacity
+              style={styles.dateReflectionPill}
+              onPress={() => setDateReflectionOpen(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.dateReflectionPillText}>💑 We went on a date</Text>
+            </TouchableOpacity>
+          ) : null}
           {isRecordingVoice ? (
             <View style={[styles.pendingImagePreview, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 }]}>
               <Text style={{ color: '#666', fontSize: 14 }}>Recording... Tap Stop to send</Text>
@@ -4252,6 +4289,7 @@ export default function MatchesScreen() {
               </Text>
             </View>
           ) : null}
+          <View style={styles.chatComposerRow}>
           <TouchableWithoutFeedback
             onPress={() => textInputRef.current?.focus()}
             accessible={false}
@@ -4338,6 +4376,7 @@ export default function MatchesScreen() {
               )}
             </LinearGradient>
           </TouchableOpacity>
+          </View>
         </Animated.View>
     </View>
   );
@@ -5746,8 +5785,27 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: '#667eea',
   },
-  inputContainer: {
+  dateReflectionPill: {
+    alignSelf: 'center',
+    backgroundColor: 'rgba(102, 126, 234, 0.12)',
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 999,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.28)',
+  },
+  dateReflectionPillText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#5b21b6',
+  },
+  chatComposerRow: {
     flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  inputContainer: {
+    flexDirection: 'column',
     padding: 10,
     paddingBottom: Platform.OS === 'ios' ? 10 : 12,
     borderTopWidth: 1.5,

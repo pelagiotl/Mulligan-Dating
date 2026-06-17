@@ -11,6 +11,10 @@ import { ensureStubProfile, isUniqueViolation } from '../utils/ensureStubProfile
 import { activateUserAccount } from '../utils/accountStatus.js';
 import { normalizeMaxDistanceMiles, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { validateLocationForActiveRegion } from '../utils/locationRegionValidation.js';
+import { uploadChatVideo } from '../middleware/upload.js';
+import { uploadToCloudinaryMedia, isCloudinaryConfigured } from '../services/cloudinary.js';
+import path from 'path';
+import fs from 'fs';
 
 export const profileRouter = Router();
 
@@ -59,8 +63,8 @@ const profileSchema = z.object({
     .refine(val => val.trim().length >= 2, 'Name cannot be only whitespace'),
   age: profileAgeSchema,
   gender: z.string()
-    .min(1, 'Gender is required')
-    .max(50, 'Gender must be at most 50 characters'),
+    .max(50, 'Gender must be at most 50 characters')
+    .optional(),
   location: z.string()
     .max(100, 'Location must be at most 100 characters')
     .optional()
@@ -122,7 +126,7 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
     } = {
       displayName: sanitizeText(profileData.displayName, 50),
       age: profileData.age ?? null,
-      gender: sanitizeText(profileData.gender, 50),
+      gender: profileData.gender ? sanitizeText(profileData.gender, 50) : '',
       location: profileData.location ? sanitizeText(profileData.location, 100) : null,
       bio: profileData.bio ? sanitizeText(profileData.bio, 500) : null,
       photoUrl: clampForDb(profileData.photoUrl, DB_PHOTO_URL_MAX),
@@ -849,6 +853,88 @@ profileRouter.delete('/', authenticateToken, rateLimitAPI, async (req: AuthReque
 });
 
 /** Finalize signup after Create Profile wizard — marks account active (tokens claimed separately on Connect). */
+profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRequest, res, next) => {
+  uploadChatVideo(req, res, (err) => {
+    if (err) {
+      return res.status(400).json({ error: err instanceof Error ? err.message : 'Video upload failed' });
+    }
+    next();
+  });
+}, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const file = (req as AuthRequest & { file?: Express.Multer.File }).file;
+    if (!file) return res.status(400).json({ error: 'No video file received' });
+
+    const profileResult = db.prepare('SELECT id, intro_video_url FROM profiles WHERE user_id = ?').get([userId]);
+    const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+      | { id: string; intro_video_url: string | null }
+      | undefined;
+    if (!profile) return res.status(404).json({ error: 'Profile not found. Complete name and location first.' });
+
+    let introVideoUrl: string;
+    if (isCloudinaryConfigured() && file.buffer) {
+      introVideoUrl = await uploadToCloudinaryMedia(file.buffer, 'profile-intro-videos', 'video');
+    } else if (file.path) {
+      const filename = path.basename(file.path);
+      introVideoUrl = `/uploads/${filename}`;
+    } else {
+      return res.status(503).json({ error: 'Video upload is not configured on this server.' });
+    }
+
+    await (db
+      .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      .run([introVideoUrl, userId]) as Promise<unknown>);
+
+    notifyPartnersProfileChanged(userId);
+    res.json({ introVideoUrl, message: 'Intro video saved' });
+  } catch (error) {
+    console.error('Intro video upload error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to upload intro video' });
+  }
+});
+
+profileRouter.delete('/intro-video', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    await (db
+      .prepare('UPDATE profiles SET intro_video_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      .run([userId]) as Promise<unknown>);
+    notifyPartnersProfileChanged(userId);
+    res.json({ message: 'Intro video removed' });
+  } catch (error) {
+    console.error('Intro video delete error:', error);
+    res.status(500).json({ error: 'Failed to remove intro video' });
+  }
+});
+
+const SOBER_CIRCLE_LEVELS = [
+  'newly_sober',
+  'one_year_plus',
+  'five_years_plus',
+  'sober_curious',
+] as const;
+
+profileRouter.put('/sober-circle', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const level = typeof req.body?.level === 'string' ? req.body.level.trim() : '';
+    if (!SOBER_CIRCLE_LEVELS.includes(level as (typeof SOBER_CIRCLE_LEVELS)[number])) {
+      return res.status(400).json({ error: 'Invalid sobriety level' });
+    }
+    await (db
+      .prepare(
+        `UPDATE profiles SET sober_circle_level = ?, sober_circle_joined_at = COALESCE(sober_circle_joined_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
+      )
+      .run([level, userId]) as Promise<unknown>);
+    notifyPartnersProfileChanged(userId);
+    res.json({ level, message: 'Sober Circle level saved' });
+  } catch (error) {
+    console.error('Sober circle update error:', error);
+    res.status(500).json({ error: 'Failed to save Sober Circle level' });
+  }
+});
+
 profileRouter.post('/activate', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const result = await activateUserAccount(req.userId!);

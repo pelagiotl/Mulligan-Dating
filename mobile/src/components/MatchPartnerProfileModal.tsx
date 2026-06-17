@@ -9,10 +9,12 @@ import {
   Platform,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
+import { resolveIntroVideoUrl } from '../utils/introVideo';
 import OptimizedImage from './OptimizedImage';
 import { profilePreviewSheetStyles as styles } from './MyProfilePreviewModal';
 import {
@@ -43,6 +45,7 @@ export type MatchPartnerUser = {
   lookingFor?: string | null;
   photoUrl: string | null;
   photos?: MatchPartnerPhoto[];
+  introVideoUrl?: string | null;
   interests: string[];
   values: string[];
   partnerQualities: Array<{ quality: string; importance: number }>;
@@ -334,6 +337,21 @@ export default function MatchPartnerProfileModal({
                 </View>
               ) : null}
             </View>
+
+            {otherUser.introVideoUrl ? (
+              <View style={introVideoStyles.wrap}>
+                <Text style={introVideoStyles.label}>Intro video</Text>
+                <View style={introVideoStyles.playerWrap}>
+                  <Video
+                    source={{ uri: resolveIntroVideoUrl(otherUser.introVideoUrl) }}
+                    style={introVideoStyles.player}
+                    resizeMode={ResizeMode.COVER}
+                    useNativeControls
+                    shouldPlay={false}
+                  />
+                </View>
+              </View>
+            ) : null}
 
             {otherUser.bio ? (
               <View style={heroAboutStyles.outer}>
@@ -685,5 +703,33 @@ const heroAboutStyles = StyleSheet.create({
   },
   taglineAfterAbout: {
     marginTop: Platform.OS === 'android' ? 10 : 14,
+  },
+});
+
+const introVideoStyles = StyleSheet.create({
+  wrap: {
+    marginTop: 12,
+    width: '100%',
+    alignItems: 'center',
+  },
+  label: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 12,
+    fontWeight: '700',
+    marginBottom: 8,
+    letterSpacing: 0.3,
+  },
+  playerWrap: {
+    width: 112,
+    height: 188,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255,255,255,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.25)',
+  },
+  player: {
+    width: '100%',
+    height: '100%',
   },
 });

@@ -13,6 +13,7 @@ import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from "../confi
 import {
   connectSetupErrorPayload,
   getConnectSetupViolationsForUser,
+  hasIntroVideo,
   profileHasMinPhotosForConnect,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
@@ -150,8 +151,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         `SELECT m.*, 
                 p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
                 p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location, p1.looking_for as user1_looking_for,
+                p1.intro_video_url as user1_intro_video,
                 p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
                 p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location, p2.looking_for as user2_looking_for,
+                p2.intro_video_url as user2_intro_video,
                 u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active,
                 u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active
          FROM matches m
@@ -454,6 +457,9 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         location: isUser1 ? m.user2_location : m.user1_location,
         lookingFor: isUser1 ? (m.user2_looking_for ?? null) : (m.user1_looking_for ?? null),
         photoUrl: (m.stage === "stage1" || m.stage === "stage2") ? primaryPhotoUrl : null,
+        introVideoUrl: (m.stage === "stage1" || m.stage === "stage2")
+          ? (isUser1 ? m.user2_intro_video : m.user1_intro_video) ?? null
+          : null,
         last_active_at: otherLastActive,
         show_active_status: otherShowActive,
       };
@@ -597,11 +603,11 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // Check if target user profile exists and load gender for preference check
     const targetProfileResult = db
-      .prepare("SELECT id, gender FROM profiles WHERE user_id = ?")
+      .prepare("SELECT id, gender, intro_video_url FROM profiles WHERE user_id = ?")
       .get([targetUserId]);
     const targetProfile = (targetProfileResult instanceof Promise
       ? await targetProfileResult
-      : targetProfileResult) as { id: string; gender: string } | undefined;
+      : targetProfileResult) as { id: string; gender: string; intro_video_url: string | null } | undefined;
 
     if (!targetProfile) {
       return res.status(400).json({ error: "Target user profile not found" });
@@ -808,6 +814,13 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       });
     }
 
+    if (!hasIntroVideo(targetProfile.intro_video_url)) {
+      return res.status(400).json({
+        error: "This person hasn't recorded an intro video yet. Try connecting with someone else.",
+        code: "TARGET_INTRO_VIDEO_REQUIRED",
+      });
+    }
+
     const tokensNeeded = 1;
     const tokenResult = db
       .prepare(
@@ -914,6 +927,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       stage: "stage1",
       isMutual: true,
       explanation: null, // Generated in background; client can refetch if needed
+      partnerIntroVideoUrl: targetProfile.intro_video_url ?? null,
     });
 
     // Notifications run after response is sent — don't block the connect round-trip

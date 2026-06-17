@@ -23,6 +23,8 @@ import AgeGateScreen from '../screens/AgeGateScreen';
 import CreateProfileScreen from '../screens/CreateProfileScreen';
 import BrowseScreen from '../screens/BrowseScreen';
 import MatchesScreen from '../screens/MatchesScreen';
+import LiveDatesScreen from '../screens/LiveDatesScreen';
+import SoberCircleScreen from '../screens/SoberCircleScreen';
 import MyProfileScreen from '../screens/MyProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AdminScreen from '../screens/AdminScreen';
@@ -43,6 +45,8 @@ export type { RootStackParamList };
 export type MainTabParamList = {
   Browse: { resetToLanding?: boolean } | undefined;
   Matches: { matchId?: string } | undefined;
+  LiveDates: undefined;
+  SoberCircle: undefined;
   MyProfile:
     | {
         scrollToPhotos?: boolean;
@@ -54,7 +58,7 @@ export type MainTabParamList = {
 };
 
 /** Leaf route names when the stack is showing MainTabs (getCurrentRoute() is nested, not "MainTabs"). */
-const MAIN_TAB_SCREEN_NAMES = new Set<string>(['Browse', 'Matches', 'MyProfile', 'Settings', 'Admin']);
+const MAIN_TAB_SCREEN_NAMES = new Set<string>(['Browse', 'Matches', 'LiveDates', 'SoberCircle', 'MyProfile', 'Settings', 'Admin']);
 
 /**
  * Floating 🎟️+count (web navbar parity) on Matches / Profile / Settings / Admin.
@@ -223,9 +227,12 @@ function MainTabs() {
         </TabIcon>
       ),
       tabBarLabel: 'Connect',
+      ...(isAdmin && Platform.OS === 'ios'
+        ? { tabBarItemStyle: { paddingLeft: 4 } as const }
+        : {}),
       tabBarButton: createTabBarButton(true),
     }),
-    [createTabBarButton, shellMidnight]
+    [createTabBarButton, shellMidnight, isAdmin]
   );
 
   const matchesTabOptions = React.useMemo(
@@ -238,6 +245,36 @@ function MainTabs() {
         </TabIcon>
       ),
       tabBarLabel: 'Matches',
+      tabBarButton: createTabBarButton(true),
+    }),
+    [createTabBarButton, shellMidnight]
+  );
+
+  const liveDatesTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>📅</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Live',
+      tabBarButton: createTabBarButton(true),
+    }),
+    [createTabBarButton, shellMidnight]
+  );
+
+  const soberCircleTabOptions = React.useMemo(
+    () => ({
+      tabBarIcon: ({ focused }: { focused: boolean }) => (
+        <TabIcon focused={focused} shellMidnight={shellMidnight}>
+          <View style={[styles.iconContainer, focused && styles.iconContainerActive]}>
+            <Text style={styles.emojiIcon}>💚</Text>
+          </View>
+        </TabIcon>
+      ),
+      tabBarLabel: 'Sober',
       tabBarButton: createTabBarButton(true),
     }),
     [createTabBarButton, shellMidnight]
@@ -314,21 +351,22 @@ function MainTabs() {
       // Android: shorter bar + relative layout keeps tabs docked flush on Pixel / Galaxy.
       height:
         Platform.OS === 'ios'
-          ? 56 + Math.round(insets.bottom * 0.5)
+          ? (isAdmin ? 58 : 56) + Math.round(insets.bottom * 0.5)
           : 42 + insets.bottom,
       paddingBottom:
         Platform.OS === 'ios'
-          ? 8 + Math.round(insets.bottom * 0.5)
+          ? (isAdmin ? 9 : 8) + Math.round(insets.bottom * 0.5)
           : Math.max(insets.bottom, 0),
       paddingTop: Platform.OS === 'ios' ? 8 : 3,
-      paddingHorizontal: Platform.OS === 'android' ? 2 : 4,
+      paddingLeft: Platform.OS === 'ios' ? (isAdmin ? 12 : 4) : isAdmin ? 4 : 2,
+      paddingRight: Platform.OS === 'ios' ? 4 : 2,
       shadowColor: '#000',
       shadowOffset: { width: 0, height: -2 },
       shadowOpacity: shellMidnight ? 0.35 : 0.06,
       shadowRadius: Platform.OS === 'android' ? 10 : 12,
-      // Keep iOS rounded aesthetic; Android should look docked to the bottom edge.
-      borderTopLeftRadius: Platform.OS === 'ios' ? 24 : 0,
-      borderTopRightRadius: Platform.OS === 'ios' ? 24 : 0,
+      // Keep iOS rounded aesthetic; gentler radius with Admin tab so first label isn't clipped.
+      borderTopLeftRadius: Platform.OS === 'ios' ? (isAdmin ? 18 : 24) : 0,
+      borderTopRightRadius: Platform.OS === 'ios' ? (isAdmin ? 18 : 24) : 0,
       // On Android, keep the tab bar in normal layout flow so it docks flush to the bottom.
       // iOS keeps absolute positioning for the glassy floating style.
       position: Platform.OS === 'ios' ? ('absolute' as const) : ('relative' as const),
@@ -345,24 +383,31 @@ function MainTabs() {
       flex: 1,
     },
     tabBarLabelStyle: {
-      fontSize: Platform.OS === 'android' ? 8.5 : 10,
+      fontSize:
+        Platform.OS === 'android'
+          ? isAdmin
+            ? 8
+            : 8.5
+          : isAdmin
+            ? 9
+            : 10,
       fontWeight: '600' as const,
-      marginTop: Platform.OS === 'android' ? 1 : 4,
+      marginTop: Platform.OS === 'android' ? 1 : isAdmin ? 3 : 4,
       letterSpacing: 0,
-      marginBottom: 0,
+      marginBottom: Platform.OS === 'ios' && isAdmin ? 1 : 0,
       paddingHorizontal: 0,
       textAlign: 'center' as const,
     },
     tabBarIconStyle: {
       marginTop: 0,
-      width: Platform.OS === 'android' ? 20 : 24,
-      height: Platform.OS === 'android' ? 20 : 24,
+      width: Platform.OS === 'android' ? 20 : isAdmin ? 22 : 24,
+      height: Platform.OS === 'android' ? 20 : isAdmin ? 22 : 24,
       justifyContent: 'center' as const,
       alignItems: 'center' as const,
     },
     tabBarShowLabel: true,
     tabBarHideOnKeyboard: true,
-  }), [insets.bottom, shellMidnight]);
+  }), [insets.bottom, shellMidnight, isAdmin]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -376,6 +421,16 @@ function MainTabs() {
           name="Matches" 
           component={MatchesScreen}
           options={matchesTabOptions}
+        />
+        <Tab.Screen
+          name="LiveDates"
+          component={LiveDatesScreen}
+          options={liveDatesTabOptions}
+        />
+        <Tab.Screen
+          name="SoberCircle"
+          component={SoberCircleScreen}
+          options={soberCircleTabOptions}
         />
         <Tab.Screen 
           name="MyProfile" 

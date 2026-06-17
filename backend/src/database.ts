@@ -356,6 +356,42 @@ export async function initDatabase() {
     }
   }
 
+  try {
+    await execSQL(
+      `ALTER TABLE profiles ADD COLUMN intro_video_url ${usePostgres ? 'VARCHAR(2000)' : 'TEXT'}`,
+    );
+    console.log('✅ Added profiles.intro_video_url');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add profiles.intro_video_url:', msg);
+    }
+  }
+
+  try {
+    await execSQL(
+      `ALTER TABLE profiles ADD COLUMN sober_circle_level ${usePostgres ? 'VARCHAR(80)' : 'TEXT'}`,
+    );
+    console.log('✅ Added profiles.sober_circle_level');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add profiles.sober_circle_level:', msg);
+    }
+  }
+
+  try {
+    await execSQL(
+      `ALTER TABLE profiles ADD COLUMN sober_circle_joined_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`,
+    );
+    console.log('✅ Added profiles.sober_circle_joined_at');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add profiles.sober_circle_joined_at:', msg);
+    }
+  }
+
   // Photos table - multiple photos per profile
   await execSQL(`
     CREATE TABLE IF NOT EXISTS photos (
@@ -1151,6 +1187,58 @@ export async function initDatabase() {
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_match_reflections_created_at ON match_reflections(created_at)`);
 
   console.log("✅ Connection Quality Score and Match Memory Bank tables created");
+
+  // Post-date reflections (private per user; mutual second-date interest triggers notification)
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS date_reflections (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      went_well ${usePostgres ? 'TEXT' : 'TEXT'} NOT NULL,
+      second_date_interest ${usePostgres ? 'VARCHAR(20)' : 'TEXT'} NOT NULL,
+      extra_notes ${usePostgres ? 'TEXT' : 'TEXT'},
+      voice_note_url ${usePostgres ? 'TEXT' : 'TEXT'},
+      mutual_notified_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(match_id, user_id)
+    )
+  `);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_date_reflections_match_id ON date_reflections(match_id)`);
+
+  // Live in-person dating events
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS live_date_events (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      title ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      description ${usePostgres ? 'TEXT' : 'TEXT'},
+      venue_name ${usePostgres ? 'VARCHAR(255)' : 'TEXT'},
+      venue_address ${usePostgres ? 'TEXT' : 'TEXT'},
+      event_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} NOT NULL,
+      food_trucks ${usePostgres ? 'TEXT' : 'TEXT'},
+      capacity ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL DEFAULT 40,
+      is_published ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL DEFAULT 1,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS live_date_signups (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      event_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      confirmed_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      reminder_sent_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      FOREIGN KEY (event_id) REFERENCES live_date_events(id) ON DELETE CASCADE,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+      UNIQUE(event_id, user_id)
+    )
+  `);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_live_date_signups_user ON live_date_signups(user_id)`);
+  await execSQL(`CREATE INDEX IF NOT EXISTS idx_live_date_events_at ON live_date_events(event_at)`);
+
+  console.log('✅ Date reflections and Live Dates tables ready');
   } catch (e) {
     console.warn("⚠️  Some indexes may already exist or failed to create:", e);
   }

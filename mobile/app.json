@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.mulligandating",
-      "buildNumber": "195",
+      "buildNumber": "200",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait"
@@ -24,9 +24,9 @@
           "UIInterfaceOrientationPortraitUpsideDown"
         ],
         "NSLocationWhenInUseUsageDescription": "Mulligan uses your location to show people and hangs near you.",
-        "NSPhotoLibraryUsageDescription": "Mulligan needs access to your photos to upload profile pictures.",
-        "NSCameraUsageDescription": "Mulligan needs access to your camera to take profile pictures and send photos or videos in chat.",
-        "NSMicrophoneUsageDescription": "Mulligan needs microphone access to record voice messages in chat.",
+        "NSPhotoLibraryUsageDescription": "Mulligan needs photo library access for profile photos and intro videos.",
+        "NSCameraUsageDescription": "Mulligan needs camera access for your intro video, profile photos, and chat photos or videos.",
+        "NSMicrophoneUsageDescription": "Mulligan needs microphone access for your intro video and voice messages in chat.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
@@ -86,7 +86,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Mulligan needs access to your photos to upload profile pictures and send photos in chat.",
-          "cameraPermission": "Mulligan needs access to your camera to take photos and send them in chat."
+          "cameraPermission": "Mulligan needs camera access for your intro video, profile photos, and chat media.",
         }
       ],
       [

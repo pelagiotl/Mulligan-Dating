@@ -19,6 +19,8 @@ import { smsWebhookRouter } from "./routes/smsWebhook.js";
 import { paymentsRouter } from "./routes/payments.js";
 import { connectionQualityRouter } from "./routes/connectionQuality.js";
 import { matchMemoryBankRouter } from "./routes/matchMemoryBank.js";
+import { dateReflectionsRouter } from "./routes/dateReflections.js";
+import { liveDatesRouter } from "./routes/liveDates.js";
 import { initDatabase, db } from "./database.js";
 import { generateWeeklyMatchesForAll } from "./services/matching.js";
 import path from "path";
@@ -394,6 +396,8 @@ app.use("/api/sms/webhook", smsWebhookRouter);
 app.use("/api/payments", paymentsRouter);
 app.use("/api/connection-quality", connectionQualityRouter);
 app.use("/api/memory-bank", matchMemoryBankRouter);
+app.use("/api/date-reflections", dateReflectionsRouter);
+app.use("/api/live-dates", liveDatesRouter);
 
 // Public admin endpoints (no auth required) - must be BEFORE the protected admin router
 app.get("/api/admin/check-admin", async (req, res) => {

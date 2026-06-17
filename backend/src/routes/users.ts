@@ -118,7 +118,10 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     const limit = 1;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const poolResult = await resolveBrowseCandidatePool(req.userId!);
+    const pool = (req.query.pool as string) || 'main';
+    const poolResult = await resolveBrowseCandidatePool(req.userId!, {
+      soberCircleOnly: pool === 'sober',
+    });
     if (!poolResult.ok) {
       const code =
         poolResult.status === 403 && poolResult.error.includes('add your location')
@@ -173,6 +176,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         lookingFor: p.looking_for,
         interests: p.interests_list ? p.interests_list.split(',') : [],
         distance: null as number | null,
+        soberCircleLevel: (p as { sober_circle_level?: string | null }).sober_circle_level ?? null,
       };
       console.log('✅ Browse fast path: returning first profile', p.display_name);
       return res.json({

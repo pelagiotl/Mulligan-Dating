@@ -10,12 +10,14 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { Video, ResizeMode } from 'expo-av';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { setPendingOpenMatchId, isDemoCelebrationMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
 import OptimizedImage from './OptimizedImage';
 import { getPhotoUrl } from '../utils/photoUrl';
+import { resolveIntroVideoUrl } from '../utils/introVideo';
 import { playMatchSound } from '../utils/sounds';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { matchCelebrationTheme, type MatchCelebrationTheme } from '../lib/matchCelebrationTheme';
@@ -34,6 +36,7 @@ interface MatchExplanation {
 interface MatchCelebrationProps {
   profileName: string;
   photoUrl?: string;
+  introVideoUrl?: string | null;
   onClose: () => void;
   explanation?: MatchExplanation | null;
   matchId?: string | null;
@@ -183,6 +186,7 @@ const REVEAL_DELAY_MS = 7000; // Minimum loading time before reveal (Connect flo
 export default function MatchCelebration({
   profileName,
   photoUrl,
+  introVideoUrl,
   onClose,
   explanation,
   matchId,
@@ -575,6 +579,24 @@ export default function MatchCelebration({
               )}
             </Animated.View>
           </View>
+
+          {introVideoUrl ? (
+            <View style={styles.introVideoSection}>
+              <Text style={[styles.introVideoLabel, { color: theme.subtitle }]}>
+                {profileName.split(' ')[0]}'s intro
+              </Text>
+              <View style={[styles.introVideoWrap, { borderColor: theme.photoBorder }]}>
+                <Video
+                  source={{ uri: resolveIntroVideoUrl(introVideoUrl) }}
+                  style={styles.introVideo}
+                  resizeMode={ResizeMode.COVER}
+                  useNativeControls
+                  shouldPlay={false}
+                  isLooping={false}
+                />
+              </View>
+            </View>
+          ) : null}
 
           {/* Text content with staggered animations */}
           <View style={styles.textContainer}>
@@ -983,6 +1005,30 @@ const styles = StyleSheet.create({
     fontSize: 48,
     color: '#fff',
     fontWeight: 'bold',
+  },
+  introVideoSection: {
+    alignItems: 'center',
+    marginTop: 12,
+    marginBottom: 4,
+    width: '100%',
+  },
+  introVideoLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 8,
+    opacity: 0.9,
+  },
+  introVideoWrap: {
+    width: 120,
+    height: 200,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 3,
+    backgroundColor: '#1a1028',
+  },
+  introVideo: {
+    width: '100%',
+    height: '100%',
   },
   textContainer: {
     alignItems: 'center',

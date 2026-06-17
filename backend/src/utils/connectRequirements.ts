@@ -30,25 +30,30 @@ export function hasValidProfileGender(gender: string | null | undefined): boolea
   return (VALID_PROFILE_GENDERS as readonly string[]).includes(g);
 }
 
+export function hasIntroVideo(introVideoUrl: string | null | undefined): boolean {
+  return typeof introVideoUrl === 'string' && introVideoUrl.trim().length > 0;
+}
+
 export type OnboardingProgress = {
   hasName: boolean;
   hasLocation: boolean;
+  hasIntroVideo: boolean;
   photoCount: number;
   photosRequired: number;
-  /** Share of name + location + min photos (0–100). */
+  /** Share of onboarding + connect steps (0–100). */
   percentComplete: number;
-  missing: Array<'profile' | 'name' | 'location' | 'age' | 'gender' | 'photos'>;
-  /** Name + location only — user may tap Complete Profile without photos. */
+  missing: Array<'profile' | 'name' | 'location' | 'introVideo' | 'age' | 'gender' | 'photos'>;
+  /** Name + location + intro video — user may finish onboarding wizard. */
   readyToActivate: boolean;
 };
 
-/** Violations for POST /profile/activate and browse routing (no photos). */
+/** Violations for POST /profile/activate (name, location, intro video — no gender/photos). */
 export async function getActivationSetupViolationsForUser(userId: string): Promise<string[]> {
   const profileResult = db
-    .prepare('SELECT id, display_name, location, age, gender FROM profiles WHERE user_id = ?')
+    .prepare('SELECT id, display_name, location, intro_video_url FROM profiles WHERE user_id = ?')
     .get([userId]);
   const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
-    | { id: string; display_name: string; location: string | null; age: number | null; gender: string | null }
+    | { id: string; display_name: string; location: string | null; intro_video_url: string | null }
     | undefined;
 
   if (!profile) return ['profile'];
@@ -56,7 +61,7 @@ export async function getActivationSetupViolationsForUser(userId: string): Promi
   const violations: string[] = [];
   if (!hasConnectDisplayName(profile.display_name)) violations.push('name');
   if (!isValidConnectLocation(profile.location)) violations.push('location');
-  if (!hasValidProfileGender(profile.gender)) violations.push('gender');
+  if (!hasIntroVideo(profile.intro_video_url)) violations.push('introVideo');
   return violations;
 }
 
@@ -68,6 +73,7 @@ export function computeOnboardingProgress(
   hasProfileRow: boolean,
   age?: number | null,
   gender?: string | null,
+  introVideoUrl?: string | null,
 ): OnboardingProgress {
   const photosRequired = MIN_PHOTOS_TO_CONNECT;
   const missing: OnboardingProgress['missing'] = [];
@@ -76,22 +82,23 @@ export function computeOnboardingProgress(
   const hasLocation = isValidConnectLocation(location);
   const hasAge = hasValidProfileAge(age ?? null);
   const hasGender = hasValidProfileGender(gender ?? null);
+  const hasIntro = hasIntroVideo(introVideoUrl ?? null);
   const safePhotoCount = Math.max(0, Math.floor(photoCount));
   if (!hasName) missing.push('name');
   if (!hasLocation) missing.push('location');
+  if (!hasIntro) missing.push('introVideo');
   if (!hasAge) missing.push('age');
   if (!hasGender) missing.push('gender');
   if (safePhotoCount < photosRequired) missing.push('photos');
 
   const activationSteps = 3;
   const activationDone =
-    (hasName ? 1 : 0) +
-    (hasLocation ? 1 : 0) +
-    (hasGender ? 1 : 0);
-  const connectSteps = activationSteps + 2;
+    (hasName ? 1 : 0) + (hasLocation ? 1 : 0) + (hasIntro ? 1 : 0);
+  const connectSteps = activationSteps + 3;
   const connectDone =
     activationDone +
     (hasAge ? 1 : 0) +
+    (hasGender ? 1 : 0) +
     (Math.min(safePhotoCount, photosRequired) >= photosRequired ? 1 : 0);
   const percentComplete = Math.round((connectDone / connectSteps) * 100);
 
@@ -99,11 +106,12 @@ export function computeOnboardingProgress(
   if (!hasProfileRow) activationMissing.push('profile');
   if (!hasName) activationMissing.push('name');
   if (!hasLocation) activationMissing.push('location');
-  if (!hasGender) activationMissing.push('gender');
+  if (!hasIntro) activationMissing.push('introVideo');
 
   return {
     hasName,
     hasLocation,
+    hasIntroVideo: hasIntro,
     photoCount: safePhotoCount,
     photosRequired,
     percentComplete,
@@ -128,15 +136,19 @@ export async function getConnectSetupViolationsForUser(userId: string): Promise<
   const activation = await getActivationSetupViolationsForUser(userId);
   if (activation.length > 0) return activation;
 
-  const profileResult = db.prepare('SELECT id, age FROM profiles WHERE user_id = ?').get([userId]);
+  const profileResult = db
+    .prepare('SELECT id, age, gender, intro_video_url FROM profiles WHERE user_id = ?')
+    .get([userId]);
   const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
-    | { id: string; age: number | null }
+    | { id: string; age: number | null; gender: string | null; intro_video_url: string | null }
     | undefined;
   if (!profile) return ['profile'];
 
   if (!hasValidProfileAge(profile.age)) return ['age'];
+  if (!hasValidProfileGender(profile.gender)) return ['gender'];
+  if (!hasIntroVideo(profile.intro_video_url)) return ['introVideo'];
 
-  if (!(await profileHasMinPhotosForConnect(profile.id))) return [...activation, 'photos'];
+  if (!(await profileHasMinPhotosForConnect(profile.id))) return ['photos'];
 
   return [];
 }
@@ -148,11 +160,14 @@ export function connectSetupErrorPayload(violations: string[]) {
     location: 'Add your city and state on your Profile before connecting (e.g. Medford, Oregon).',
     age: 'Add your age on your Profile before connecting.',
     gender: 'Add your gender on your Profile before connecting.',
+    introVideo: 'Record your 10-second intro video before connecting.',
     photos: `Upload at least ${minPhotosToConnectPhrase()} on your Profile to start matching with other people.`,
   };
   const primary = violations.includes('photos')
     ? 'photos'
-    : violations[0] ?? 'profile';
+    : violations.includes('introVideo')
+      ? 'introVideo'
+      : violations[0] ?? 'profile';
   return {
     error: messages[primary] || 'Complete your profile to connect.',
     code: 'CONNECT_SETUP_INCOMPLETE' as const,

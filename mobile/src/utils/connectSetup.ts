@@ -11,6 +11,8 @@ export type ConnectProfileLike = {
   location?: string | null;
   age?: number | null;
   gender?: string | null;
+  intro_video_url?: string | null;
+  introVideoUrl?: string | null;
 } | null;
 
 const VALID_PROFILE_GENDERS = ['Man', 'Woman', 'Other'] as const;
@@ -22,6 +24,16 @@ function hasValidProfileAge(age: number | null | undefined): boolean {
 function hasValidProfileGender(gender: string | null | undefined): boolean {
   const g = (gender ?? '').trim();
   return (VALID_PROFILE_GENDERS as readonly string[]).includes(g);
+}
+
+function profileIntroVideoUrl(profile: ConnectProfileLike): string | null {
+  if (!profile) return null;
+  const url = profile.intro_video_url ?? profile.introVideoUrl ?? null;
+  return typeof url === 'string' && url.trim().length > 0 ? url.trim() : null;
+}
+
+export function hasIntroVideo(profile: ConnectProfileLike): boolean {
+  return profileIntroVideoUrl(profile) != null;
 }
 
 function displayNameFromProfile(profile: ConnectProfileLike): string {
@@ -48,23 +60,24 @@ export function hasConnectDisplayName(profile: ConnectProfileLike): boolean {
   return displayNameFromProfile(profile).length >= 2;
 }
 
-export type ProfileActivationMissing = 'name' | 'location' | 'age' | 'gender';
-export type ConnectSetupMissing = ProfileActivationMissing | 'photos';
+export type ProfileActivationMissing = 'name' | 'location' | 'introVideo';
+export type ConnectSetupMissing = ProfileActivationMissing | 'age' | 'gender' | 'photos';
 
 export function getProfileActivationMissing(profile: ConnectProfileLike): ProfileActivationMissing[] {
   const missing: ProfileActivationMissing[] = [];
   if (!hasConnectDisplayName(profile)) missing.push('name');
   if (!isValidConnectLocation(profileLocationText(profile))) missing.push('location');
-  if (!hasValidProfileGender(profile?.gender ?? null)) missing.push('gender');
+  if (!hasIntroVideo(profile)) missing.push('introVideo');
   return missing;
 }
 
 export function getConnectSetupMissing(
   profile: ConnectProfileLike,
-  photoCount: number | null
+  photoCount: number | null,
 ): ConnectSetupMissing[] {
   const missing: ConnectSetupMissing[] = [...getProfileActivationMissing(profile)];
   if (!hasValidProfileAge(profile?.age ?? null)) missing.push('age');
+  if (!hasValidProfileGender(profile?.gender ?? null)) missing.push('gender');
   if (photoCount === null) return missing;
   if (photoCount < MIN_PHOTOS_TO_CONNECT) missing.push('photos');
   return missing;
@@ -81,7 +94,7 @@ export function isConnectSetupComplete(profile: ConnectProfileLike, photoCount: 
   return getConnectSetupMissing(profile, photoCount).length === 0;
 }
 
-/** Browse routing after onboarding — name, location, age, and gender. */
+/** Browse routing after onboarding — name, location, intro video. */
 export function computeConnectSetupComplete(profile: ConnectProfileLike, photoCount: number): boolean {
   return isProfileActivationComplete(profile);
 }
@@ -90,13 +103,13 @@ export function computeConnectSetupComplete(profile: ConnectProfileLike, photoCo
 export function computeAppConnectReady(
   profile: ConnectProfileLike,
   photoCount: number,
-  wizardDraftActive: boolean
+  wizardDraftActive: boolean,
 ): boolean {
   return computeConnectSetupComplete(profile, photoCount) && !wizardDraftActive;
 }
 
 export function isAccountActiveFromAuthUser(
-  user: { accountActive?: boolean; accountStatus?: string } | null | undefined
+  user: { accountActive?: boolean; accountStatus?: string } | null | undefined,
 ): boolean {
   if (!user) return false;
   if (user.accountActive === false) return false;
@@ -132,6 +145,8 @@ export function connectSetupGapMessage(first: ConnectSetupMissing): string {
       return 'Add your age on your Profile before you can Connect.';
     case 'gender':
       return 'Add your gender on your Profile before you can Connect.';
+    case 'introVideo':
+      return 'Record your 10-second intro video before you can Connect.';
     case 'photos':
       return CONNECT_PHOTOS_REQUIRED_MESSAGE;
     default:
@@ -140,7 +155,9 @@ export function connectSetupGapMessage(first: ConnectSetupMissing): string {
 }
 
 export function connectSetupGapPrimaryActionLabel(first: ConnectSetupMissing): string {
-  return first === 'name' ? 'Open Settings' : 'Open Profile';
+  if (first === 'name') return 'Open Settings';
+  if (first === 'introVideo') return 'Record intro';
+  return 'Open Profile';
 }
 
 export function connectSetupGapModalTitle(gap: ConnectSetupMissing): string {
@@ -153,6 +170,8 @@ export function connectSetupGapModalTitle(gap: ConnectSetupMissing): string {
       return 'Add your location';
     case 'name':
       return 'Add your name';
+    case 'introVideo':
+      return 'Record your intro';
     case 'photos':
       return 'Add a photo';
     default:
@@ -170,6 +189,8 @@ export function connectSetupGapModalEmoji(gap: ConnectSetupMissing): string {
       return '📍';
     case 'name':
       return '👋';
+    case 'introVideo':
+      return '📹';
     case 'photos':
       return '📷';
     default:
@@ -186,18 +207,21 @@ export function connectSetupGapLeadSub(gap: ConnectSetupMissing): string | null 
     case 'location':
       return 'Southern Oregon matches work best when we know your city.';
     case 'name':
-      return 'A first name is all we need so matches know who they\'re talking to.';
+      return "A first name is all we need so matches know who they're talking to.";
+    case 'introVideo':
+      return 'A short hello so matches see the real you when you connect.';
     default:
       return null;
   }
 }
 
 export type ConnectSetupNavigationTarget = {
-  screen: 'Settings' | 'MyProfile';
+  screen: 'Settings' | 'MyProfile' | 'IntroVideoRecord';
   params?: { scrollToPhotos?: boolean };
 };
 
 export function connectSetupGapNavigationTarget(first: ConnectSetupMissing): ConnectSetupNavigationTarget {
   if (first === 'name') return { screen: 'Settings' };
+  if (first === 'introVideo') return { screen: 'IntroVideoRecord' };
   return { screen: 'MyProfile', params: first === 'photos' ? { scrollToPhotos: true } : undefined };
 }

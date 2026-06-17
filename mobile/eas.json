@@ -26,6 +26,12 @@
       "ios": {
         "image": "macos-sequoia-15.6-xcode-26.2"
       }
+    },
+    "production-local": {
+      "extends": "production",
+      "ios": {
+        "credentialsSource": "local"
+      }
     }
   },
   "submit": {
