@@ -24,6 +24,7 @@ import {
   formatDatetimeParts,
   datetimeLocalToDate,
 } from '../utils/datetimeLocal';
+import { getCachedDateIdeas, setCachedDateIdeas } from '../utils/dateIdeasCache';
 import DayTimePickerModal from './DayTimePickerModal';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { dateTimePickerTheme } from '../lib/dateTimePickerTheme';
@@ -358,6 +359,11 @@ export default function IntentionalDatePlanner({
       ];
       setMeetingLocation(res.meetingLocation ?? '');
       setSharedInterests(res.sharedInterests ?? []);
+      setCachedDateIdeas(matchId, {
+        ideas: newIdeas,
+        meetingLocation: res.meetingLocation ?? '',
+        sharedInterests: res.sharedInterests ?? [],
+      });
     } catch (e) {
       if (e instanceof ApiError && e.status === 404 && e.message.toLowerCase().includes('route not found')) {
         setError(
@@ -386,8 +392,17 @@ export default function IntentionalDatePlanner({
     seenVenueNamesRef.current = [];
     setError('');
     void fetchActivePlan();
+    if (!isPreview) {
+      const cached = getCachedDateIdeas(matchId);
+      if (cached) {
+        setIdeas(cached.ideas);
+        setMeetingLocation(cached.meetingLocation);
+        setSharedInterests(cached.sharedInterests);
+        return;
+      }
+    }
     void fetchIdeas();
-  }, [visible, fetchActivePlan, fetchIdeas]);
+  }, [visible, matchId, isPreview, fetchActivePlan, fetchIdeas]);
 
   const openPicker = useCallback((target: 'propose' | 'counter') => {
     if (pickerTimerRef.current) clearTimeout(pickerTimerRef.current);

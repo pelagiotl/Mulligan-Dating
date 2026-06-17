@@ -424,7 +424,16 @@ function pickDatePlanLane(existingTitles: string[]): DatePlanLane {
   return pool[Math.floor(Math.random() * pool.length)];
 }
 
-function buildVenueSearchKeywords(sharedInterests: string[], lane: DatePlanLane): string[] {
+function buildVenueSearchKeywords(
+  sharedInterests: string[],
+  lane: DatePlanLane,
+  quickSearch = false,
+): string[] {
+  if (quickSearch) {
+    const interestKeywords = sharedInterests.flatMap(venueKeywordsForInterest).slice(0, 2);
+    return [...new Set([...lane.keywords, ...interestKeywords])].slice(0, 4);
+  }
+
   const adultDefaultKeywords = [
     'craft coffee shop',
     'tea house',
@@ -609,6 +618,7 @@ export async function gatherDatePlanVenues(
   sharedInterests: string[],
   lane: DatePlanLane,
   sessionExcludeVenueNames: string[] = [],
+  quickSearch = false,
 ): Promise<VenueSearchResult[]> {
   const existingPlansResult = db
     .prepare('SELECT title, venue_name FROM date_plans WHERE match_id = ? ORDER BY created_at DESC LIMIT 10')
@@ -623,8 +633,9 @@ export async function gatherDatePlanVenues(
     ],
   );
 
-  const searchKeywords = buildVenueSearchKeywords(sharedInterests, lane);
+  const searchKeywords = buildVenueSearchKeywords(sharedInterests, lane, quickSearch);
   let venues: VenueSearchResult[] = [];
+  const maxKeywordAttempts = quickSearch ? 2 : searchKeywords.length;
 
   const tryVenues = (candidates: VenueSearchResult[]) => {
     const contextual = filterVenuesForLaneContext(
@@ -651,22 +662,25 @@ export async function gatherDatePlanVenues(
   };
 
   if (meetingLat != null && meetingLng != null) {
-    for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5)) {
+    for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5).slice(0, maxKeywordAttempts)) {
       tryVenues(await searchVenuesNearby(meetingLat, meetingLng, keyword));
       if (venues.length > 0) break;
     }
-    if (venues.length === 0) {
+    if (venues.length === 0 && !quickSearch) {
       tryVenues(await searchVenuesNearby(meetingLat, meetingLng));
+    }
+    if (venues.length === 0 && quickSearch && lane.keywords[0]) {
+      tryVenues(await searchVenuesNearby(meetingLat, meetingLng, lane.keywords[0]));
     }
   }
 
-  if (venues.length === 0) {
-    for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5)) {
+  if (venues.length === 0 && !quickSearch) {
+    for (const keyword of [...searchKeywords].sort(() => Math.random() - 0.5).slice(0, maxKeywordAttempts)) {
       tryVenues(await searchVenues(meetingLocation, keyword));
       if (venues.length > 0) break;
     }
   }
-  if (venues.length === 0) {
+  if (venues.length === 0 && !quickSearch) {
     tryVenues(await searchVenues(meetingLocation));
   }
 

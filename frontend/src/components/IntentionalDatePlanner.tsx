@@ -7,6 +7,7 @@ import {
   defaultDatetimeLocal,
   datetimeLocalToDate,
 } from "../utils/datetimeLocal";
+import { getCachedDateIdeas, setCachedDateIdeas } from "../utils/dateIdeasCache";
 import DayTimePickerField from "./DayTimePickerField";
 
 export interface DatePlanIdea {
@@ -237,6 +238,11 @@ export default function IntentionalDatePlanner({
       ];
       setMeetingLocation(res.meetingLocation ?? "");
       setSharedInterests(res.sharedInterests ?? []);
+      setCachedDateIdeas(matchId, {
+        ideas: newIdeas,
+        meetingLocation: res.meetingLocation ?? "",
+        sharedInterests: res.sharedInterests ?? [],
+      });
     } catch (e) {
       if (e instanceof ApiError && e.status === 404 && e.message.toLowerCase().includes("route not found")) {
         setError(
@@ -259,8 +265,15 @@ export default function IntentionalDatePlanner({
     seenVenueNamesRef.current = [];
     setError("");
     void fetchActivePlan();
+    const cached = getCachedDateIdeas(matchId);
+    if (cached) {
+      setIdeas(cached.ideas);
+      setMeetingLocation(cached.meetingLocation);
+      setSharedInterests(cached.sharedInterests);
+      return;
+    }
     void fetchIdeas();
-  }, [open, fetchActivePlan, fetchIdeas]);
+  }, [open, matchId, fetchActivePlan, fetchIdeas]);
 
   useEffect(() => {
     if (!socket || !open) return;

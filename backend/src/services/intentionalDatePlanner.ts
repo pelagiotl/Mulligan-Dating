@@ -8,7 +8,6 @@ import {
   DATE_PLAN_LANES,
   type DatePlan,
   type DatePlanLane,
-  buildGroundedVenueDescription,
   fallbackDatePlanCopy,
   gatherDatePlanVenues,
   scrubDateTerminology,
@@ -123,7 +122,7 @@ async function finalizeDatePlanIdeas(
       }
 
       const description = withSafetyNote(
-        await buildGroundedVenueDescription(venue, lane, meetingLocation),
+        fallbackDatePlanCopy([], meetingLocation, venue, lane).description,
       );
 
       return {
@@ -327,8 +326,10 @@ export async function generateDatePlanIdeas(
   const { getSharedInterests } = await import('./mulliganMoments.js');
   const sharedInterests = await getSharedInterests(matchId, match.user1_id, match.user2_id);
 
-  const user1Loc = await geocodeProfileLocation(match.user1_id);
-  const user2Loc = await geocodeProfileLocation(match.user2_id);
+  const [user1Loc, user2Loc] = await Promise.all([
+    geocodeProfileLocation(match.user1_id),
+    geocodeProfileLocation(match.user2_id),
+  ]);
   const meetingLocation = (() => {
     if (user1Loc && user2Loc) {
       const a = `${user1Loc.city}, ${user1Loc.state}`;
@@ -364,28 +365,10 @@ export async function generateDatePlanIdeas(
         sharedInterests,
         lane,
         excludeVenueNames,
+        true,
       ),
     })),
   );
-
-  const aiIdeas = await generateIdeasWithAi(
-    sharedInterests,
-    meetingLocation,
-    meetingLat,
-    meetingLng,
-    laneVenues,
-    excludeTitles,
-  );
-  if (aiIdeas && aiIdeas.length >= 3) {
-    const ideas = await finalizeDatePlanIdeas(
-      aiIdeas.slice(0, ideaCount),
-      laneVenues,
-      meetingLocation,
-      meetingLat,
-      meetingLng,
-    );
-    return { ideas, meetingLocation, sharedInterests };
-  }
 
   const ideas = await finalizeDatePlanIdeas(
     laneVenues.map(({ lane, venues }) => {
