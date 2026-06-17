@@ -1661,7 +1661,7 @@ export default function MyProfile() {
       {showAgeModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="age-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowAgeModal(false)} />
-          <div className="my-profile-modal-card my-profile-modal-card--age" role="document">
+          <div className="my-profile-modal-card my-profile-modal-card--age my-profile-modal-card--fit-viewport" role="document">
             <button
               type="button"
               className="my-profile-modal-close"
@@ -1681,7 +1681,7 @@ export default function MyProfile() {
                 </p>
               </div>
             </div>
-            <div className="my-profile-modal-body my-profile-modal-body--age">
+            <div className="my-profile-modal-body my-profile-modal-body--age my-profile-modal-body--scroll">
               <label className="my-profile-modal-field-label" htmlFor="my-profile-age-input">
                 Your age
               </label>
@@ -1751,7 +1751,7 @@ export default function MyProfile() {
       {showGenderModal && (
         <div className="my-profile-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="gender-title">
           <div className="my-profile-modal-backdrop" onClick={() => setShowGenderModal(false)} />
-          <div className="my-profile-modal-card my-profile-modal-card--gender" role="document">
+          <div className="my-profile-modal-card my-profile-modal-card--gender my-profile-modal-card--fit-viewport" role="document">
             <span className="my-profile-gender-modal-aurora" aria-hidden />
             <span className="my-profile-gender-modal-aurora my-profile-gender-modal-aurora--secondary" aria-hidden />
             <button
@@ -1775,7 +1775,7 @@ export default function MyProfile() {
                 </p>
               </div>
             </div>
-            <div className="my-profile-modal-body my-profile-modal-body--gender">
+            <div className="my-profile-modal-body my-profile-modal-body--gender my-profile-modal-body--scroll">
               <label className="my-profile-modal-field-label my-profile-gender-field-label" id="gender-group-label">
                 Choose one
               </label>
