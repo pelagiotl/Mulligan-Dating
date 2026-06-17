@@ -442,7 +442,7 @@ export const DATE_PLAN_LANES: DatePlanLane[] = [
   {
     id: 'games',
     label: 'adult games or activity',
-    keywords: ['board game cafe', 'mini golf', 'bowling alley', 'arcade bar food', 'escape room', 'billiards hall', 'trivia night restaurant'],
+    keywords: ['board game cafe', 'mini golf', 'golf center', 'driving range', 'bowling alley', 'arcade bar food', 'escape room', 'billiards hall', 'trivia night restaurant'],
     promptHint: 'Make this a playful adult activity: board game cafe, mini golf, bowling, arcade, escape room, billiards, or trivia with food.',
   },
   {
@@ -533,6 +533,7 @@ type VenueActivityKind =
   | 'board_games'
   | 'bowling'
   | 'mini_golf'
+  | 'golf'
   | 'arcade'
   | 'museum'
   | 'bookstore'
@@ -545,13 +546,20 @@ type VenueActivityKind =
 
 function inferVenueActivityKind(venue: VenueSearchResult): VenueActivityKind | null {
   const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
+  const nameLower = venue.name.toLowerCase();
   if (/\b(clay|pottery|ceramic)\b/.test(haystack)) return 'clay';
   if (/\b(culinary|cooking\s+class|cookery|kitchen\s+studio)\b/.test(haystack)) return 'culinary';
   if (/\b(board\s*game|tabletop|game\s*(cafe|café|table|night|shop|store))\b/.test(haystack)) {
     return 'board_games';
   }
   if (/\bbowling\b/.test(haystack)) return 'bowling';
-  if (/\bmini\s*golf\b/.test(haystack)) return 'mini_golf';
+  if (/\b(mini\s*golf|miniature\s*golf)\b/.test(haystack)) return 'mini_golf';
+  if (
+    /\b(top\s*golf|topgolf|driving\s*range|golf\s*(center|course|club)|batting\s*cages?)\b/.test(haystack) ||
+    /\bgolf\b/.test(nameLower)
+  ) {
+    return 'golf';
+  }
   if (/\barcade\b/.test(haystack)) return 'arcade';
   if (/\b(museum|art\s*gallery|gallery)\b/.test(haystack)) return 'museum';
   if (/\bbook\s*store\b/.test(haystack)) return 'bookstore';
@@ -579,6 +587,8 @@ const VENUE_ACTIVITY_COPY: Record<VenueActivityKind, string> = {
     'Grab a table, pick a game, and let playful competition break the ice between conversation.',
   bowling: 'Keep it light with a few frames — playful stakes and easy banter between turns.',
   mini_golf: 'Play a round of mini golf — low pressure, a little competition, and plenty to joke about along the way.',
+  golf:
+    'Hit the range or play a few holes together — take turns, keep scores light, and grab food or drinks between swings if the bay has them.',
   arcade: 'Pick a couple of games, trade high scores, and let the playful energy carry the conversation.',
   museum:
     'Wander the exhibits, comment on what catches your eye, and swap what each piece reminds you of.',
@@ -599,12 +609,62 @@ export function formatVenueCitySuffix(meetingLocation: string): string {
   return meetingLocation.trim();
 }
 
+const KNOWN_VENUE_CITY_SUFFIX: Array<{ pattern: RegExp; citySuffix: string }> = [
+  { pattern: /\blithia\s*park\b/i, citySuffix: 'Ashland, OR' },
+  { pattern: /\bschneider museum\b/i, citySuffix: 'Ashland, OR' },
+  { pattern: /\bmix bakeshop\b/i, citySuffix: 'Ashland, OR' },
+  { pattern: /\brogue creamery\b/i, citySuffix: 'Central Point, OR' },
+  { pattern: /\bbear creek park\b/i, citySuffix: 'Medford, OR' },
+  { pattern: /\bbear creek golf\b/i, citySuffix: 'Medford, OR' },
+];
+
+const ROGUE_VALLEY_CITY_SUFFIXES: Array<{ pattern: RegExp; citySuffix: string }> = [
+  { pattern: /\bashland\b/i, citySuffix: 'Ashland, OR' },
+  { pattern: /\bmedford\b/i, citySuffix: 'Medford, OR' },
+  { pattern: /\bcentral point\b/i, citySuffix: 'Central Point, OR' },
+  { pattern: /\bgrants pass\b/i, citySuffix: 'Grants Pass, OR' },
+  { pattern: /\bjacksonville\b/i, citySuffix: 'Jacksonville, OR' },
+  { pattern: /\btalent\b/i, citySuffix: 'Talent, OR' },
+  { pattern: /\bphoenix\b/i, citySuffix: 'Phoenix, OR' },
+  { pattern: /\btrail,\s*(or|oregon)\b/i, citySuffix: 'Trail, OR' },
+  { pattern: /\brogue river\b/i, citySuffix: 'Rogue River, OR' },
+  { pattern: /\bgold hill\b/i, citySuffix: 'Gold Hill, OR' },
+  { pattern: /\bklamath falls\b/i, citySuffix: 'Klamath Falls, OR' },
+];
+
+function resolveVenueCitySuffix(venue: VenueSearchResult, meetingLocation: string): string {
+  const haystack = `${venue.name} ${venue.address}`.toLowerCase();
+
+  for (const entry of KNOWN_VENUE_CITY_SUFFIX) {
+    if (entry.pattern.test(venue.name)) return entry.citySuffix;
+  }
+
+  for (const entry of ROGUE_VALLEY_CITY_SUFFIXES) {
+    if (entry.pattern.test(haystack)) return entry.citySuffix;
+  }
+
+  const address = venue.address?.trim() ?? '';
+  if (address.includes(',')) {
+    const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
+    if (parts.length >= 3) {
+      const state = parts[parts.length - 1];
+      const city = parts[parts.length - 2];
+      if (city && state) return `${city}, ${state}`;
+    }
+    if (parts.length === 2 && /^(or|oregon)$/i.test(parts[1])) {
+      return `${parts[0]}, OR`;
+    }
+  }
+
+  return formatVenueCitySuffix(meetingLocation);
+}
+
 export function formatVenueDisplayAddress(
   venue: VenueSearchResult,
   meetingLocation: string,
 ): string {
   const address = venue.address?.trim() ?? '';
-  const citySuffix = formatVenueCitySuffix(meetingLocation);
+  const citySuffix = resolveVenueCitySuffix(venue, meetingLocation);
   if (!citySuffix) return address;
 
   const haystack = address.toLowerCase();
@@ -625,7 +685,7 @@ function regionIncludesState(addressLower: string, citySuffix: string): boolean 
 }
 
 function formatVenuePlaceLabel(venue: VenueSearchResult, meetingLocation: string): string {
-  const citySuffix = formatVenueCitySuffix(meetingLocation);
+  const citySuffix = resolveVenueCitySuffix(venue, meetingLocation);
   if (!citySuffix) return venue.name;
   const cityToken = citySuffix.split(',')[0]?.trim().toLowerCase() ?? '';
   if (cityToken && venue.name.toLowerCase().includes(cityToken)) {

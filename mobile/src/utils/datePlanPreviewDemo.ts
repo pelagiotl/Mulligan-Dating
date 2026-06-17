@@ -54,6 +54,12 @@ const VENUE_VARIANTS: Record<
     { venueName: 'Bear Creek Park', venueAddress: 'Medford, OR' },
     { venueName: 'Prescott Park Trail', venueAddress: 'East Medford' },
     {
+      venueName: 'Lithia Park',
+      venueAddress: 'Ashland, OR',
+      description:
+        'Meet at Lithia Park in Ashland, OR. Take an easy stroll, comment on what you notice, and let movement keep the conversation natural.',
+    },
+    {
       venueName: 'Pacifica: A Garden in the Siskiyous',
       venueAddress: 'Ashland, OR',
       description:
@@ -105,6 +111,12 @@ const VENUE_VARIANTS: Record<
     { venueName: 'The Game Table', venueAddress: 'Medford, OR' },
     { venueName: 'Game Night Deli', venueAddress: '1390 Biddle Rd, Medford, OR' },
     { venueName: 'Astral Games', venueAddress: '125 S Central Ave, Medford, OR' },
+    {
+      venueName: 'Bear Creek Golf Center',
+      venueAddress: 'Medford, OR',
+      description:
+        'Meet at Bear Creek Golf Center in Medford, OR. Hit the range or play a few holes together — take turns, keep scores light, and grab food or drinks between swings if the bay has them.',
+    },
   ],
   culture: [
     { venueName: 'Rogue Gallery', venueAddress: 'Medford, OR' },
