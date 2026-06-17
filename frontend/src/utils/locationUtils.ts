@@ -55,6 +55,45 @@ export function hasCityAndState(location: string): boolean {
   return city.length > 0 && state.length > 0;
 }
 
+/** Fast local check for known Southern Oregon / nearby service-area cities (mirrors backend). */
+export function isLikelyInSouthernOregonByText(location: string | null | undefined): boolean {
+  if (!location?.trim()) return false;
+  const normalized = normalizeLocationInput(location).toLowerCase();
+
+  const cityPatterns: RegExp[] = [
+    /\bmedford\b/,
+    /\bashland\b/,
+    /\bcentral point\b/,
+    /\beagle point\b/,
+    /\bjacksonville\b/,
+    /\bwhite city\b/,
+    /\bphoenix\b/,
+    /\btalent\b/,
+    /\bgrants pass\b/,
+    /\bcave junction\b/,
+    /\brogue river\b/,
+    /\bgold hill\b/,
+    /\bklamath falls\b/,
+    /\bbrookings\b/,
+    /\bcrescent city\b/,
+    /\bmerlin\b/,
+    /\bwimer\b/,
+    /\bshady cove\b/,
+  ];
+
+  const hasRegionalCity = cityPatterns.some((re) => re.test(normalized));
+  const hasOregonMarker = /\b(or|oregon)\b/.test(normalized);
+  const hasCountyMarker = /\b(jackson county|josephine county)\b/.test(normalized);
+  const hasNorthernCaliforniaMarker = /\b(ca|california)\b/.test(normalized);
+
+  if (hasCountyMarker) return true;
+  if (hasRegionalCity && hasOregonMarker) return true;
+  if (hasRegionalCity && hasNorthernCaliforniaMarker && /\b(crescent city|brookings)\b/.test(normalized)) {
+    return true;
+  }
+  return hasRegionalCity && !/\b(new jersey|ma|massachusetts)\b/.test(normalized);
+}
+
 /**
  * When the user types a space after the city (no comma yet), replace with ", "
  * so they get "City, " and can type state.

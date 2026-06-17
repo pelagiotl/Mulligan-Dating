@@ -223,8 +223,26 @@ const LANE_VENUE_REJECT_PATTERNS: Record<DatePlanLane['id'], RegExp[]> = {
     /\b3d\s*print/i,
     /\bfabricat/i,
     /\bcommercial\s*kitchen\s*for\s*community\b/i,
+    /\bclay\b/i,
+    /\bpottery\b/i,
+    /\bceramic\b/i,
+    /\bculinary\b/i,
+    /\bcooking\s+class\b/i,
+    /\bkitchen\s+studio\b/i,
   ],
-  coffee: [/\bbowling\s*alley\b/i, /\bmini\s*golf\b/i, /\bdrive[\s-]?thr(u|ough)\b/i, /\bdrive[\s-]?up\s*only\b/i, /\bhuman\s*bean\b/i, /\bdutch\s*bros?\b/i],
+  coffee: [
+    /\bbowling\s*alley\b/i,
+    /\bmini\s*golf\b/i,
+    /\bdrive[\s-]?thr(u|ough)\b/i,
+    /\bdrive[\s-]?up\s*only\b/i,
+    /\bhuman\s*bean\b/i,
+    /\bdutch\s*bros?\b/i,
+    /\btravel\s*agency\b/i,
+    /\bstate\s*park\b/i,
+    /\bnational\s*park\b/i,
+    /\bhorseback\b/i,
+    /\bdisc\s*golf\b/i,
+  ],
   walk: [/\brestaurant\b/i, /\bdeli\b/i, /\bbakery\b/i, /\broastery\b/i],
   dessert: [/\bmakerspace\b/i, /\bart\s*gallery\b/i],
   meal: [/\bmakerspace\b/i, /\bart\s*gallery\b/i, /\btrail\b/i, /\bpark\b/i],
@@ -287,10 +305,40 @@ export function venueNearMeetingLocation(
   return true;
 }
 
+const COFFEE_LANE_SIGNAL_RE =
+  /\b(cafe|café|coffee|espresso|roaster|roastery|tea\s*house|tea\s*&|latte|matcha)\b/i;
+const OUTDOOR_NATURE_VENUE_RE =
+  /\b(garden|botanical|arboretum|nature\s*center|state\s*park|national\s*park|greenway|hiking|disc\s*golf|horseback|birding|siskiyou|preserve|nature\s*trail|wildlife)\b/i;
+const OUTDOOR_VENUE_TYPES = new Set([
+  'park',
+  'campground',
+  'rv_park',
+  'travel_agency',
+  'natural_feature',
+  'zoo',
+]);
+
+function venueLooksLikeCoffeeShop(venue: VenueSearchResult): boolean {
+  const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
+  const types = venue.types ?? [];
+  const hasCoffeeSignal =
+    COFFEE_LANE_SIGNAL_RE.test(haystack) || types.includes('cafe') || types.includes('bakery');
+
+  if (OUTDOOR_NATURE_VENUE_RE.test(haystack) && !hasCoffeeSignal) return false;
+  if (types.some((type) => OUTDOOR_VENUE_TYPES.has(type)) && !hasCoffeeSignal) return false;
+  if (types.includes('tourist_attraction') && !hasCoffeeSignal && !types.includes('cafe')) {
+    return false;
+  }
+
+  return hasCoffeeSignal;
+}
+
 export function venueFitsLane(venue: VenueSearchResult, lane: DatePlanLane): boolean {
   const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
   const rejects = LANE_VENUE_REJECT_PATTERNS[lane.id] ?? [];
-  return !rejects.some((re) => re.test(haystack));
+  if (rejects.some((re) => re.test(haystack))) return false;
+  if (lane.id === 'coffee') return venueLooksLikeCoffeeShop(venue);
+  return true;
 }
 
 function filterVenuesForLaneContext(
@@ -464,6 +512,158 @@ function buildVenueSearchKeywords(
   return [...new Set([...lane.keywords, ...adultDefaultKeywords, ...interestKeywords.slice(0, 4)])];
 }
 
+const GENERIC_VENUE_FACT_RE =
+  /^(tourist attraction|point of interest|establishment|food|store|local business|premise|park|travel agency)$/i;
+
+const GOOGLE_TYPE_LIST_FACTS = new Set([
+  'tourist attraction',
+  'point of interest',
+  'establishment',
+  'food',
+  'store',
+  'local business',
+  'premise',
+  'park',
+  'travel agency',
+]);
+
+type VenueActivityKind =
+  | 'clay'
+  | 'culinary'
+  | 'board_games'
+  | 'bowling'
+  | 'mini_golf'
+  | 'arcade'
+  | 'museum'
+  | 'bookstore'
+  | 'garden'
+  | 'park'
+  | 'market'
+  | 'cafe'
+  | 'bakery'
+  | 'restaurant';
+
+function inferVenueActivityKind(venue: VenueSearchResult): VenueActivityKind | null {
+  const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
+  if (/\b(clay|pottery|ceramic)\b/.test(haystack)) return 'clay';
+  if (/\b(culinary|cooking\s+class|cookery|kitchen\s+studio)\b/.test(haystack)) return 'culinary';
+  if (/\b(board\s*game|tabletop|game\s*(cafe|café|table|night|shop|store))\b/.test(haystack)) {
+    return 'board_games';
+  }
+  if (/\bbowling\b/.test(haystack)) return 'bowling';
+  if (/\bmini\s*golf\b/.test(haystack)) return 'mini_golf';
+  if (/\barcade\b/.test(haystack)) return 'arcade';
+  if (/\b(museum|art\s*gallery|gallery)\b/.test(haystack)) return 'museum';
+  if (/\bbook\s*store\b/.test(haystack)) return 'bookstore';
+  if (/\b(farmers?\s*market|food\s*hall)\b/.test(haystack)) return 'market';
+  if (/\b(cafe|coffee\s*roaster|espresso|tea\s*house)\b/.test(haystack)) return 'cafe';
+  if (/\b(garden|botanical|arboretum|nature\s*center|preserve|siskiyou)\b/.test(haystack)) return 'garden';
+  if (/\b(park|trail|greenway|overlook)\b/.test(haystack)) return 'park';
+  if (/\b(bakery|dessert|ice\s*cream|gelato|patisserie)\b/.test(haystack)) return 'bakery';
+  if (/\brestaurant\b/.test(haystack)) return 'restaurant';
+  return null;
+}
+
+function looksLikeGoogleTypeList(fact: string): boolean {
+  if (!fact.includes(',')) return false;
+  const parts = fact.split(',').map((part) => part.trim().toLowerCase()).filter(Boolean);
+  return parts.length >= 2 && parts.every((part) => GOOGLE_TYPE_LIST_FACTS.has(part));
+}
+
+const VENUE_ACTIVITY_COPY: Record<VenueActivityKind, string> = {
+  clay:
+    'Try a hands-on clay session together — shape something side by side, laugh at the messy parts, and keep conversation easy between projects.',
+  culinary:
+    'Cook or bake something together — collaborative, hands-on, and plenty to talk about while you prep and taste.',
+  board_games:
+    'Grab a table, pick a game, and let playful competition break the ice between conversation.',
+  bowling: 'Keep it light with a few frames — playful stakes and easy banter between turns.',
+  mini_golf: 'Play a round of mini golf — low pressure, a little competition, and plenty to joke about along the way.',
+  arcade: 'Pick a couple of games, trade high scores, and let the playful energy carry the conversation.',
+  museum:
+    'Wander the exhibits, comment on what catches your eye, and swap what each piece reminds you of.',
+  bookstore: 'Browse the shelves, trade book picks, and see what stories you both gravitate toward.',
+  garden:
+    'Explore the gardens and grounds together — stroll the paths, notice plants and wildlife, and keep conversation easy with plenty to see along the way.',
+  park: 'Take an easy stroll, comment on what you notice, and let movement keep the conversation natural.',
+  market: 'Wander the stalls, sample something new, and compare favorites as you go.',
+  cafe: 'Order at the counter, find a table, and ease into conversation over a drink.',
+  bakery: 'Pick a treat to share, linger over something sweet, and keep the conversation easy.',
+  restaurant: 'Share a meal somewhere public and conversation-friendly — keep it relaxed and see if the vibe has momentum.',
+};
+
+export function formatVenueCitySuffix(meetingLocation: string): string {
+  const region = parseMeetingRegion(meetingLocation);
+  if (region.city && region.stateAbbrev) return `${region.city}, ${region.stateAbbrev}`;
+  if (region.city) return region.city;
+  return meetingLocation.trim();
+}
+
+export function formatVenueDisplayAddress(
+  venue: VenueSearchResult,
+  meetingLocation: string,
+): string {
+  const address = venue.address?.trim() ?? '';
+  const citySuffix = formatVenueCitySuffix(meetingLocation);
+  if (!citySuffix) return address;
+
+  const haystack = address.toLowerCase();
+  const cityToken = citySuffix.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (cityToken && haystack.includes(cityToken)) {
+    return address || citySuffix;
+  }
+  if (regionIncludesState(haystack, citySuffix)) {
+    return address || citySuffix;
+  }
+  if (!address) return citySuffix;
+  return `${address}, ${citySuffix}`;
+}
+
+function regionIncludesState(addressLower: string, citySuffix: string): boolean {
+  const statePart = citySuffix.split(',')[1]?.trim().toLowerCase();
+  return !!statePart && addressLower.includes(statePart);
+}
+
+function formatVenuePlaceLabel(venue: VenueSearchResult, meetingLocation: string): string {
+  const citySuffix = formatVenueCitySuffix(meetingLocation);
+  if (!citySuffix) return venue.name;
+  const cityToken = citySuffix.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (cityToken && venue.name.toLowerCase().includes(cityToken)) {
+    return venue.name;
+  }
+  return `${venue.name} in ${citySuffix}`;
+}
+
+export function describeVenueForLane(
+  venue: VenueSearchResult,
+  lane: DatePlanLane,
+  meetingLocation: string,
+): string {
+  const place = formatVenuePlaceLabel(venue, meetingLocation);
+  const activityKind = inferVenueActivityKind(venue);
+  if (activityKind) {
+    return `Meet at ${place}. ${VENUE_ACTIVITY_COPY[activityKind]}`;
+  }
+
+  switch (lane.id) {
+    case 'coffee':
+      return `Meet at ${place} for a relaxed sit-down coffee — order at the counter, find a table, and ease into conversation.`;
+    case 'walk':
+      return `Meet at ${place} for an easy stroll — movement keeps things natural and gives you plenty to comment on.`;
+    case 'games':
+      return `Meet at ${place} for something playful to do together — pick an activity, keep it light, and let the fun carry the conversation.`;
+    case 'culture':
+      return `Meet at ${place} — browse, comment on what catches your eye, and see what you both gravitate toward.`;
+    case 'market':
+      return `Meet at ${place} — wander, taste or browse, and compare favorites as you go.`;
+    case 'dessert':
+      return `Meet at ${place} for something sweet — linger over a treat and keep the conversation easy.`;
+    case 'meal':
+    default:
+      return `Meet at ${place} for a relaxed meal somewhere public and conversation-friendly.`;
+  }
+}
+
 export function fallbackDatePlanCopy(
   sharedInterests: string[],
   meetingLocation: string,
@@ -471,11 +671,7 @@ export function fallbackDatePlanCopy(
   lane?: DatePlanLane
 ): { title: string; description: string; conversationTopics: string[]; budgetRange: 'low' | 'medium' | 'high' } {
   const primaryInterest = sharedInterests[0];
-  if (venue) {
-    const coffeeDescription =
-      lane?.id === 'coffee'
-        ? `Meet at ${venue.name} for a relaxed sit-down coffee — order at the counter, find a table, and ease into conversation.`
-        : `Meet at ${venue.name} for a polished, low-pressure plan that leaves room to actually talk. Keep it simple: arrive, order or browse what the place is known for, and see if the conversation has momentum.`;
+  if (venue && lane) {
     return {
       title: lane?.id === 'meal'
         ? 'Table for Two Conversations'
@@ -488,7 +684,7 @@ export function fallbackDatePlanCopy(
               : lane?.id === 'dessert'
                 ? 'Dessert and a Stroll'
                 : 'Coffee and Easy Conversation',
-      description: coffeeDescription,
+      description: describeVenueForLane(venue, lane, meetingLocation),
       conversationTopics: primaryInterest
         ? [`What first got you into ${primaryInterest}?`, `Your favorite ${primaryInterest} experience lately`, 'A place nearby you have been meaning to try']
         : ['A place nearby you have been meaning to try', 'The best low-key outing you have had recently', 'What makes a first meetup feel easy'],
@@ -579,32 +775,28 @@ export async function buildGroundedVenueDescription(
   lane: DatePlanLane,
   meetingLocation: string,
 ): Promise<string> {
-  const fallback = fallbackDatePlanCopy([], meetingLocation, venue, lane).description;
+  const smartCopy = describeVenueForLane(venue, lane, meetingLocation);
   const googleApiKey = process.env.GOOGLE_PLACES_API_KEY;
   if (!venue.place_id || !googleApiKey) {
-    return fallback;
+    return smartCopy;
   }
 
   const venueFacts = await getVenueDescription(venue.place_id, googleApiKey);
   if (!venueFacts) {
-    return fallback;
+    return smartCopy;
   }
 
   const factSentence = venueFacts.split(/[.!?]/)[0]?.trim();
-  if (!factSentence) {
-    return fallback;
+  if (
+    !factSentence ||
+    GENERIC_VENUE_FACT_RE.test(factSentence) ||
+    looksLikeGoogleTypeList(factSentence) ||
+    factSentence.length < 24
+  ) {
+    return smartCopy;
   }
 
-  const laneTail =
-    lane.id === 'coffee'
-      ? 'Grab a drink, find a table, and ease into conversation.'
-      : lane.id === 'walk'
-        ? 'Stroll, comment on what you see, and keep things easy.'
-        : lane.id === 'games'
-          ? 'Playful stakes, plenty to talk about between turns.'
-          : 'Low pressure, public, and easy to talk.';
-
-  return scrubDateTerminology(`Meet at ${venue.name} — ${factSentence}. ${laneTail}`);
+  return scrubDateTerminology(`Meet at ${formatVenuePlaceLabel(venue, meetingLocation)} — ${factSentence}.`);
 }
 
 /**
@@ -1013,7 +1205,9 @@ Return ONLY a JSON object with this exact format:
     title: planTitle,
     description: planDescription,
     venueName: selectedVenue?.name,
-    venueAddress: selectedVenue?.address,
+    venueAddress: selectedVenue
+      ? formatVenueDisplayAddress(selectedVenue, meetingLocation)
+      : undefined,
     venueLat: selectedVenue?.lat,
     venueLng: selectedVenue?.lng,
     suggestedDate: suggestedDateStr,

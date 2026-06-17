@@ -40,6 +40,7 @@ import {
   waitForAndroidActivityReady,
 } from '../utils/pickImagesFromLibrary';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { checkLocationInServiceArea } from '../utils/validateServiceAreaLocation';
 import { detectUserLocation } from '../utils/detectUserLocation';
 import {
   clearMobileCreateProfileDraft,
@@ -64,6 +65,7 @@ import {
 } from '../constants/matchingDistance';
 import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
+import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import {
   deriveAppRegistrationComplete,
   isAccountActiveFromAuthUser,
@@ -184,8 +186,7 @@ const INTEREST_EMOJIS: { [key: string]: string } = {
   'Education': '🎓',
 };
 
-const TOTAL_STEPS = 1; // name + location (+ age on iOS) + gender on one screen (photos on Profile before Connect)
-const ANDROID_ONBOARDING_SKIPS_AGE = Platform.OS === 'android';
+const TOTAL_STEPS = 1; // name + location + gender on one screen (photos on Profile before Connect)
 const MIN_PHOTOS_REQUIRED = 3;
 const PHOTO_SLOT_COUNT = 6;
 
@@ -294,6 +295,7 @@ export default function CreateProfileScreen() {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
   const displayNameTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [keyboardHeight, setKeyboardHeight] = useState(0);
   const maxAgeCardRef = useRef<View>(null);
   const preferredGendersRef = useRef<View>(null);
   const maxDistanceInputRef = useRef<TextInput>(null);
@@ -342,6 +344,8 @@ export default function CreateProfileScreen() {
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
   const [location, setLocation] = useState('');
+  const [locationRegionError, setLocationRegionError] = useState('');
+  const [validatingLocation, setValidatingLocation] = useState(false);
   const [bio, setBio] = useState('');
   const [detectingLocation, setDetectingLocation] = useState(false);
 
@@ -377,13 +381,23 @@ export default function CreateProfileScreen() {
   const profileSavedRef = useRef(false);
   const uploadedPhotoCount = countUploadedPhotos(photos);
 
-  // Track keyboard visibility
+  // Track keyboard visibility (height used to keep all onboarding cards visible above keyboard)
   useEffect(() => {
-    const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+    const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+    const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+    const showSubscription = Keyboard.addListener(showEvent, (e) => {
       setKeyboardVisible(true);
+      setKeyboardHeight(e.endCoordinates.height);
+      if (isOnboardingWizard) {
+        step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }
     });
-    const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+    const hideSubscription = Keyboard.addListener(hideEvent, () => {
       setKeyboardVisible(false);
+      setKeyboardHeight(0);
+      if (isOnboardingWizard) {
+        step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+      }
     });
 
     return () => {
@@ -394,56 +408,100 @@ export default function CreateProfileScreen() {
         clearTimeout(displayNameTimeoutRef.current);
       }
     };
-  }, []);
+  }, [isOnboardingWizard]);
+
+  // Keep gender card in view after location is confirmed (success row removed; footer no longer pops in).
+  useEffect(() => {
+    if (!isOnboardingWizard || step !== 1) return;
+    if (hasCityAndState(location)) {
+      step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
+    }
+  }, [location, isOnboardingWizard, step]);
+
+  useEffect(() => {
+    if (!hasCityAndState(location)) {
+      setLocationRegionError('');
+      setValidatingLocation(false);
+      return;
+    }
+    let cancelled = false;
+    setValidatingLocation(true);
+    setLocationRegionError('');
+    const timer = setTimeout(() => {
+      void checkLocationInServiceArea(compactCityState(location)).then((result) => {
+        if (cancelled) return;
+        setValidatingLocation(false);
+        setLocationRegionError(result.valid ? '' : result.message ?? 'Location must be within 100 miles of Southern Oregon.');
+      });
+    }, 450);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [location]);
 
   // Responsive scaling based on device size (375pt = iPhone 8/SE baseline, 430pt = Pro Max)
   const rs = React.useMemo(() => {
     const w = screenWidth;
     const h = screenHeight;
-    const isAndroid = Platform.OS === 'android';
     const scaleW = Math.min(Math.max(w / 375, 0.9), 1.15);
     const scaleH = Math.min(Math.max(h / 812, 0.85), 1.1);
-    // Fit three onboarding cards in the viewport without scrolling (Android: name, location, gender).
-    const headerBudget = isAndroid ? 82 : 120;
-    const footerBudget = isAndroid ? 96 : 110;
-    const bodyBudget = h - insets.top - insets.bottom - headerBudget - footerBudget;
-    // Gender card is taller (option grid) — weight it heavier than name/location cards.
-    const threeCardStackEstimate = isAndroid ? 2 * 118 + 178 + 2 * 6 : 4 * 136 + 3 * 8;
+    // Fit three onboarding cards in the viewport without scrolling (name, location, gender).
+    const isOnboardingLayout = isOnboardingWizard && step === 1;
+    const headerBudget = Platform.OS === 'android' ? 82 : 94;
+    // Footer stays mounted during onboarding (compact while keyboard open) so layout does not jump.
+    const footerBudget = isOnboardingLayout
+      ? keyboardHeight > 0
+        ? Platform.OS === 'android'
+          ? 78
+          : 76
+        : Platform.OS === 'android'
+          ? 96
+          : 98
+      : Platform.OS === 'android'
+        ? 96
+        : 98;
+    const keyboardOverlap =
+      isOnboardingLayout && keyboardHeight > 0
+        ? Math.max(0, keyboardHeight - insets.bottom)
+        : 0;
+    const bodyBudget =
+      h - insets.top - insets.bottom - headerBudget - footerBudget - keyboardOverlap;
+    const threeCardStackEstimate = 2 * 118 + 188 + 2 * 6;
     const rawSqueeze = bodyBudget / threeCardStackEstimate;
-    const androidOnboardingSqueeze = isAndroid
-      ? Math.min(1, Math.max(0.64, rawSqueeze))
-      : 1;
-    const sq = (n: number) => Math.round(n * androidOnboardingSqueeze);
-    const androidOnboardingOverflow =
-      isAndroid && bodyBudget < threeCardStackEstimate * androidOnboardingSqueeze * 0.97;
+    const minSqueeze = isOnboardingLayout && keyboardHeight > 0 ? 0.56 : 0.64;
+    const onboardingSqueeze = Math.min(1, Math.max(minSqueeze, rawSqueeze));
+    const sq = (n: number) => Math.round(n * onboardingSqueeze);
+    const onboardingOverflow =
+      bodyBudget < threeCardStackEstimate * onboardingSqueeze * 0.97;
     return {
       sectionMinHeight: h * 0.62,
       sectionPaddingH: Math.round(20 * scaleW),
       sectionPaddingV: Math.round(36 * scaleH),
       cardPadding: Math.round(36 * scaleW),
       cardPaddingFirst: Math.round(44 * scaleW),
-      onboardingCardPadding: sq(Math.round((isAndroid ? 14 : 24) * scaleW)),
+      onboardingCardPadding: sq(Math.round(14 * scaleW)),
       cardPaddingKeyboard: Math.round(22 * scaleW),
       emojiSize: Math.round(72 * scaleW),
       emojiSizeSmall: Math.round(42 * scaleW),
-      onboardingEmojiSize: sq(Math.round((isAndroid ? 30 : 44) * scaleW)),
+      onboardingEmojiSize: sq(Math.round(30 * scaleW)),
       onboardingEmojiSizeKeyboard: Math.round(34 * scaleW),
       titleSize: Math.round(32 * scaleW),
       titleSizeSmall: Math.round(22 * scaleW),
       titleSizeCompact: Math.round(28 * scaleW),
       onboardingTitleSize: sq(Math.round(20 * scaleW)),
-      onboardingTitleSizeSmall: sq(Math.round((isAndroid ? 15 : 18) * scaleW)),
+      onboardingTitleSizeSmall: sq(Math.round(15 * scaleW)),
       titleMargin: Math.round(12 * scaleH),
-      onboardingTitleMargin: sq(Math.round((isAndroid ? 2 : 6) * scaleH)),
+      onboardingTitleMargin: sq(Math.round(2 * scaleH)),
       subtitleSize: Math.round(18 * scaleW),
       subtitleSizeSmall: Math.round(13 * scaleW),
-      onboardingSubtitleSize: sq(Math.round((isAndroid ? 10 : 12) * scaleW)),
-      onboardingSubtitleLineHeight: sq(Math.round((isAndroid ? 13 : 17) * scaleW)),
-      onboardingSubtitleMargin: sq(Math.round((isAndroid ? 4 : 10) * scaleH)),
-      onboardingSectionsGap: sq(isAndroid ? 6 : 12),
-      showOnboardingStepPill: !isAndroid || androidOnboardingSqueeze >= 0.82,
-      androidOnboardingOverflow,
-      androidOnboardingSqueeze,
+      onboardingSubtitleSize: sq(Math.round(10 * scaleW)),
+      onboardingSubtitleLineHeight: sq(Math.round(13 * scaleW)),
+      onboardingSubtitleMargin: sq(Math.round(4 * scaleH)),
+      onboardingSectionsGap: sq(6),
+      showOnboardingStepPill: onboardingSqueeze >= 0.82,
+      onboardingOverflow,
+      onboardingSqueeze,
       subtitleSizeTiny: Math.max(9, Math.round(10 * scaleW)),
       subtitleSizeCompact: Math.round(16 * scaleW),
       subtitleMargin: Math.round(32 * scaleH),
@@ -453,7 +511,7 @@ export default function CreateProfileScreen() {
       lifestyleTitleSize: Math.round(22 * scaleW),
       lifestyleSubtitleSize: Math.round(13 * scaleW),
     };
-  }, [screenWidth, screenHeight, insets.top, insets.bottom]);
+  }, [screenWidth, screenHeight, insets.top, insets.bottom, keyboardHeight, isOnboardingWizard, step]);
 
   // Animate name + location on the single onboarding screen
   useEffect(() => {
@@ -470,9 +528,6 @@ export default function CreateProfileScreen() {
     if (step === 1) {
       anim(firstNameScale, firstNameOpacity, firstNameGlow);
       anim(locationScale, locationOpacity, locationGlow);
-      if (!ANDROID_ONBOARDING_SKIPS_AGE) {
-        anim(ageScale, ageOpacity, ageGlow);
-      }
       anim(genderScale, genderOpacity, genderGlow);
     } else {
       [firstNameScale, locationScale, ageScale, genderScale].forEach(s => s.setValue(0.95));
@@ -856,13 +911,12 @@ export default function CreateProfileScreen() {
     ensureTokenPrefetched();
   }, []);
 
-  // Pre-save profile once name, location, gender (and age on iOS) are valid so Complete Profile is fast.
+  // Pre-save profile once name, location, and gender are valid so Complete Profile is fast.
   useEffect(() => {
     if (step !== TOTAL_STEPS || profileSaveStartedRef.current) return;
     if (
       displayName.trim().length < 2 ||
       !hasCityAndState(location) ||
-      (!ANDROID_ONBOARDING_SKIPS_AGE && isProfileAgeUnset(parseOnboardingAgeOrNull(age))) ||
       !isOnboardingGenderComplete(gender)
     ) return;
     profileSaveStartedRef.current = true;
@@ -890,7 +944,7 @@ export default function CreateProfileScreen() {
               const ageNum = parseOnboardingAgeOrNull(age);
               await api.post('/profile', {
                 displayName,
-                ...(ANDROID_ONBOARDING_SKIPS_AGE || ageNum == null ? {} : { age: ageNum }),
+                ...(ageNum == null ? {} : { age: ageNum }),
                 gender: gender.trim(),
                 location,
                 bio,
@@ -1011,8 +1065,16 @@ export default function CreateProfileScreen() {
     setDetectingLocation(true);
     try {
       const detected = await detectUserLocation();
-      setLocation(compactCityState(detected));
+      const compact = compactCityState(detected);
+      const check = await checkLocationInServiceArea(compact);
+      if (!check.valid) {
+        Alert.alert('Outside service area', check.message ?? 'Your location must be within 100 miles of Southern Oregon.');
+        return;
+      }
+      setLocation(compact);
       locationInputRef.current?.blur();
+      Keyboard.dismiss();
+      step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false });
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : 'Could not detect location.';
       Alert.alert('Location Error', message);
@@ -1020,6 +1082,12 @@ export default function CreateProfileScreen() {
       setDetectingLocation(false);
     }
   };
+
+  const finishOnboardingLocationInput = useCallback(() => {
+    setLocation((prev) => compactCityState(prev));
+    locationInputRef.current?.blur();
+    Keyboard.dismiss();
+  }, []);
 
   const uploadPhotosBatch = async (uris: string[], targetSlot: number) => {
     if (uris.length === 0) return;
@@ -1293,7 +1361,7 @@ export default function CreateProfileScreen() {
 
     const validationError = validateOnboardingBasics(
       { displayName, location, age, gender },
-      { requireAge: !ANDROID_ONBOARDING_SKIPS_AGE }
+      { requireAge: false }
     );
     if (validationError) {
       setError(validationError);
@@ -1309,10 +1377,6 @@ export default function CreateProfileScreen() {
     }
 
     try {
-      const ageNum = parseOnboardingAgeOrNull(age);
-      if (!ANDROID_ONBOARDING_SKIPS_AGE && ageNum == null) {
-        throw new Error('Enter your age (18 or older).');
-      }
       if (!isOnboardingGenderComplete(gender)) {
         throw new Error('Please select your gender.');
       }
@@ -1324,9 +1388,11 @@ export default function CreateProfileScreen() {
         maxDistance != null && maxDistance >= 1 ? maxDistance : ONBOARDING_DEFAULT_MAX_DISTANCE,
       );
 
+      const ageNum = parseOnboardingAgeOrNull(age);
+
       await api.post('/profile', {
         displayName,
-        ...(ANDROID_ONBOARDING_SKIPS_AGE || ageNum == null ? {} : { age: ageNum }),
+        ...(ageNum == null ? {} : { age: ageNum }),
         gender: gender.trim(),
         location,
         bio,
@@ -1501,33 +1567,31 @@ export default function CreateProfileScreen() {
   };
 
   // Steps 1–2: compact onboarding layout (name, location)
-  const androidOnboardingIdle = Platform.OS === 'android' && !keyboardVisible;
-  // Android: never lock scroll — gender grid height varies; avoids bottom clipping.
-  const androidOnboardingScrollLocked =
-    Platform.OS === 'android' ? false : androidOnboardingIdle && !rs.androidOnboardingOverflow;
+  const onboardingScrollLocked =
+    Platform.OS === 'ios' && isOnboardingWizard && !rs.onboardingOverflow;
   const onboardingStepContentStyle = [
     styles.onboardingStepScrollContent,
-    keyboardVisible && styles.onboardingStepScrollContentKeyboard,
-    androidOnboardingIdle && styles.onboardingStepScrollContentAndroidIdle,
-    androidOnboardingScrollLocked && styles.onboardingStepScrollContentAndroidLocked,
+    styles.onboardingStepScrollContentAndroidIdle,
+    onboardingScrollLocked && styles.onboardingStepScrollContentAndroidLocked,
   ];
   const onboardingStepWrapper = (content: React.ReactNode) => (
     <ScrollView
       ref={step1ScrollViewRef}
       style={styles.onboardingStepScroll}
       contentContainerStyle={onboardingStepContentStyle}
-      showsVerticalScrollIndicator={Platform.OS === 'android' && !androidOnboardingScrollLocked}
+      showsVerticalScrollIndicator={!onboardingScrollLocked}
       keyboardShouldPersistTaps="always"
-      scrollEnabled={!androidOnboardingScrollLocked}
-      bounces={!androidOnboardingScrollLocked}
+      scrollEnabled={!onboardingScrollLocked}
+      bounces={!onboardingScrollLocked}
       nestedScrollEnabled
+      automaticallyAdjustKeyboardInsets={false}
+      keyboardDismissMode="interactive"
     >
       {content}
     </ScrollView>
   );
   const onboardingFieldWrapStyle = [
     styles.onboardingFieldWrap,
-    keyboardVisible && styles.onboardingFieldWrapKeyboard,
     { paddingHorizontal: rs.sectionPaddingH },
   ];
   const renderOnboardingStepPill = (label: string) =>
@@ -1536,6 +1600,29 @@ export default function CreateProfileScreen() {
         <Text style={styles.onboardingStepPillText}>{label}</Text>
       </View>
     ) : null;
+
+  const renderOnboardingCardEmoji = (emoji: string, delay: number) =>
+    Platform.OS === 'ios' ? (
+      <ProfileCardAnimatedEmoji
+        emoji={emoji}
+        variant="pulse"
+        fontSize={rs.onboardingEmojiSize}
+        delay={delay}
+        containerStyle={styles.onboardingCardEmojiWrap}
+      />
+    ) : (
+      <Text
+        style={[
+          styles.focusedEmoji,
+          {
+            fontSize: rs.onboardingEmojiSize,
+            marginBottom: 6,
+          },
+        ]}
+      >
+        {emoji}
+      </Text>
+    );
 
   const renderStep1DisplayName = () => onboardingStepWrapper(
     <View style={[onboardingFieldWrapStyle, styles.onboardingSectionsWrap, { gap: rs.onboardingSectionsGap }]}>
@@ -1551,30 +1638,17 @@ export default function CreateProfileScreen() {
           style={[
             styles.focusedFirstNameCard,
             styles.onboardingCompactCard,
-            keyboardVisible && styles.focusedCardWithKeyboard,
-            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.onboardingCardPadding },
+            { padding: rs.onboardingCardPadding },
           ]}
         >
           {renderOnboardingStepPill('Step 1 · Your name')}
-          <Text
-            style={[
-              styles.focusedEmoji,
-              keyboardVisible && styles.focusedEmojiSmall,
-              {
-                fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
-                marginBottom: keyboardVisible ? 6 : Platform.OS === 'android' ? 6 : 10,
-              },
-            ]}
-          >
-            👋
-          </Text>
+          {renderOnboardingCardEmoji('👋', 0)}
           <Text
             style={[
               styles.focusedTitle,
-              keyboardVisible && styles.focusedTitleCompact,
               {
-                fontSize: keyboardVisible ? rs.onboardingTitleSizeSmall : rs.onboardingTitleSize,
-                marginBottom: keyboardVisible ? 4 : rs.onboardingTitleMargin,
+                fontSize: rs.onboardingTitleSize,
+                marginBottom: rs.onboardingTitleMargin,
               },
             ]}
           >
@@ -1583,11 +1657,10 @@ export default function CreateProfileScreen() {
           <Text
             style={[
               styles.focusedSubtitle,
-              keyboardVisible && styles.focusedSubtitleCompact,
               {
-                fontSize: keyboardVisible ? rs.subtitleSizeCompact : rs.onboardingSubtitleSize,
+                fontSize: rs.onboardingSubtitleSize,
                 lineHeight: rs.onboardingSubtitleLineHeight,
-                marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
+                marginBottom: rs.onboardingSubtitleMargin,
                 maxWidth: '100%',
               },
             ]}
@@ -1608,27 +1681,17 @@ export default function CreateProfileScreen() {
           >
             <TextInput
               ref={displayNameInputRef}
-              style={[
-                styles.focusedFirstNameInput,
-                styles.onboardingCompactNameInput,
-                keyboardVisible && styles.focusedFirstNameInputKeyboard,
-              ]}
+              style={[styles.focusedFirstNameInput, styles.onboardingCompactNameInput]}
               value={displayName}
               onChangeText={setDisplayName}
               placeholder="Your first name"
               placeholderTextColor="#4a5568"
               autoCapitalize="words"
               returnKeyType="next"
+              onFocus={() => step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false })}
               onSubmitEditing={() => locationInputRef.current?.focus()}
             />
           </Animated.View>
-          {nameValid ? (
-            <Animated.View
-              style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: firstNameOpacity }]}
-            >
-              <Text style={styles.successText}>✓ Looks good</Text>
-            </Animated.View>
-          ) : null}
         </LinearGradient>
       </Animated.View>
 
@@ -1647,30 +1710,17 @@ export default function CreateProfileScreen() {
           style={[
             styles.focusedFieldCard,
             styles.onboardingCompactCard,
-            keyboardVisible && styles.focusedCardWithKeyboard,
-            { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.onboardingCardPadding },
+            { padding: rs.onboardingCardPadding },
           ]}
         >
           {renderOnboardingStepPill('Step 2 · Your location')}
-          <Text
-            style={[
-              styles.focusedEmoji,
-              keyboardVisible && styles.focusedEmojiSmall,
-              {
-                fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
-                marginBottom: keyboardVisible ? 6 : Platform.OS === 'android' ? 6 : 10,
-              },
-            ]}
-          >
-            📍
-          </Text>
+          {renderOnboardingCardEmoji('📍', 200)}
           <Text
             style={[
               styles.focusedTitle,
-              keyboardVisible && styles.focusedTitleSmall,
               {
                 fontSize: rs.onboardingTitleSizeSmall,
-                marginBottom: keyboardVisible ? 4 : rs.onboardingTitleMargin,
+                marginBottom: rs.onboardingTitleMargin,
               },
             ]}
           >
@@ -1679,19 +1729,16 @@ export default function CreateProfileScreen() {
           <Text
             style={[
               styles.focusedSubtitle,
-              keyboardVisible && styles.focusedSubtitleSmall,
               {
                 fontSize: rs.onboardingSubtitleSize,
                 lineHeight: rs.onboardingSubtitleLineHeight,
-                marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
+                marginBottom: rs.onboardingSubtitleMargin,
                 opacity: 0.92,
               },
             ]}
-            numberOfLines={Platform.OS === 'android' ? 1 : 2}
+            numberOfLines={2}
           >
-            {Platform.OS === 'android'
-              ? 'Southern Oregon & nearby (~100 mi)'
-              : 'Southern Oregon and nearby — we show people within about 100 miles.'}
+            Southern Oregon & nearby (~100 mi)
           </Text>
           <Animated.View
             pointerEvents="box-none"
@@ -1714,6 +1761,9 @@ export default function CreateProfileScreen() {
               value={location}
               onChangeText={(t) => handleLocationChange(t, setLocation)}
               onBlur={() => setLocation((prev) => compactCityState(prev))}
+              onFocus={() => step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false })}
+              onSubmitEditing={finishOnboardingLocationInput}
+              blurOnSubmit
               placeholder="City, State"
               placeholderTextColor="#4a5568"
               editable={!detectingLocation}
@@ -1735,113 +1785,21 @@ export default function CreateProfileScreen() {
             {detectingLocation ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.focusedLocationButtonText}>
-                {Platform.OS === 'android' ? '📍 Use location' : '📍 Use My Location'}
-              </Text>
+              <Text style={styles.focusedLocationButtonText}>📍 Use location</Text>
             )}
           </TouchableOpacity>
-          {locationValid ? (
-            <Animated.View
-              style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: locationOpacity }]}
-            >
-              <Text style={styles.successText}>✓ Location set</Text>
-            </Animated.View>
+          {validatingLocation && hasCityAndState(location) ? (
+            <Text style={[styles.focusedSubtitle, { marginTop: 10, opacity: 0.85 }]}>
+              Checking Southern Oregon area…
+            </Text>
+          ) : null}
+          {locationRegionError ? (
+            <Text style={[styles.focusedSubtitle, { marginTop: 10, color: '#fecaca' }]}>
+              {locationRegionError}
+            </Text>
           ) : null}
         </LinearGradient>
       </Animated.View>
-
-      {!ANDROID_ONBOARDING_SKIPS_AGE ? (
-        <Animated.View
-          pointerEvents="box-none"
-          style={[
-            { transform: [{ scale: ageScale }], opacity: ageOpacity },
-            styles.onboardingSectionCardWrap,
-          ]}
-        >
-          <LinearGradient
-            colors={['#f093fb', '#f5576c', '#4facfe']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            pointerEvents="box-none"
-            style={[
-              styles.focusedFieldCard,
-              styles.onboardingCompactCard,
-              keyboardVisible && styles.focusedCardWithKeyboard,
-              { padding: keyboardVisible ? rs.cardPaddingKeyboard : rs.onboardingCardPadding },
-            ]}
-          >
-            {renderOnboardingStepPill('Step 3 · Your age')}
-            <Text
-              style={[
-                styles.focusedEmoji,
-                keyboardVisible && styles.focusedEmojiSmall,
-                {
-                  fontSize: keyboardVisible ? rs.onboardingEmojiSizeKeyboard : rs.onboardingEmojiSize,
-                  marginBottom: keyboardVisible ? 6 : Platform.OS === 'android' ? 6 : 10,
-                },
-              ]}
-            >
-              🎂
-            </Text>
-            <Text
-              style={[
-                styles.focusedTitle,
-                keyboardVisible && styles.focusedTitleSmall,
-                {
-                  fontSize: rs.onboardingTitleSizeSmall,
-                  marginBottom: keyboardVisible ? 4 : rs.onboardingTitleMargin,
-                },
-              ]}
-            >
-              How old are you?
-            </Text>
-            <Text
-              style={[
-                styles.focusedSubtitle,
-                keyboardVisible && styles.focusedSubtitleSmall,
-                {
-                  fontSize: rs.onboardingSubtitleSize,
-                  lineHeight: rs.onboardingSubtitleLineHeight,
-                  marginBottom: keyboardVisible ? 8 : rs.onboardingSubtitleMargin,
-                  opacity: 0.92,
-                },
-              ]}
-              numberOfLines={2}
-            >
-              You must be 18 or older to use Mulligan.
-            </Text>
-            <Animated.View
-              pointerEvents="box-none"
-              style={[
-                styles.focusedInputWrapper,
-                styles.onboardingInputWrapper,
-                {
-                  shadowOpacity: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
-                  shadowRadius: ageGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
-                },
-              ]}
-            >
-              <TextInput
-                ref={ageInputRef}
-                style={[styles.focusedAgeInput, styles.onboardingCompactNameInput]}
-                value={age}
-                onChangeText={(t) => setAge(t.replace(/[^0-9]/g, ''))}
-                placeholder="Your age"
-                placeholderTextColor="#4a5568"
-                keyboardType="number-pad"
-                returnKeyType="done"
-              />
-            </Animated.View>
-            {!isProfileAgeUnset(parseOnboardingAgeOrNull(age)) ? (
-              <Animated.View
-                style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: ageOpacity }]}
-              >
-                <Text style={styles.successText}>✓ Age set</Text>
-              </Animated.View>
-            ) : null}
-          </LinearGradient>
-        </Animated.View>
-      ) : null}
 
       <Animated.View
         pointerEvents="box-none"
@@ -1858,24 +1816,12 @@ export default function CreateProfileScreen() {
             style={[
             styles.focusedFieldCard,
             styles.onboardingCompactCard,
-            rs.androidOnboardingSqueeze < 0.82 && styles.onboardingGenderCardTight,
+            rs.onboardingSqueeze < 0.82 && styles.onboardingGenderCardTight,
             { padding: rs.onboardingCardPadding },
           ]}
         >
-          {renderOnboardingStepPill(
-            ANDROID_ONBOARDING_SKIPS_AGE ? 'Step 3 · Your gender' : 'Step 4 · Your gender'
-          )}
-          <Text
-            style={[
-              styles.focusedEmoji,
-              {
-                fontSize: rs.onboardingEmojiSize,
-                marginBottom: Platform.OS === 'android' ? 6 : 10,
-              },
-            ]}
-          >
-            ⚧️
-          </Text>
+          {renderOnboardingStepPill('Step 3 · Your gender')}
+          {renderOnboardingCardEmoji('⚧️', 400)}
           <Text
             style={[
               styles.focusedTitle,
@@ -1897,26 +1843,18 @@ export default function CreateProfileScreen() {
                 opacity: 0.92,
               },
             ]}
-            numberOfLines={ANDROID_ONBOARDING_SKIPS_AGE ? 1 : 2}
+            numberOfLines={1}
           >
             This is how you show up on your profile.
           </Text>
-          <View
-            style={[
-              styles.preferencesGenderGrid,
-              ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderGridAndroid,
-            ]}
-          >
+          <View style={[styles.preferencesGenderGrid, styles.onboardingGenderGridAndroid]}>
             {GENDER_OPTIONS.map((g) => {
               const isSelected = gender === g;
               const meta = GENDER_OPTION_META[g];
               return (
                 <TouchableOpacity
                   key={g}
-                  style={[
-                    styles.preferencesGenderCard,
-                    ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderCardSlotAndroid,
-                  ]}
+                  style={[styles.preferencesGenderCard, styles.onboardingGenderCardSlotAndroid]}
                   onPress={() => setGender(g)}
                   activeOpacity={0.7}
                 >
@@ -1925,54 +1863,21 @@ export default function CreateProfileScreen() {
                       colors={['#f5576c', '#f093fb', '#667eea']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={[
-                        styles.preferencesGenderCardSelected,
-                        ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderOptionAndroid,
-                      ]}
+                      style={[styles.preferencesGenderCardSelected, styles.onboardingGenderOptionAndroid]}
                     >
-                      <Text
-                        style={[
-                          styles.preferencesGenderEmoji,
-                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderEmojiAndroid,
-                        ]}
-                      >
+                      <Text style={[styles.preferencesGenderEmoji, styles.onboardingGenderEmojiAndroid]}>
                         {meta.emoji}
                       </Text>
-                      <Text
-                        style={[
-                          styles.preferencesGenderTextSelected,
-                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderLabelAndroid,
-                        ]}
-                      >
+                      <Text style={[styles.preferencesGenderTextSelected, styles.onboardingGenderLabelAndroid]}>
                         {meta.label}
                       </Text>
-                      {!ANDROID_ONBOARDING_SKIPS_AGE ? (
-                        <View style={styles.preferencesCheckmark}>
-                          <Text style={styles.preferencesCheckmarkText}>✓</Text>
-                        </View>
-                      ) : null}
                     </LinearGradient>
                   ) : (
-                    <View
-                      style={[
-                        styles.preferencesGenderCardUnselected,
-                        ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderOptionAndroid,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.preferencesGenderEmoji,
-                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderEmojiAndroid,
-                        ]}
-                      >
+                    <View style={[styles.preferencesGenderCardUnselected, styles.onboardingGenderOptionAndroid]}>
+                      <Text style={[styles.preferencesGenderEmoji, styles.onboardingGenderEmojiAndroid]}>
                         {meta.emoji}
                       </Text>
-                      <Text
-                        style={[
-                          styles.preferencesGenderText,
-                          ANDROID_ONBOARDING_SKIPS_AGE && styles.onboardingGenderLabelAndroid,
-                        ]}
-                      >
+                      <Text style={[styles.preferencesGenderText, styles.onboardingGenderLabelAndroid]}>
                         {meta.label}
                       </Text>
                     </View>
@@ -1981,26 +1886,8 @@ export default function CreateProfileScreen() {
               );
             })}
           </View>
-          {isOnboardingGenderComplete(gender) && !ANDROID_ONBOARDING_SKIPS_AGE ? (
-            <Animated.View
-              style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: genderOpacity }]}
-            >
-              <Text style={styles.successText}>✓ Gender selected</Text>
-            </Animated.View>
-          ) : null}
         </LinearGradient>
       </Animated.View>
-
-      {!ANDROID_ONBOARDING_SKIPS_AGE ? (
-        <Text
-          style={[
-            styles.onboardingFootnote,
-            isOnboardingWizard && { color: onboardingChrome.footnote },
-          ]}
-        >
-          Add a photo on Profile before you Connect.
-        </Text>
-      ) : null}
     </View>
   );
 
@@ -2103,11 +1990,21 @@ export default function CreateProfileScreen() {
           <TouchableOpacity style={styles.focusedLocationButton} onPress={detectLocation} disabled={detectingLocation}>
             {detectingLocation ? <ActivityIndicator color="#fff" /> : <Text style={styles.focusedLocationButtonText}>📍 Use My Location</Text>}
           </TouchableOpacity>
-          {hasCityAndState(location) && (
+          {validatingLocation && hasCityAndState(location) ? (
+            <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 10, opacity: 0.85 }]}>
+              Checking Southern Oregon area…
+            </Text>
+          ) : null}
+          {locationRegionError ? (
+            <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 10, color: '#fecaca' }]}>
+              {locationRegionError}
+            </Text>
+          ) : null}
+          {locationValid ? (
             <Animated.View style={[styles.successIndicator, { opacity: locationOpacity }]}>
               <Text style={styles.successText}>✓ Location set! Tap Complete Profile</Text>
             </Animated.View>
-          )}
+          ) : null}
           <Text style={[styles.focusedSubtitle, keyboardVisible && styles.focusedSubtitleSmall, { fontSize: rs.subtitleSizeSmall * 0.92, marginTop: 12, marginBottom: 0, opacity: 0.88 }]}>
             Add a photo on your Profile tab before you tap Connect to match.
           </Text>
@@ -2808,16 +2705,15 @@ export default function CreateProfileScreen() {
   };
 
   const nameValid = displayName.trim().length >= 2;
-  const locationValid = hasCityAndState(location);
-  const ageValid = ANDROID_ONBOARDING_SKIPS_AGE || !isProfileAgeUnset(parseOnboardingAgeOrNull(age));
+  const locationValid = hasCityAndState(location) && !locationRegionError && !validatingLocation;
   const genderValid = isOnboardingGenderComplete(gender);
   const completeProfileDisabled =
     loading ||
     savingProgress ||
     detectingLocation ||
+    validatingLocation ||
     !nameValid ||
     !locationValid ||
-    !ageValid ||
     !genderValid;
 
   return (
@@ -2830,7 +2726,7 @@ export default function CreateProfileScreen() {
         },
       ]}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-      enabled={Platform.OS === 'ios'}
+      enabled={Platform.OS === 'ios' && !isOnboardingWizard}
     >
       {!showCelebration ? (
       <>
@@ -2941,14 +2837,12 @@ export default function CreateProfileScreen() {
             backgroundColor: onboardingChrome.actionsBg,
             borderTopColor: onboardingChrome.actionsBorder,
           },
-          isOnboardingWizard &&
-            Platform.OS === 'android' &&
-            !keyboardVisible &&
-            styles.actionsFooterAndroidAnchored,
+          isOnboardingWizard && Platform.OS === 'android' && styles.actionsFooterAndroidAnchored,
+          isOnboardingWizard && keyboardVisible && styles.actionsFooterOnboardingKeyboard,
           { paddingBottom: Platform.OS === 'android' ? Math.max(insets.bottom, 8) : Math.max(insets.bottom, 12) },
         ]}
       >
-        {!nameValid || !locationValid || !ageValid || !genderValid ? (
+        {!(isOnboardingWizard && keyboardVisible) && (!nameValid || !locationValid || !genderValid) ? (
           <Text
             style={[
               styles.actionsHint,
@@ -2959,9 +2853,7 @@ export default function CreateProfileScreen() {
               ? 'Enter at least 2 characters for your name'
               : !locationValid
                 ? 'Enter city and state (e.g. Medford, Oregon) to finish'
-                : !ANDROID_ONBOARDING_SKIPS_AGE && !ageValid
-                  ? 'Enter your age (18 or older)'
-                  : 'Select your gender to finish'}
+                : 'Select your gender to finish'}
           </Text>
         ) : null}
         <View style={styles.actions}>
@@ -4678,8 +4570,8 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
-    paddingTop: Platform.OS === 'android' ? 6 : 14,
-    paddingBottom: Platform.OS === 'android' ? 16 : 4,
+    paddingTop: 6,
+    paddingBottom: 16,
   },
   onboardingStepScrollContentAndroidIdle: {
     flexGrow: 1,
@@ -4701,51 +4593,60 @@ const styles = StyleSheet.create({
   onboardingFieldWrap: {
     width: '100%',
     justifyContent: 'flex-start',
-    paddingVertical: Platform.OS === 'android' ? 0 : 8,
+    paddingVertical: 0,
   },
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
   },
   onboardingSectionsWrap: {
-    paddingTop: Platform.OS === 'android' ? 0 : 4,
-    paddingBottom: Platform.OS === 'android' ? 0 : 2,
+    paddingTop: 0,
+    paddingBottom: 0,
   },
   onboardingSectionCardWrap: {
     marginTop: 0,
   },
   headerOnboardingCompact: {
-    paddingTop: Platform.OS === 'android' ? 4 : 8,
-    paddingBottom: Platform.OS === 'android' ? 8 : 20,
-    paddingHorizontal: Platform.OS === 'android' ? 16 : 24,
+    paddingTop: 4,
+    paddingBottom: 8,
+    paddingHorizontal: 16,
   },
   headerOnboardingCompactTitle: {
-    fontSize: Platform.OS === 'android' ? 22 : 26,
+    fontSize: 22,
     marginBottom: 0,
+  },
+  onboardingCardEmojiWrap: {
+    marginBottom: 6,
+    alignItems: 'center',
   },
   onboardingCompactCard: {
     borderRadius: 22,
     ...(Platform.OS === 'android'
       ? { elevation: 4, shadowOpacity: 0, shadowRadius: 0 }
-      : {}),
+      : {
+          shadowColor: '#1e1b4b',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 10,
+        }),
   },
   onboardingCompactNameInput: {
-    paddingVertical: Platform.OS === 'android' ? 8 : 12,
+    paddingVertical: 8,
     paddingHorizontal: 14,
-    fontSize: Platform.OS === 'android' ? 15 : 16,
+    fontSize: 15,
     borderRadius: 14,
   },
   onboardingCompactLocationInput: {
-    paddingVertical: Platform.OS === 'android' ? 6 : 10,
+    paddingVertical: 6,
     paddingHorizontal: 12,
-    fontSize: Platform.OS === 'android' ? 14 : 15,
-    minHeight: Platform.OS === 'android' ? 36 : 46,
-    maxHeight: Platform.OS === 'android' ? 44 : 58,
+    fontSize: 14,
+    minHeight: 36,
+    maxHeight: 44,
     borderRadius: 14,
   },
   onboardingCompactLocButton: {
-    marginTop: Platform.OS === 'android' ? 4 : 8,
-    paddingVertical: Platform.OS === 'android' ? 6 : 10,
-    paddingHorizontal: Platform.OS === 'android' ? 14 : 20,
+    marginTop: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
     borderRadius: 14,
   },
   onboardingGenderCardTight: {
@@ -4774,14 +4675,14 @@ const styles = StyleSheet.create({
     lineHeight: 14,
   },
   onboardingCompactSuccess: {
-    marginTop: Platform.OS === 'android' ? 4 : 8,
-    paddingVertical: Platform.OS === 'android' ? 4 : 6,
+    marginTop: 4,
+    paddingVertical: 4,
     paddingHorizontal: 14,
     borderRadius: 12,
   },
   onboardingStepPill: {
     alignSelf: 'center',
-    marginBottom: Platform.OS === 'android' ? 4 : 6,
+    marginBottom: 4,
     paddingHorizontal: 8,
     paddingVertical: Platform.OS === 'android' ? 2 : 3,
     borderRadius: 999,
@@ -4806,6 +4707,9 @@ const styles = StyleSheet.create({
   },
   actionsFooterAndroidAnchored: {
     marginTop: 'auto',
+  },
+  actionsFooterOnboardingKeyboard: {
+    paddingTop: 4,
   },
   actionsFooter: {
     flexShrink: 0,

@@ -10,7 +10,8 @@ import MyProfilePreviewModal, {
   type MyProfilePreviewData,
 } from "../components/MyProfilePreviewModal";
 import { getPhotoUrl } from "../utils/photoUrl";
-import { hasCityAndState } from "../utils/locationUtils";
+import { compactCityState, hasCityAndState } from "../utils/locationUtils";
+import { checkLocationInServiceArea } from "../utils/validateServiceAreaLocation";
 import { dispatchProfileEnhancementRefresh } from "../constants/profileEnhancementEvents";
 import { LIFESTYLE_FIELD_LABEL, getInterestEmoji } from "../constants/profileMySections";
 import {
@@ -625,8 +626,15 @@ export default function MyProfile() {
             address.province ||
             address["ISO3166-2-lvl4"] ||
             "";
-          if (city && state) setEditLocation(`${city}, ${state}`);
-          else if (city) setEditLocation(city);
+          if (city && state) {
+            const compact = compactCityState(`${city}, ${state}`);
+            const check = await checkLocationInServiceArea(compact);
+            if (!check.valid) {
+              setError(check.message ?? "Your location must be within 100 miles of Southern Oregon.");
+              return;
+            }
+            setEditLocation(compact);
+          } else if (city) setEditLocation(city);
           else setEditLocation(geo.display_name || "");
         } catch (e: unknown) {
           setError((e as Error)?.message || "Could not detect location.");
@@ -737,10 +745,17 @@ export default function MyProfile() {
 
   const saveLocation = async () => {
     if (!data?.profile) return;
-    const loc = editLocation.trim() || null;
+    const loc = editLocation.trim() ? compactCityState(editLocation.trim()) : null;
     if (loc && !hasCityAndState(loc)) {
       setError("Please enter city and state (e.g. Medford, Oregon).");
       return;
+    }
+    if (loc) {
+      const check = await checkLocationInServiceArea(loc);
+      if (!check.valid) {
+        setError(check.message ?? "Location must be within 100 miles of Southern Oregon.");
+        return;
+      }
     }
     setUpdatingField(true);
     setError("");

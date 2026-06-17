@@ -3209,6 +3209,21 @@ img {
   cursor: wait;
 }
 
+.create-profile-location-hint {
+  margin: 0.65rem 0 0;
+  font-size: 0.88rem;
+  color: rgba(255, 255, 255, 0.88);
+  text-align: center;
+}
+
+.create-profile-location-error {
+  margin: 0.65rem 0 0;
+  font-size: 0.88rem;
+  color: #fecaca;
+  text-align: center;
+  line-height: 1.45;
+}
+
 .create-profile-distance-row {
   display: flex;
   align-items: center;

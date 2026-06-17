@@ -7,7 +7,7 @@ import { mutualGenderPreferencesMet } from "../utils/genderPreferences.js";
 import { recordSuccessSignal } from "../utils/successTracking.js";
 import { rateLimitAPI } from "../middleware/security.js";
 import { geocodeLocation, calculateDistanceMiles } from "../utils/geocoding.js";
-import { getActiveMatchingRegion, isInRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
+import { getActiveMatchingRegion, isLocationInActiveRegion, isLikelyInRegionByText, REGION_MAX_DISTANCE_MILES } from "../config/regions.js";
 import { getHiddenFromBrowseUserIds } from "../config/hiddenFromBrowse.js";
 import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from "../config/matchmaking.js";
 import {
@@ -690,10 +690,18 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
           // Geo-lock: when ACTIVE_MATCHING_REGION is set, both users must be in that region and within REGION_MAX_DISTANCE_MILES
           const activeRegion = getActiveMatchingRegion();
           if (activeRegion) {
-            const userInRegion = isInRegion(userGeo.coordinates.lat, userGeo.coordinates.lng, activeRegion)
-              || isLikelyInRegionByText(userLoc, activeRegion);
-            const targetInRegion = isInRegion(targetGeo.coordinates.lat, targetGeo.coordinates.lng, activeRegion)
-              || isLikelyInRegionByText(targetLoc, activeRegion);
+            const userInRegion = isLocationInActiveRegion(
+              userGeo.coordinates.lat,
+              userGeo.coordinates.lng,
+              userLoc,
+              activeRegion,
+            );
+            const targetInRegion = isLocationInActiveRegion(
+              targetGeo.coordinates.lat,
+              targetGeo.coordinates.lng,
+              targetLoc,
+              activeRegion,
+            );
             if (!userInRegion || !targetInRegion) {
               if (process.env.NODE_ENV !== "test") {
                 console.log(`🙅 Connect blocked: region check failed (activeRegion=${activeRegion}) userInRegion=${userInRegion} targetInRegion=${targetInRegion} userLoc=${userLoc} targetLoc=${targetLoc}`);

@@ -78,12 +78,12 @@ export type OnboardingBasicsInput = {
   gender: string;
 };
 
-/** Client-side gate for Complete Profile — name, location, gender; age optional on Android onboarding. */
+/** Client-side gate for Complete Profile — name, location, and gender (age optional during onboarding). */
 export function validateOnboardingBasics(
   input: OnboardingBasicsInput,
   options?: { requireAge?: boolean }
 ): string | null {
-  const requireAge = options?.requireAge !== false;
+  const requireAge = options?.requireAge === true;
   if (input.displayName.trim().length < 2) {
     return 'Please enter at least 2 characters for your name';
   }

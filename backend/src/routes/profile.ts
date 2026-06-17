@@ -10,6 +10,7 @@ import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcas
 import { ensureStubProfile, isUniqueViolation } from '../utils/ensureStubProfile.js';
 import { activateUserAccount } from '../utils/accountStatus.js';
 import { normalizeMaxDistanceMiles, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
+import { validateLocationForActiveRegion } from '../utils/locationRegionValidation.js';
 
 export const profileRouter = Router();
 
@@ -132,6 +133,13 @@ profileRouter.post('/', authenticateToken, rateLimitAPI, async (req: AuthRequest
 
     if (sanitizedData.displayName.trim().length < 2) {
       return res.status(400).json({ error: 'Name must be at least 2 characters' });
+    }
+
+    if (sanitizedData.location) {
+      const regionCheck = await validateLocationForActiveRegion(sanitizedData.location);
+      if (!regionCheck.ok) {
+        return res.status(400).json({ error: regionCheck.message, code: regionCheck.code });
+      }
     }
     
     const runProfileUpdate = async (profileId: string) => {
@@ -314,8 +322,15 @@ profileRouter.put('/basics', authenticateToken, rateLimitAPI, async (req: AuthRe
       values.push(sanitizeText(body.displayName, 50));
     }
     if (body.location !== undefined) {
+      const nextLocation = body.location ? sanitizeText(body.location, 100) : null;
+      if (nextLocation) {
+        const regionCheck = await validateLocationForActiveRegion(nextLocation);
+        if (!regionCheck.ok) {
+          return res.status(400).json({ error: regionCheck.message, code: regionCheck.code });
+        }
+      }
       updates.push('location = ?');
-      values.push(body.location ? sanitizeText(body.location, 100) : null);
+      values.push(nextLocation);
     }
     updates.push('updated_at = CURRENT_TIMESTAMP');
     values.push(userId);
@@ -330,6 +345,34 @@ profileRouter.put('/basics', authenticateToken, rateLimitAPI, async (req: AuthRe
     }
     console.error('PUT /profile/basics error:', error);
     res.status(500).json({ error: 'Failed to update profile' });
+  }
+});
+
+profileRouter.post('/validate-location', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const body = z.object({ location: locationFieldSchema }).parse(req.body);
+    if (!body.location?.trim()) {
+      return res.status(400).json({
+        valid: false,
+        error: 'Location must include both city and state (e.g. Medford, Oregon)',
+        code: 'INVALID_LOCATION_FORMAT',
+      });
+    }
+    const regionCheck = await validateLocationForActiveRegion(body.location.trim());
+    if (!regionCheck.ok) {
+      return res.status(400).json({
+        valid: false,
+        error: regionCheck.message,
+        code: regionCheck.code,
+      });
+    }
+    res.json({ valid: true });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ valid: false, error: error.errors[0].message });
+    }
+    console.error('POST /profile/validate-location error:', error);
+    res.status(500).json({ valid: false, error: 'Failed to validate location' });
   }
 });
 

@@ -53,6 +53,12 @@ const VENUE_VARIANTS: Record<
   walk: [
     { venueName: 'Bear Creek Park', venueAddress: 'Medford, OR' },
     { venueName: 'Prescott Park Trail', venueAddress: 'East Medford' },
+    {
+      venueName: 'Pacifica: A Garden in the Siskiyous',
+      venueAddress: 'Ashland, OR',
+      description:
+        'Meet at Pacifica: A Garden in the Siskiyous in Ashland, OR. Explore the gardens and grounds together — stroll the paths, notice plants and wildlife, and keep conversation easy with plenty to see along the way.',
+    },
     { venueName: 'Roxy Ann Peak Overlook', venueAddress: 'Central Point, OR' },
   ],
   meal: [
@@ -102,6 +108,12 @@ const VENUE_VARIANTS: Record<
   ],
   culture: [
     { venueName: 'Rogue Gallery', venueAddress: 'Medford, OR' },
+    {
+      venueName: 'The Annex Clay & Culinary Studio',
+      venueAddress: 'Medford, OR',
+      description:
+        'Meet at The Annex Clay & Culinary Studio in Medford, OR. Try a hands-on clay session together — shape something side by side, laugh at the messy parts, and keep conversation easy between projects.',
+    },
     { venueName: 'Schneider Museum of Art', venueAddress: 'Ashland, OR' },
     { venueName: 'Bloomsbury Books', venueAddress: 'Ashland, OR' },
   ],

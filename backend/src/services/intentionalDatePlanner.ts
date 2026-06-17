@@ -9,6 +9,7 @@ import {
   type DatePlan,
   type DatePlanLane,
   fallbackDatePlanCopy,
+  formatVenueDisplayAddress,
   gatherDatePlanVenues,
   scrubDateTerminology,
   venueFitsLane,
@@ -129,7 +130,7 @@ async function finalizeDatePlanIdeas(
         ...idea,
         description,
         venueName: venue.name,
-        venueAddress: venue.address,
+        venueAddress: formatVenueDisplayAddress(venue, meetingLocation),
         venueLat: venue.lat,
         venueLng: venue.lng,
       };
@@ -163,7 +164,7 @@ function ideaFromLane(
     title: scrubDateTerminology(title),
     description: scrubDateTerminology(description),
     venueName: venue?.name,
-    venueAddress: venue?.address,
+    venueAddress: venue ? formatVenueDisplayAddress(venue, meetingLocation) : undefined,
     venueLat: venue?.lat,
     venueLng: venue?.lng,
     budgetRange: copy.budgetRange,
@@ -289,7 +290,9 @@ Return ONLY JSON:
         title: scrubDateTerminology(typeof raw.title === 'string' ? raw.title : lane.label),
         description: description || ideaFromLane(lane, sharedInterests, meetingLocation, matchedVenue ?? null).description,
         venueName: matchedVenue?.name,
-        venueAddress: matchedVenue?.address,
+        venueAddress: matchedVenue
+          ? formatVenueDisplayAddress(matchedVenue, meetingLocation)
+          : undefined,
         venueLat: matchedVenue?.lat,
         venueLng: matchedVenue?.lng,
         budgetRange: budget,

@@ -3,8 +3,7 @@ import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import {
   effectiveMaxDistanceMiles,
   getActiveMatchingRegion,
-  isInRegion,
-  isLikelyInRegionByText,
+  isLocationInActiveRegion,
   REGION_MAX_DISTANCE_MILES,
 } from '../config/regions.js';
 import { getHiddenFromBrowseUserIds } from '../config/hiddenFromBrowse.js';
@@ -171,11 +170,13 @@ export async function resolveBrowseCandidatePool(userId: string): Promise<Resolv
       };
     }
     const userLocationResult = await geocodeLocation(userProfile.location);
-    const userInRegionByCoords = userLocationResult.coordinates
-      ? isInRegion(userLocationResult.coordinates.lat, userLocationResult.coordinates.lng, activeRegion)
-      : false;
-    const userInRegionByText = isLikelyInRegionByText(userProfile.location, activeRegion);
-    if (!userInRegionByCoords && !userInRegionByText) {
+    const userInRegion = isLocationInActiveRegion(
+      userLocationResult.coordinates?.lat ?? null,
+      userLocationResult.coordinates?.lng ?? null,
+      userProfile.location,
+      activeRegion,
+    );
+    if (!userInRegion) {
       return {
         ok: false,
         error:
@@ -199,8 +200,12 @@ export async function resolveBrowseCandidatePool(userId: string): Promise<Resolv
           const coords = candidateLocationResult.coordinates;
           const inRegion =
             !activeRegion
-            || (coords ? isInRegion(coords.lat, coords.lng, activeRegion) : false)
-            || (activeRegion ? isLikelyInRegionByText(p.location, activeRegion) : false);
+            || isLocationInActiveRegion(
+              coords?.lat ?? null,
+              coords?.lng ?? null,
+              p.location,
+              activeRegion,
+            );
           const distance = coords
             ? calculateDistanceMiles(userLocationResult.coordinates!, coords)
             : null;

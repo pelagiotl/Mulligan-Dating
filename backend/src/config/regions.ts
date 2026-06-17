@@ -36,6 +36,15 @@ export const REGIONS: Record<string, Region> = {
   },
 };
 
+/** When a region is active, matches are capped at this distance (miles) within the region. */
+export const REGION_MAX_DISTANCE_MILES = 100;
+
+/** Service-area center for Southern Oregon (Medford / Rogue Valley). */
+export const SOUTHERN_OREGON_SERVICE_CENTER = {
+  lat: 42.3265,
+  lng: -122.8756,
+} as const;
+
 /**
  * Check if (lat, lng) is inside the given region's bounding box.
  */
@@ -50,8 +59,47 @@ export function isInRegion(
   return lat >= south && lat <= north && lng >= west && lng <= east;
 }
 
-/** When a region is active, matches are capped at this distance (miles) within the region. */
-export const REGION_MAX_DISTANCE_MILES = 100;
+/** Miles from the active region's service center (null if region unsupported). */
+export function milesFromServiceCenter(lat: number, lng: number, regionId: string): number | null {
+  if (regionId !== 'southern_oregon') return null;
+  const R = 3959;
+  const toRad = (deg: number) => (deg * Math.PI) / 180;
+  const dLat = toRad(lat - SOUTHERN_OREGON_SERVICE_CENTER.lat);
+  const dLng = toRad(lng - SOUTHERN_OREGON_SERVICE_CENTER.lng);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(SOUTHERN_OREGON_SERVICE_CENTER.lat)) *
+      Math.cos(toRad(lat)) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+/** True when coordinates are within maxMiles of the region service center. */
+export function isWithinRegionServiceRadius(
+  lat: number,
+  lng: number,
+  regionId: string,
+  maxMiles = REGION_MAX_DISTANCE_MILES,
+): boolean {
+  const miles = milesFromServiceCenter(lat, lng, regionId);
+  if (miles == null) return false;
+  return miles <= maxMiles;
+}
+
+/** Geocoded coords and/or known regional city text fall inside the service area. */
+export function isLocationInActiveRegion(
+  lat: number | null,
+  lng: number | null,
+  locationText: string | null | undefined,
+  regionId: string,
+  maxMiles = REGION_MAX_DISTANCE_MILES,
+): boolean {
+  if (isLikelyInRegionByText(locationText, regionId)) return true;
+  if (lat != null && lng != null && isWithinRegionServiceRadius(lat, lng, regionId, maxMiles)) {
+    return true;
+  }
+  return false;
+}
 
 /**
  * User-facing max distance for matching. null / 0 / invalid = unlimited ("Any").
@@ -97,23 +145,35 @@ export function isLikelyInRegionByText(location: string | null | undefined, regi
   if (regionId !== 'southern_oregon') return false;
 
   const cityPatterns: RegExp[] = [
-    /medford/,
-    /ashland/,
-    /central point/,
-    /eagle point/,
-    /jacksonville/,
-    /white city/,
-    /phoenix/,
-    /talent/,
-    /grants pass/,
-    /cave junction/,
-    /rogue river/,
-    /gold hill/,
+    /\bmedford\b/,
+    /\bashland\b/,
+    /\bcentral point\b/,
+    /\beagle point\b/,
+    /\bjacksonville\b/,
+    /\bwhite city\b/,
+    /\bphoenix\b/,
+    /\btalent\b/,
+    /\bgrants pass\b/,
+    /\bcave junction\b/,
+    /\brogue river\b/,
+    /\bgold hill\b/,
+    /\bklamath falls\b/,
+    /\bbrookings\b/,
+    /\bcrescent city\b/,
+    /\bmerlin\b/,
+    /\bwimer\b/,
+    /\bshady cove\b/,
   ];
 
   const hasRegionalCity = cityPatterns.some((re) => re.test(normalized));
-  const hasOregonMarker = /(or|oregon)/.test(normalized);
-  const hasCountyMarker = /(jackson county|josephine county)/.test(normalized);
+  const hasOregonMarker = /\b(or|oregon)\b/.test(normalized);
+  const hasCountyMarker = /\b(jackson county|josephine county)\b/.test(normalized);
+  const hasNorthernCaliforniaMarker = /\b(ca|california)\b/.test(normalized);
 
-  return hasCountyMarker || (hasRegionalCity && (hasOregonMarker || !/(new jersey|ma|massachusetts)/.test(normalized)));
+  if (hasCountyMarker) return true;
+  if (hasRegionalCity && hasOregonMarker) return true;
+  if (hasRegionalCity && hasNorthernCaliforniaMarker && /\b(crescent city|brookings)\b/.test(normalized)) {
+    return true;
+  }
+  return hasRegionalCity && !/\b(new jersey|ma|massachusetts)\b/.test(normalized);
 }

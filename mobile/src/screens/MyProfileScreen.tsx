@@ -33,6 +33,7 @@ import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-g
 import { api } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
+import { checkLocationInServiceArea } from '../utils/validateServiceAreaLocation';
 import { displayProfileGender } from '../utils/createProfileProgress';
 import { detectUserLocation } from '../utils/detectUserLocation';
 import { getPhotoUrl } from '../utils/photoUrl';
@@ -266,6 +267,8 @@ export default function MyProfileScreen() {
         shadowColor: profileColors.avatarShadow,
       },
       shimmerOverlay: { backgroundColor: profileColors.shimmerOverlay },
+      basicsSectionLabel: { color: profileColors.sectionEmptyHint },
+      basicsSectionLine: { backgroundColor: profileColors.bioBorder },
     }),
     [profileColors]
   );
@@ -860,7 +863,13 @@ export default function MyProfileScreen() {
     setDetectingLocation(true);
     try {
       const detected = await detectUserLocation();
-      setEditLocation(compactCityState(detected));
+      const compact = compactCityState(detected);
+      const check = await checkLocationInServiceArea(compact);
+      if (!check.valid) {
+        Alert.alert('Outside service area', check.message ?? 'Your location must be within 100 miles of Southern Oregon.');
+        return;
+      }
+      setEditLocation(compact);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Could not detect location.';
       Alert.alert('Location Error', message);
@@ -959,6 +968,13 @@ export default function MyProfileScreen() {
     if (loc && !hasCityAndState(loc)) {
       Alert.alert('Location required', 'Please enter both city and state (e.g. Medford, Oregon).');
       return;
+    }
+    if (loc) {
+      const check = await checkLocationInServiceArea(loc);
+      if (!check.valid) {
+        Alert.alert('Outside service area', check.message ?? 'Location must be within 100 miles of Southern Oregon.');
+        return;
+      }
     }
     setUpdatingField(true);
     try {
@@ -2268,6 +2284,7 @@ export default function MyProfileScreen() {
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
+                  style={styles.infoCardFullTouchable}
                   onPress={() => {
                     setEditDisplayName(profile.display_name || '');
                     setShowNameModal(true);
@@ -2385,6 +2402,14 @@ export default function MyProfileScreen() {
                 </ProfileEditableCardBorder>
               </View>
 
+              <View style={styles.profileBasicsSectionHeader}>
+                <View style={[styles.profileBasicsSectionLine, profileUi.basicsSectionLine]} />
+                <Text style={[styles.profileBasicsSectionLabel, profileUi.basicsSectionLabel]}>
+                  Location & matching
+                </Text>
+                <View style={[styles.profileBasicsSectionLine, profileUi.basicsSectionLine]} />
+              </View>
+
               {/* Location - tappable to update */}
               <ProfileEditableCardBorder
                 delay={0}
@@ -2392,6 +2417,7 @@ export default function MyProfileScreen() {
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
+                  style={styles.infoCardFullTouchable}
                   onPress={() => {
                     setEditLocation(profile.location || '');
                     setShowLocationModal(true);
@@ -2434,6 +2460,7 @@ export default function MyProfileScreen() {
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
+                  style={styles.infoCardFullTouchable}
                   onPress={() => {
                     setEditMaxDistance(clampMaxDistanceMiles(data?.preferences?.max_distance ?? 50));
                     setShowDistanceModal(true);
@@ -2468,6 +2495,7 @@ export default function MyProfileScreen() {
               >
                 <TouchableOpacity
                   activeOpacity={0.9}
+                  style={styles.infoCardFullTouchable}
                   onPress={() => {
                     let initial: string[] = [];
                     if (data?.preferences?.preferred_genders) {
@@ -2521,17 +2549,16 @@ export default function MyProfileScreen() {
               </ProfileEditableCardBorder>
 
               {/* Relationship goal — same options as web "Looking for" (Better matches checklist) */}
-              <View
+              <ProfileEditableCardBorder
+                delay={600}
+                traceColors={[...profileColors.traceLooking]}
                 onLayout={(e) => {
                   lookingForSectionYRef.current = e.nativeEvent.layout.y;
                 }}
               >
-              <ProfileEditableCardBorder
-                delay={600}
-                traceColors={[...profileColors.traceLooking]}
-              >
                 <TouchableOpacity
                   activeOpacity={0.9}
+                  style={styles.infoCardFullTouchable}
                   onPress={() => {
                     setEditLookingFor(profile.looking_for?.trim() ?? '');
                     setShowLookingForModal(true);
@@ -2552,15 +2579,19 @@ export default function MyProfileScreen() {
                       containerStyle={styles.infoCardEmojiWrap}
                     />
                     <Text style={styles.infoCardLabel}>Looking for</Text>
-                    <Text style={styles.infoCardValueFull}>
+                    <Text
+                      style={styles.infoCardValueFull}
+                      numberOfLines={2}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.72}
+                    >
                       {profile.looking_for?.trim()
                         ? profile.looking_for
-                        : 'Tap to choose (relationship, casual, etc.)'}
+                        : 'Tap to choose'}
                     </Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </ProfileEditableCardBorder>
-              </View>
 
               {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
               <ProfileEditableCardBorder
@@ -4185,7 +4216,7 @@ const styles = StyleSheet.create({
   },
   infoCardFullTouchable: {
     width: '100%',
-    marginBottom: 10,
+    alignSelf: 'stretch',
   },
   modalOverlay: {
     flex: 1,
@@ -4635,6 +4666,8 @@ const styles = StyleSheet.create({
   },
   info: {
     alignItems: 'center',
+    alignSelf: 'stretch',
+    width: '100%',
   },
   name: {
     fontSize: 48,
@@ -4734,8 +4767,29 @@ const styles = StyleSheet.create({
   infoGrid: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 16,
+    alignSelf: 'stretch',
+    width: '100%',
+    marginBottom: 8,
     gap: 12,
+  },
+  profileBasicsSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'stretch',
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 14,
+  },
+  profileBasicsSectionLine: {
+    flex: 1,
+    height: StyleSheet.hairlineWidth * 2,
+    opacity: 0.85,
+  },
+  profileBasicsSectionLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
   },
   infoCardGradient: {
     flex: 1,

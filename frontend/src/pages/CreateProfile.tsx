@@ -8,6 +8,7 @@ import {
   handleLocationChange,
   normalizeLocationInput,
 } from "../utils/locationUtils";
+import { checkLocationInServiceArea } from "../utils/validateServiceAreaLocation";
 import { getPhotoUrl } from "../utils/photoUrl";
 import { compressImageFiles, uploadCompressedFiles } from "../utils/photoBatchUpload";
 import {
@@ -308,6 +309,8 @@ export default function CreateProfile() {
   const [age, setAge] = useState("");
   const [gender, setGender] = useState("");
   const [location, setLocation] = useState("");
+  const [locationRegionError, setLocationRegionError] = useState("");
+  const [validatingLocation, setValidatingLocation] = useState(false);
   const [bio, setBio] = useState("");
   const [detectingLocation, setDetectingLocation] = useState(false);
 
@@ -326,8 +329,32 @@ export default function CreateProfile() {
   );
 
   const nameValid = displayName.trim().length >= 2;
-  const locationValid = hasCityAndState(location);
+  const locationValid = hasCityAndState(location) && !locationRegionError && !validatingLocation;
   const genderValid = isOnboardingGenderComplete(gender);
+
+  useEffect(() => {
+    if (!hasCityAndState(location)) {
+      setLocationRegionError("");
+      setValidatingLocation(false);
+      return;
+    }
+    let cancelled = false;
+    setValidatingLocation(true);
+    setLocationRegionError("");
+    const timer = window.setTimeout(() => {
+      void checkLocationInServiceArea(compactCityState(location)).then((result) => {
+        if (cancelled) return;
+        setValidatingLocation(false);
+        setLocationRegionError(
+          result.valid ? "" : result.message ?? "Location must be within 100 miles of Southern Oregon."
+        );
+      });
+    }, 450);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [location]);
 
   const togglePreferredGender = (g: string) => {
     if (g === "Everyone") {
@@ -378,8 +405,15 @@ export default function CreateProfile() {
       const state = address.state || address.region || "";
       const country = address.country || "";
       if (country === "United States" || country === "Canada") {
-        if (city && state) setLocation(compactCityState(`${city}, ${state}`));
-        else if (city) setLocation(compactCityState(city));
+        if (city && state) {
+          const compact = compactCityState(`${city}, ${state}`);
+          const check = await checkLocationInServiceArea(compact);
+          if (!check.valid) {
+            setError(check.message ?? "Your location must be within 100 miles of Southern Oregon.");
+            return;
+          }
+          setLocation(compact);
+        } else if (city) setLocation(compactCityState(city));
       } else if (city && country) {
         setLocation(compactCityState(`${city}, ${country}`));
       } else if (city) {
@@ -1032,7 +1066,8 @@ export default function CreateProfile() {
     !nameValid ||
     !locationValid ||
     !genderValid ||
-    detectingLocation;
+    detectingLocation ||
+    validatingLocation;
 
   const minAgeOptions = Array.from({ length: 103 }, (_, i) => 18 + i);
   const maxAgeOptions = Array.from({ length: 121 - minAge }, (_, i) => minAge + i);
@@ -1132,6 +1167,12 @@ export default function CreateProfile() {
                 >
                   {detectingLocation ? "Detecting…" : "📍 Use My Location"}
                 </button>
+                {validatingLocation && hasCityAndState(location) ? (
+                  <p className="create-profile-location-hint">Checking Southern Oregon area…</p>
+                ) : null}
+                {locationRegionError ? (
+                  <p className="create-profile-location-error">{locationRegionError}</p>
+                ) : null}
               </>,
               locationValid ? <span>✓ Location set</span> : null
             )}

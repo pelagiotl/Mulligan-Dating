@@ -96,3 +96,13 @@ export function budgetDisplay(b: string | undefined): { label: string; tier: str
   if (b === 'high') return { label: 'Splurge-worthy', tier: '$$$' };
   return { label: 'Moderate', tier: '$$' };
 }
+
+export function formatVenuePinLabel(venueName: string, venueAddress?: string): string {
+  if (!venueAddress?.trim()) return venueName;
+  const parts = venueAddress.split(',').map((part) => part.trim()).filter(Boolean);
+  const location =
+    parts.length >= 2
+      ? `${parts[parts.length - 2]}, ${parts[parts.length - 1]}`
+      : venueAddress.trim();
+  return `${venueName} · ${location}`;
+}

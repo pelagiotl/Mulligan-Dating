@@ -41,8 +41,8 @@ import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 /** Android elevation renders as a harsh grey box behind rounded cards — disable it there. */
 const E = (n: number) => (Platform.OS === 'android' ? 0 : n);
 const SO = (n: number) => (Platform.OS === 'android' ? 0 : n);
-/** Entrance opacity fades darken/wash out Settings on Android — use plain Views there. */
-const USE_SETTINGS_ENTRANCE_FADE = Platform.OS === 'ios';
+/** Entrance opacity fades can stick below 1 on iOS and wash sections out — keep sections at full opacity. */
+const USE_SETTINGS_ENTRANCE_FADE = false;
 const SettingsSectionShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
   USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
 const SettingsStatCardShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
@@ -145,26 +145,46 @@ const ANDROID_SETTINGS_SECTION_BRIGHT = [
 function AndroidSettingsBrightCard({
   children,
   variant = 'section',
+  shellMidnight = false,
 }: {
   children: React.ReactNode;
   variant?: 'header' | 'section';
+  shellMidnight?: boolean;
 }) {
-  if (Platform.OS !== 'android') return <>{children}</>;
-  const colors = variant === 'header' ? ANDROID_SETTINGS_HEADER_BRIGHT : ANDROID_SETTINGS_SECTION_BRIGHT;
+  if (variant === 'header') {
+    if (Platform.OS !== 'android') return <>{children}</>;
+    return (
+      <LinearGradient
+        colors={[...ANDROID_SETTINGS_HEADER_BRIGHT]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.androidBrightHeader}
+      >
+        {children}
+      </LinearGradient>
+    );
+  }
+
+  const iosSectionColors = shellMidnight
+    ? (['rgba(28, 24, 38, 0.94)', 'rgba(18, 16, 28, 0.9)'] as const)
+    : (['rgba(255, 255, 255, 0.34)', 'rgba(255, 255, 255, 0.18)'] as const);
+  const colors =
+    Platform.OS === 'android' ? ANDROID_SETTINGS_SECTION_BRIGHT : iosSectionColors;
+  const style = Platform.OS === 'android' ? styles.androidBrightSection : styles.iosBrightSection;
+
   return (
     <LinearGradient
       colors={[...colors]}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={variant === 'header' ? styles.androidBrightHeader : styles.androidBrightSection}
+      style={style}
     >
       {children}
     </LinearGradient>
   );
 }
 
-const SettingsSectionOuter: React.ComponentType<{ style?: object; children: React.ReactNode }> =
-  Platform.OS === 'android' ? View : SettingsSectionShell;
+const SettingsSectionOuter: React.ComponentType<{ style?: object; children: React.ReactNode }> = View;
 
 export default function SettingsScreen() {
   const { user, profile, logout, refreshProfile, refreshTokensBalance } = useAuth();
@@ -185,8 +205,69 @@ export default function SettingsScreen() {
   const glassSectionColors = shellMidnight
     ? (['rgba(28, 24, 38, 0.94)', 'rgba(18, 16, 28, 0.9)'] as const)
     : (['rgba(255, 255, 255, 0.34)', 'rgba(255, 255, 255, 0.18)'] as const);
-  const settingsGlassCardColors = ['rgba(255, 255, 255, 0.15)', 'rgba(255, 255, 255, 0.05)'] as const;
-  const androidInnerPanelStyle = Platform.OS === 'android' ? styles.androidBrightInnerPanel : undefined;
+  const settingsInnerPanelStyle = useMemo(() => {
+    if (Platform.OS === 'android') return styles.androidBrightInnerPanel;
+    if (Platform.OS !== 'ios') return undefined;
+    if (shellMidnight) {
+      return {
+        backgroundColor: 'rgba(139, 92, 246, 0.26)',
+        borderColor: 'rgba(216, 180, 254, 0.52)',
+        shadowColor: '#a78bfa',
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.22,
+        shadowRadius: 10,
+      };
+    }
+    if (connectShellMode === 'sunny') {
+      return {
+        backgroundColor: 'rgba(255, 255, 255, 0.88)',
+        borderColor: 'rgba(251, 146, 60, 0.38)',
+        shadowColor: '#fb923c',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.14,
+        shadowRadius: 8,
+      };
+    }
+    return {
+      backgroundColor: 'rgba(167, 139, 250, 0.32)',
+      borderColor: 'rgba(124, 58, 237, 0.38)',
+      shadowColor: '#667eea',
+      shadowOffset: { width: 0, height: 3 },
+      shadowOpacity: 0.2,
+      shadowRadius: 10,
+    };
+  }, [shellMidnight, connectShellMode]);
+
+  const settingsInputStyle = useMemo(() => {
+    if (Platform.OS === 'android') return styles.emailInput;
+    if (Platform.OS !== 'ios') return styles.emailInput;
+    if (shellMidnight) {
+      return [
+        styles.emailInput,
+        {
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
+          borderColor: 'rgba(216, 180, 254, 0.42)',
+        },
+      ];
+    }
+    if (connectShellMode === 'sunny') {
+      return [
+        styles.emailInput,
+        {
+          backgroundColor: 'rgba(255, 251, 235, 0.95)',
+          borderColor: 'rgba(251, 146, 60, 0.35)',
+          color: '#431407',
+        },
+      ];
+    }
+    return [
+      styles.emailInput,
+      {
+        backgroundColor: 'rgba(255, 255, 255, 0.22)',
+        borderColor: 'rgba(124, 58, 237, 0.32)',
+      },
+    ];
+  }, [shellMidnight, connectShellMode]);
   const navigation = useNavigation();
   const [settings, setSettings] = useState<SettingsData | null>(null);
   const [displayNameDraft, setDisplayNameDraft] = useState('');
@@ -315,13 +396,15 @@ export default function SettingsScreen() {
     }
   }, [user]);
 
-  // Android: re-assert full opacity when returning to Settings (guards against stuck entrance values).
+  // Re-assert full opacity when returning to Settings (guards against stuck entrance values).
   useEffect(() => {
-    if (Platform.OS !== 'android' || !isFocused || !user) return;
+    if (!isFocused || !user) return;
     headerOpacity.setValue(1);
     headerScale.setValue(1);
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 10; i++) {
       if (sectionAnimations[i]) sectionAnimations[i].setValue(1);
+    }
+    for (let i = 0; i < 2; i++) {
       if (statCardAnimations[i]) statCardAnimations[i].setValue(1);
     }
   }, [isFocused, user, headerOpacity, headerScale, sectionAnimations, statCardAnimations]);
@@ -780,10 +863,12 @@ export default function SettingsScreen() {
           <SettingsHeaderShell
             style={[
               styles.headerGradient,
-              {
-                opacity: headerOpacity,
-                transform: [{ scale: headerScale }],
-              },
+              USE_SETTINGS_ENTRANCE_FADE
+                ? {
+                    opacity: headerOpacity,
+                    transform: [{ scale: headerScale }],
+                  }
+                : undefined,
             ]}
           >
             <LinearGradient
@@ -849,7 +934,7 @@ export default function SettingsScreen() {
 
       {Platform.OS === 'android' ? (
         <View style={styles.section}>
-          <AndroidSettingsBrightCard>
+          <AndroidSettingsBrightCard shellMidnight={shellMidnight}>
             <View style={styles.sectionTitleContainer}>
               <ProfileCardAnimatedEmoji
                 emoji="🎨"
@@ -900,7 +985,7 @@ export default function SettingsScreen() {
       <SettingsSectionOuter
         style={[styles.section, settingsSectionEntranceStyle(0, sectionAnimations, sectionFallbackAnim)]}
       >
-        <AndroidSettingsBrightCard>
+        <AndroidSettingsBrightCard shellMidnight={shellMidnight}>
         <View style={styles.sectionTitleContainer}>
           <ProfileCardAnimatedEmoji
             emoji="👤"
@@ -977,7 +1062,7 @@ export default function SettingsScreen() {
 
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
+            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
             onPress={() => navigationRef.current?.navigate('PushNotificationSettings')}
             activeOpacity={0.8}
           >
@@ -994,7 +1079,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
+            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
             onPress={() => navigationRef.current?.navigate('BlockedUsers')}
             activeOpacity={0.8}
           >
@@ -1011,7 +1096,7 @@ export default function SettingsScreen() {
         </View>
 
         {/* Optional email for support / important account updates */}
-        <View style={[styles.emailCard, androidInnerPanelStyle]}>
+        <View style={[styles.emailCard, settingsInnerPanelStyle]}>
           <Text style={styles.emailCardLabel}>Email address (optional)</Text>
           <Text style={styles.emailCardSubLabel}>
             Add an email for account support and important updates. We’ll only contact you if needed.
@@ -1024,7 +1109,7 @@ export default function SettingsScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="email-address"
-            style={styles.emailInput}
+            style={settingsInputStyle}
           />
           {emailNeedsPassword && (
             <TextInput
@@ -1035,7 +1120,7 @@ export default function SettingsScreen() {
               secureTextEntry
               autoCapitalize="none"
               autoCorrect={false}
-              style={styles.emailInput}
+              style={settingsInputStyle}
             />
           )}
           <TouchableOpacity
@@ -1066,7 +1151,7 @@ export default function SettingsScreen() {
           </Text>
         </View>
 
-        <View style={[styles.emailCard, androidInnerPanelStyle]}>
+        <View style={[styles.emailCard, settingsInnerPanelStyle]}>
           <Text style={styles.emailCardLabel}>Display name</Text>
           <Text style={styles.emailCardSubLabel}>
             Shown to people you connect with. You need a name, location, and a photo before you can use Connect.
@@ -1079,7 +1164,7 @@ export default function SettingsScreen() {
             autoCapitalize="words"
             autoCorrect={false}
             maxLength={50}
-            style={styles.emailInput}
+            style={settingsInputStyle}
           />
           <TouchableOpacity
             style={[styles.emailSaveButton, displayNameSaving ? styles.buttonDisabled : undefined]}
@@ -1104,7 +1189,7 @@ export default function SettingsScreen() {
 
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
+            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
             onPress={() => (navigation as any).navigate('MyProfile')}
             activeOpacity={0.8}
           >
@@ -1121,7 +1206,7 @@ export default function SettingsScreen() {
         </View>
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
-            style={[styles.pushNotificationsRow, androidInnerPanelStyle]}
+            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
             onPress={() => (navigation as any).navigate('MyProfile', { scrollToPhotos: true })}
             activeOpacity={0.8}
           >
@@ -1143,7 +1228,7 @@ export default function SettingsScreen() {
       <SettingsSectionOuter
         style={[styles.section, settingsSectionEntranceStyle(2, sectionAnimations, sectionFallbackAnim)]}
       >
-        <AndroidSettingsBrightCard>
+        <AndroidSettingsBrightCard shellMidnight={shellMidnight}>
         <View style={styles.sectionTitleContainer}>
           <ProfileCardAnimatedEmoji
             emoji="💳"
@@ -1181,12 +1266,7 @@ export default function SettingsScreen() {
             </TouchableOpacity>
           </>
         ) : (
-          <LinearGradient
-            colors={[...settingsGlassCardColors]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.tokensCard}
-          >
+          <>
             <Text style={styles.tokensCardTitle}>Need more tokens?</Text>
             <Text style={styles.tokensCardDescription}>
               Purchase Mulligan tokens to connect with more people
@@ -1210,7 +1290,7 @@ export default function SettingsScreen() {
                 </View>
               </LinearGradient>
             </TouchableOpacity>
-          </LinearGradient>
+          </>
         )}
         </AndroidSettingsBrightCard>
       </SettingsSectionOuter>
@@ -1413,31 +1493,31 @@ export default function SettingsScreen() {
                 <Text style={styles.logoutModalSubtitle}>
                   This permanently deletes your profile, photos, matches, and messages. You cannot undo this.
                 </Text>
-                <View style={styles.logoutModalActions}>
+                <View style={[styles.logoutModalActions, styles.deleteModalActions]}>
                   <TouchableOpacity
-                    style={styles.logoutModalStayButton}
+                    style={styles.deleteModalStayButton}
                     onPress={() => setShowDeleteAccountModal(false)}
                     activeOpacity={0.85}
                     disabled={deleting}
                   >
-                    <Text style={styles.logoutModalStayText}>Keep my account</Text>
+                    <Text style={styles.deleteModalStayText}>Keep my account</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.logoutModalConfirmWrap}
+                    style={styles.deleteModalConfirmWrap}
                     onPress={() => void handleConfirmDeleteAccount()}
                     activeOpacity={0.9}
                     disabled={deleting}
                   >
                     <LinearGradient
-                      colors={['rgba(0,0,0,0.35)', 'rgba(0,0,0,0.55)']}
+                      colors={['#450a0a', '#991b1b', '#7f1d1d']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
-                      style={styles.logoutModalConfirmButton}
+                      style={styles.deleteModalConfirmButton}
                     >
                       {deleting ? (
                         <ActivityIndicator color="#fff" />
                       ) : (
-                        <Text style={styles.logoutModalConfirmText}>Delete forever</Text>
+                        <Text style={styles.deleteModalConfirmText}>Delete forever</Text>
                       )}
                     </LinearGradient>
                   </TouchableOpacity>
@@ -1697,6 +1777,13 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(254, 202, 202, 0.72)',
     overflow: 'hidden',
     backgroundColor: '#fb7185',
+  },
+  iosBrightSection: {
+    borderRadius: 24,
+    padding: 24,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.38)',
+    overflow: 'hidden',
   },
   androidBrightInnerPanel: {
     backgroundColor: 'rgba(255, 255, 255, 0.24)',
@@ -2047,13 +2134,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    backgroundColor: 'transparent',
     paddingVertical: 18,
     paddingHorizontal: 22,
     borderRadius: 18,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.35)',
-    ...(Platform.OS === 'android' ? { backgroundColor: 'transparent' } : null),
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: SO(0.25),
@@ -2078,12 +2164,11 @@ const styles = StyleSheet.create({
   },
   emailCard: {
     marginTop: 24,
-    backgroundColor: 'rgba(255, 255, 255, 0.18)',
+    backgroundColor: 'transparent',
     borderRadius: 18,
     padding: 18,
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.28)',
-    ...(Platform.OS === 'android' ? { backgroundColor: 'transparent' } : null),
   },
   emailCardLabel: {
     fontSize: 16,
@@ -2324,6 +2409,53 @@ const styles = StyleSheet.create({
     alignItems: 'stretch',
     gap: 12,
     width: '100%',
+  },
+  deleteModalActions: {
+    flexDirection: 'column',
+    gap: 10,
+  },
+  deleteModalStayButton: {
+    width: '100%',
+    minHeight: 50,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.92)',
+  },
+  deleteModalStayText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#7f1d1d',
+    textAlign: 'center',
+    letterSpacing: 0.15,
+    lineHeight: 20,
+  },
+  deleteModalConfirmWrap: {
+    width: '100%',
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.38)',
+  },
+  deleteModalConfirmButton: {
+    width: '100%',
+    minHeight: 50,
+    paddingVertical: 14,
+    paddingHorizontal: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteModalConfirmText: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
+    letterSpacing: 0.2,
+    lineHeight: 20,
   },
   logoutModalStayButton: {
     flex: 1,

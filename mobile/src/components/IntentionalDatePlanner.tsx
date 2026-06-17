@@ -17,7 +17,7 @@ import {
   DEV_DATE_PLAN_PREVIEW_MATCH_ID,
   getDatePlanPreviewMockIdeas,
 } from '../utils/datePlanPreviewDemo';
-import { budgetDisplay, getDatePlanLaneVisual } from '../utils/datePlanLaneVisuals';
+import { budgetDisplay, formatVenuePinLabel, getDatePlanLaneVisual } from '../utils/datePlanLaneVisuals';
 import {
   defaultDatetimeLocal,
   formatFriendlyDatetime,
@@ -212,7 +212,9 @@ function DatePlanIdeaCard({
         <Text style={styles.ideaDesc} numberOfLines={3}>
           {idea.description.split('\n\n')[0]}
         </Text>
-        {idea.venueName ? <Text style={styles.meta}>📍 {idea.venueName}</Text> : null}
+        {idea.venueName ? (
+          <Text style={styles.meta}>📍 {formatVenuePinLabel(idea.venueName, idea.venueAddress)}</Text>
+        ) : null}
       </View>
     </TouchableOpacity>
   );
@@ -574,7 +576,11 @@ export default function IntentionalDatePlanner({
                   <Text style={styles.confirmed}>✅ Hangout confirmed</Text>
                   <Text style={styles.ideaTitle}>{activePlan.title}</Text>
                   <Text style={styles.ideaDesc}>{activePlan.description}</Text>
-                  {activePlan.venueName ? <Text style={styles.meta}>📍 {activePlan.venueName}</Text> : null}
+                  {activePlan.venueName ? (
+                    <Text style={styles.meta}>
+                      📍 {formatVenuePinLabel(activePlan.venueName, activePlan.venueAddress)}
+                    </Text>
+                  ) : null}
                   <Text style={styles.meta}>🗓 {formatPlanWhen(activePlan)}</Text>
                 </View>
               </View>
@@ -596,7 +602,11 @@ export default function IntentionalDatePlanner({
                 ) : null}
                 <Text style={styles.ideaTitle}>{activePlan.title}</Text>
                 <Text style={styles.ideaDesc}>{activePlan.description}</Text>
-                {activePlan.venueName ? <Text style={styles.meta}>📍 {activePlan.venueName}</Text> : null}
+                {activePlan.venueName ? (
+                  <Text style={styles.meta}>
+                    📍 {formatVenuePinLabel(activePlan.venueName, activePlan.venueAddress)}
+                  </Text>
+                ) : null}
                 <Text style={styles.meta}>🗓 {formatPlanWhen(activePlan)}</Text>
                 {awaitingMyResponse && !showCounter ? (
                   <View style={styles.actions}>

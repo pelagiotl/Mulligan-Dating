@@ -234,7 +234,6 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
 
   const hasDetails =
     data.lookingFor ||
-    data.bio ||
     data.partnerQualities.length > 0 ||
     data.interests.length > 0 ||
     data.values.length > 0 ||
@@ -254,58 +253,100 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
             colors={['#667eea', '#764ba2', '#a855f7', '#ec4899']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={styles.headerGradient}
+            style={[styles.headerGradient, iosCompactHero.headerGradient]}
           >
             <View style={styles.headerGlowOrb} pointerEvents="none" />
             <View style={styles.headerGlowOrbSecondary} pointerEvents="none" />
 
-            <View style={styles.headerTopRow}>
-              <View style={styles.previewBadge}>
-                <Text style={styles.previewBadgeText}>👁 Preview</Text>
+            <View style={[styles.headerTopRow, iosCompactHero.headerTopRow]}>
+              <View style={[styles.previewBadge, iosCompactHero.previewBadge]}>
+                <Text style={[styles.previewBadgeText, iosCompactHero.previewBadgeText]}>👁 Preview</Text>
               </View>
-              <TouchableOpacity style={styles.closeBtn} onPress={onClose} accessibilityLabel="Close">
-                <Text style={styles.closeBtnText}>✕</Text>
+              <TouchableOpacity
+                style={[styles.closeBtn, iosCompactHero.closeBtn]}
+                onPress={onClose}
+                accessibilityLabel="Close"
+              >
+                <Text style={[styles.closeBtnText, iosCompactHero.closeBtnText]}>✕</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={styles.heroCenter}>
+            <View style={[styles.heroCenter, iosCompactHero.heroCenter]}>
               <LinearGradient
                 colors={['rgba(255,255,255,0.95)', 'rgba(255,255,255,0.35)', 'rgba(255,255,255,0.9)']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.avatarRing}
+                style={[styles.avatarRing, iosCompactHero.avatarRing]}
               >
                 {primaryPhotoUrl ? (
-                  <Image source={{ uri: primaryPhotoUrl }} style={styles.avatar} />
+                  <Image source={{ uri: primaryPhotoUrl }} style={[styles.avatar, iosCompactHero.avatar]} />
                 ) : (
-                  <View style={[styles.avatar, styles.avatarPlaceholder]}>
-                    <Text style={styles.avatarPlaceholderText}>👤</Text>
+                  <View style={[styles.avatar, iosCompactHero.avatar, styles.avatarPlaceholder]}>
+                    <Text style={[styles.avatarPlaceholderText, iosCompactHero.avatarPlaceholderText]}>👤</Text>
                   </View>
                 )}
               </LinearGradient>
 
-              <Text style={styles.name}>
+              <Text style={[styles.name, iosCompactHero.name]}>
                 {data.displayName}
                 {data.age ? `, ${data.age}` : ''}
               </Text>
 
-              <View style={styles.metaChips}>
+              <View style={[styles.metaChips, iosCompactHero.metaChips]}>
                 {data.gender ? (
-                  <View style={styles.metaChip}>
-                    <Text style={styles.metaChipText}>⚧️ {data.gender}</Text>
+                  <View style={[styles.metaChip, iosCompactHero.metaChip]}>
+                    <Text style={[styles.metaChipText, iosCompactHero.metaChipText]}>⚧️ {data.gender}</Text>
                   </View>
                 ) : null}
                 {data.location ? (
-                  <View style={styles.metaChip}>
-                    <Text style={styles.metaChipText}>📍 {data.location}</Text>
+                  <View style={[styles.metaChip, iosCompactHero.metaChip]}>
+                    <Text style={[styles.metaChipText, iosCompactHero.metaChipText]}>📍 {data.location}</Text>
                   </View>
                 ) : null}
-                <View style={styles.metaChip}>
-                  <Text style={styles.metaChipText}>📏 {data.maxDistanceLabel}</Text>
+                <View style={[styles.metaChip, iosCompactHero.metaChip]}>
+                  <Text style={[styles.metaChipText, iosCompactHero.metaChipText]}>📏 {data.maxDistanceLabel}</Text>
                 </View>
               </View>
 
-              <Text style={styles.tagline}>
+              {data.bio ? (
+                <View style={previewHeroAboutStyles.outer}>
+                  <LinearGradient
+                    colors={[
+                      'rgba(255, 255, 255, 0.72)',
+                      'rgba(255, 255, 255, 0.28)',
+                      'rgba(236, 72, 153, 0.45)',
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={previewHeroAboutStyles.rim}
+                  >
+                    <View style={previewHeroAboutStyles.inner}>
+                      <View style={previewHeroAboutStyles.head}>
+                        <LinearGradient
+                          colors={['#667eea', '#764ba2', '#ec4899']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={previewHeroAboutStyles.iconWrap}
+                        >
+                          <Text style={previewHeroAboutStyles.icon} allowFontScaling={false}>
+                            💬
+                          </Text>
+                        </LinearGradient>
+                        <Text style={previewHeroAboutStyles.title}>About</Text>
+                      </View>
+                      <Text style={previewHeroAboutStyles.text}>{data.bio}</Text>
+                    </View>
+                  </LinearGradient>
+                </View>
+              ) : null}
+
+              <Text
+                style={[
+                  styles.tagline,
+                  iosCompactHero.tagline,
+                  data.bio ? previewHeroAboutStyles.taglineAfterAbout : null,
+                ]}
+              >
                 This is how your profile looks to others on Mulligan
               </Text>
             </View>
@@ -388,10 +429,6 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
                     </Text>
                   </View>
                 )}
-
-                {data.bio
-                  ? renderDetailSection('About', <Text style={styles.blockBody}>{data.bio}</Text>)
-                  : null}
 
                 {data.partnerQualities.length > 0
                   ? renderDetailSection(
@@ -621,6 +658,87 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const thumbSize = Math.min(128, SCREEN_WIDTH * 0.34);
+
+/** Tighter hero on iPhone so gallery + details get more room. */
+const iosCompactHero = Platform.select({
+  ios: {
+    headerGradient: { paddingBottom: 12 },
+    headerTopRow: { paddingTop: 12 },
+    heroCenter: { paddingTop: 2 },
+    avatarRing: { marginBottom: 8, padding: 3 },
+    avatar: { width: 76, height: 76, borderRadius: 38 },
+    avatarPlaceholderText: { fontSize: 28 },
+    name: { fontSize: 20 },
+    metaChips: { marginTop: 8, gap: 6 },
+    metaChip: { paddingHorizontal: 10, paddingVertical: 5 },
+    metaChipText: { fontSize: 11 },
+    closeBtn: { width: 36, height: 36, borderRadius: 18 },
+    closeBtnText: { fontSize: 16 },
+    tagline: { marginTop: 8, fontSize: 11, lineHeight: 15 },
+    previewBadge: { paddingVertical: 5, paddingHorizontal: 10 },
+    previewBadgeText: { fontSize: 10 },
+  },
+  default: {},
+}) as Record<string, object>;
+
+const previewHeroAboutStyles = StyleSheet.create({
+  outer: {
+    width: '100%',
+    marginTop: Platform.OS === 'ios' ? 10 : 14,
+    alignSelf: 'stretch',
+  },
+  rim: {
+    borderRadius: 16,
+    padding: 1.5,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#4c1d95',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.18,
+        shadowRadius: 10,
+      },
+      android: { elevation: 4 },
+    }),
+  },
+  inner: {
+    borderRadius: 14.5,
+    paddingVertical: Platform.OS === 'ios' ? 10 : 14,
+    paddingHorizontal: Platform.OS === 'ios' ? 12 : 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.94)',
+  },
+  head: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: Platform.OS === 'ios' ? 6 : 10,
+  },
+  iconWrap: {
+    width: Platform.OS === 'ios' ? 30 : 38,
+    height: Platform.OS === 'ios' ? 30 : 38,
+    borderRadius: Platform.OS === 'ios' ? 15 : 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  icon: {
+    fontSize: Platform.OS === 'ios' ? 15 : 18,
+  },
+  title: {
+    flex: 1,
+    fontSize: Platform.OS === 'ios' ? 14 : 17,
+    fontWeight: '800',
+    color: '#1e1b4b',
+    letterSpacing: -0.2,
+  },
+  text: {
+    fontSize: Platform.OS === 'ios' ? 13 : 15,
+    fontWeight: '500',
+    lineHeight: Platform.OS === 'ios' ? 18 : 22,
+    color: '#334155',
+  },
+  taglineAfterAbout: {
+    marginTop: Platform.OS === 'ios' ? 8 : 14,
+  },
+});
 
 const styles = StyleSheet.create({
   overlay: {

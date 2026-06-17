@@ -62,33 +62,18 @@ interface ProfileCompleteCelebrationProps {
   onClose: () => void;
 }
 
-/** iOS: mixed celebration particles. Android: 💰 only — matches the 🤑 hero on the card. */
-const FIRE_RELATED_EMOJIS = [
-  '🔥',
-  '🔥',
-  '🔥',
-  '🔥',
-  '🔥',
-  '💥',
-  '🎆',
-  '🎇',
-  '🧨',
-  '🌋',
-  '🕯️',
-  '✨',
-  '⭐',
-];
-
-const FALLING_EMOJI_POOL = isAndroidMidnightCelebration ? ['💰'] : FIRE_RELATED_EMOJIS;
+/** Android: 💰 falling particles. iOS: sparse 🔥 only behind the pulsing 😊 hero. */
+const IOS_FALLING_EMOJI = '🔥';
+const IOS_FALLING_EMOJI_COUNT = 8;
+const FALLING_EMOJI_POOL = isAndroidMidnightCelebration ? (['💰'] as const) : ([IOS_FALLING_EMOJI] as const);
+const FALLING_EMOJI_COUNT = isAndroidMidnightCelebration ? 22 : IOS_FALLING_EMOJI_COUNT;
 
 // Single emoji that falls continuously in a loop (resets to top when it reaches bottom)
 function FallingFire({ index, visible }: { index: number; visible: boolean }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const leftPercent = useRef(5 + Math.random() * 90).current;
   const duration = useRef(3500 + Math.random() * 2500).current;
-  const fireEmoji = useRef(
-    FALLING_EMOJI_POOL[Math.floor(Math.random() * FALLING_EMOJI_POOL.length)]
-  ).current;
+  const fireEmoji = useRef(FALLING_EMOJI_POOL[0]).current;
   const delay = useRef(Math.random() * 2000).current;
   const fontSize = useRef(22 + (index % 7) * 4).current; // 22–46px variety
   const running = useRef(true);
@@ -144,7 +129,6 @@ export default function ProfileCompleteCelebration({
   const [showContent, setShowContent] = useState(false);
   const [showFloatingFires, setShowFloatingFires] = useState(false);
   const [showButton, setShowButton] = useState(false);
-  const FIRE_COUNT = 22;
 
   const scale = useRef(new Animated.Value(0)).current;
   const opacity = useRef(new Animated.Value(0)).current;
@@ -318,7 +302,7 @@ export default function ProfileCompleteCelebration({
         {/* Falling celebration emojis — loop until user taps continue */}
         {showFloatingFires && (
           <View style={styles.firesContainer} pointerEvents="none">
-            {Array.from({ length: FIRE_COUNT }, (_, i) => (
+            {Array.from({ length: FALLING_EMOJI_COUNT }, (_, i) => (
               <FallingFire key={i} index={i} visible={visible} />
             ))}
           </View>
@@ -366,7 +350,14 @@ export default function ProfileCompleteCelebration({
                     style={styles.emoji}
                   />
                 ) : (
-                  <Text style={styles.emoji}>🤑</Text>
+                  <ProfileCardAnimatedEmoji
+                    emoji="😊"
+                    variant="pulse"
+                    fontSize={80}
+                    delay={400}
+                    containerStyle={styles.emojiAnimatedWrap}
+                    style={styles.emoji}
+                  />
                 )}
               </Animated.View>
 
@@ -378,7 +369,7 @@ export default function ProfileCompleteCelebration({
               {/* Subtitle */}
               <Animated.View style={{ opacity: subtitleOpacity }}>
                 <Text style={[styles.subtitle, { color: CELEBRATION_THEME.subtitleColor }]}>
-                  Have fun & be cool.
+                  Have fun & be cool
                 </Text>
               </Animated.View>
 

@@ -24,6 +24,7 @@ type ProfileEditableCardBorderProps = {
   /** Rotating trace colors on the outer ring */
   traceColors?: readonly [string, string, ...string[]];
   style?: StyleProp<ViewStyle>;
+  onLayout?: (event: { nativeEvent: { layout: { y: number; height: number } } }) => void;
 };
 
 export default function ProfileEditableCardBorder({
@@ -32,6 +33,7 @@ export default function ProfileEditableCardBorder({
   borderRadius = 28,
   traceColors = ['rgba(255,255,255,0.95)', 'rgba(103,232,249,0.9)', 'rgba(240,147,251,0.9)', 'rgba(255,255,255,0.95)'],
   style,
+  onLayout,
 }: ProfileEditableCardBorderProps) {
   const spin = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0.45)).current;
@@ -93,7 +95,10 @@ export default function ProfileEditableCardBorder({
   const innerRadius = Math.max(0, borderRadius - BORDER_INSET);
 
   return (
-    <View style={[styles.wrap, { borderRadius, marginBottom: 10 }, style]}>
+    <View
+      onLayout={onLayout}
+      style={[styles.wrap, { borderRadius, marginBottom: 10 }, style]}
+    >
       <Animated.View
         pointerEvents="none"
         style={[
@@ -122,6 +127,7 @@ export default function ProfileEditableCardBorder({
 const styles = StyleSheet.create({
   wrap: {
     width: '100%',
+    alignSelf: 'stretch',
     overflow: 'hidden',
     ...(Platform.OS === 'android' ? { elevation: 0 } : {}),
   },

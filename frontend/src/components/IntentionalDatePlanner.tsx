@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
-import { budgetDisplay, getDatePlanLaneVisual } from "../utils/datePlanLaneVisuals";
+import { budgetDisplay, formatVenuePinLabel, getDatePlanLaneVisual } from "../utils/datePlanLaneVisuals";
 import {
   defaultDatetimeLocal,
   datetimeLocalToDate,
@@ -124,7 +124,9 @@ function DatePlanIdeaCard({
       <div className="idp-idea-body">
         <h3 className="idp-idea-title">{idea.title}</h3>
         <p className="idp-idea-desc">{idea.description.split("\n\n")[0]}</p>
-        {idea.venueName ? <p className="idp-venue">📍 {idea.venueName}</p> : null}
+        {idea.venueName ? (
+          <p className="idp-venue">📍 {formatVenuePinLabel(idea.venueName, idea.venueAddress)}</p>
+        ) : null}
       </div>
     </button>
   );
@@ -409,7 +411,11 @@ export default function IntentionalDatePlanner({
               <div className="idp-confirmed-badge">✅ Hangout confirmed</div>
               <h3 className="idp-idea-title">{activePlan.title}</h3>
               <p className="idp-idea-desc">{activePlan.description}</p>
-              {activePlan.venueName ? <p className="idp-venue">📍 {activePlan.venueName}</p> : null}
+              {activePlan.venueName ? (
+                <p className="idp-venue">
+                  📍 {formatVenuePinLabel(activePlan.venueName, activePlan.venueAddress)}
+                </p>
+              ) : null}
               <p className="idp-when">🗓 {formatPlanWhen(activePlan)}</p>
             </div>
           </div>
@@ -428,8 +434,7 @@ export default function IntentionalDatePlanner({
             <p className="idp-idea-desc">{activePlan.description}</p>
             {activePlan.venueName ? (
               <p className="idp-venue">
-                📍 {activePlan.venueName}
-                {activePlan.venueAddress ? ` · ${activePlan.venueAddress}` : ""}
+                📍 {formatVenuePinLabel(activePlan.venueName, activePlan.venueAddress)}
               </p>
             ) : null}
             <p className="idp-when">🗓 {formatPlanWhen(activePlan)}</p>
