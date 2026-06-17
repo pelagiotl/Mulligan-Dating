@@ -85,10 +85,22 @@ const LANE_VISUALS: Record<DatePlanLaneId, DatePlanLaneVisual> = {
 const LANE_IDS = new Set<string>(Object.keys(LANE_VISUALS));
 
 export function getDatePlanLaneVisual(laneId: string | undefined): DatePlanLaneVisual {
+  const normalized = normalizeDatePlanLaneId(laneId);
+  return LANE_VISUALS[normalized];
+}
+
+function normalizeDatePlanLaneId(laneId: string | undefined): DatePlanLaneId {
   if (laneId && LANE_IDS.has(laneId)) {
-    return LANE_VISUALS[laneId as DatePlanLaneId];
+    return laneId as DatePlanLaneId;
   }
-  return LANE_VISUALS.culture;
+  const lower = (laneId ?? '').toLowerCase();
+  if (lower.includes('market') || lower.includes('food hall')) return 'market';
+  if (lower.includes('coffee') || lower.includes('cafe') || lower.includes('tea')) return 'coffee';
+  if (lower.includes('meal') || lower.includes('dinner') || lower.includes('lunch')) return 'meal';
+  if (lower.includes('walk') || lower.includes('nature') || lower.includes('park')) return 'walk';
+  if (lower.includes('game') || lower.includes('play')) return 'games';
+  if (lower.includes('dessert') || lower.includes('sweet')) return 'dessert';
+  return 'culture';
 }
 
 export function budgetDisplay(b: string | undefined): { label: string; tier: string } {

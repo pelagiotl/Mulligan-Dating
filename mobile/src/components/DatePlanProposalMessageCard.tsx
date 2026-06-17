@@ -46,12 +46,17 @@ export default function DatePlanProposalMessageCard({
 
   return (
     <View style={styles.card}>
-      <ImageBackground
-        source={{ uri: visual.imageUrl }}
-        style={styles.hero}
-        imageStyle={styles.heroImage}
-        resizeMode="cover"
-      >
+      <View style={[styles.hero, styles.heroWrap]}>
+        <LinearGradient
+          colors={[visual.gradientFrom, visual.gradientTo]}
+          style={StyleSheet.absoluteFill}
+        />
+        <ImageBackground
+          source={{ uri: visual.imageUrl }}
+          style={StyleSheet.absoluteFill}
+          imageStyle={styles.heroImage}
+          resizeMode="cover"
+        >
         <LinearGradient
           colors={['rgba(15,10,30,0.12)', 'rgba(15,10,30,0.88)']}
           style={StyleSheet.absoluteFill}
@@ -69,6 +74,7 @@ export default function DatePlanProposalMessageCard({
           ) : null}
         </View>
       </ImageBackground>
+      </View>
       <View style={styles.body}>
         <Text style={styles.eyebrow}>📅 {proposerName} proposed a hangout</Text>
         <Text style={styles.title}>{plan.title}</Text>
@@ -102,6 +108,10 @@ const styles = StyleSheet.create({
   hero: {
     height: 132,
     justifyContent: 'flex-start',
+  },
+  heroWrap: {
+    overflow: 'hidden',
+    position: 'relative',
   },
   heroImage: {
     borderTopLeftRadius: 17,

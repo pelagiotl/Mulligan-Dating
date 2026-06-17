@@ -1,4 +1,4 @@
-import { budgetDisplay, formatVenuePinLabel, getDatePlanLaneVisual } from "../utils/datePlanLaneVisuals";
+import { budgetDisplay, formatVenuePinLabel, getDatePlanLaneVisual, laneHeroBackground } from "../utils/datePlanLaneVisuals";
 
 export type DatePlanMessageSnapshot = {
   id: string;
@@ -43,7 +43,7 @@ export default function DatePlanProposalMessageCard({
 
   return (
     <article className="chat-date-plan-card">
-      <div className="chat-date-plan-hero" style={{ backgroundImage: `url(${visual.imageUrl})` }}>
+      <div className="chat-date-plan-hero" style={{ backgroundImage: laneHeroBackground(visual) }}>
         <div className="chat-date-plan-hero-overlay" />
         <span className="chat-date-plan-lane-badge">
           {visual.emoji} {visual.label}

@@ -145,29 +145,35 @@ function DatePlanHeroBanner({
   const visual = getDatePlanLaneVisual(laneId);
   const budget = budgetDisplay(budgetRange);
   return (
-    <ImageBackground
-      source={{ uri: visual.imageUrl }}
-      style={[styles.hero, compact && styles.heroCompact]}
-      imageStyle={styles.heroImage}
-      resizeMode="cover"
-    >
+    <View style={[styles.hero, compact && styles.heroCompact, styles.heroWrap]}>
       <LinearGradient
-        colors={['rgba(15,10,30,0.15)', 'rgba(15,10,30,0.88)']}
+        colors={[visual.gradientFrom, visual.gradientTo]}
         style={StyleSheet.absoluteFill}
       />
-      <View style={styles.heroBadges}>
-        <View style={styles.laneBadge}>
-          <Text style={styles.laneBadgeText}>
-            {visual.emoji} {visual.label}
-          </Text>
-        </View>
-        {budgetRange ? (
-          <View style={styles.budgetPill}>
-            <Text style={styles.budgetPillText}>{budget.tier}</Text>
+      <ImageBackground
+        source={{ uri: visual.imageUrl }}
+        style={StyleSheet.absoluteFill}
+        imageStyle={styles.heroImage}
+        resizeMode="cover"
+      >
+        <LinearGradient
+          colors={['rgba(15,10,30,0.15)', 'rgba(15,10,30,0.88)']}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={styles.heroBadges}>
+          <View style={styles.laneBadge}>
+            <Text style={styles.laneBadgeText}>
+              {visual.emoji} {visual.label}
+            </Text>
           </View>
-        ) : null}
-      </View>
-    </ImageBackground>
+          {budgetRange ? (
+            <View style={styles.budgetPill}>
+              <Text style={styles.budgetPillText}>{budget.tier}</Text>
+            </View>
+          ) : null}
+        </View>
+      </ImageBackground>
+    </View>
   );
 }
 
@@ -188,27 +194,33 @@ function DatePlanIdeaCard({
       onPress={onSelect}
       activeOpacity={0.88}
     >
-      <ImageBackground
-        source={{ uri: visual.imageUrl }}
-        style={styles.ideaHero}
-        imageStyle={styles.heroImage}
-        resizeMode="cover"
-      >
+      <View style={[styles.ideaHero, styles.heroWrap]}>
         <LinearGradient
-          colors={['rgba(15,10,30,0.1)', 'rgba(15,10,30,0.82)']}
+          colors={[visual.gradientFrom, visual.gradientTo]}
           style={StyleSheet.absoluteFill}
         />
-        <View style={styles.heroBadges}>
-          <View style={styles.laneBadge}>
-            <Text style={styles.laneBadgeText}>
-              {visual.emoji} {visual.label}
-            </Text>
+        <ImageBackground
+          source={{ uri: visual.imageUrl }}
+          style={StyleSheet.absoluteFill}
+          imageStyle={styles.heroImage}
+          resizeMode="cover"
+        >
+          <LinearGradient
+            colors={['rgba(15,10,30,0.1)', 'rgba(15,10,30,0.82)']}
+            style={StyleSheet.absoluteFill}
+          />
+          <View style={styles.heroBadges}>
+            <View style={styles.laneBadge}>
+              <Text style={styles.laneBadgeText}>
+                {visual.emoji} {visual.label}
+              </Text>
+            </View>
+            <View style={styles.budgetPill}>
+              <Text style={styles.budgetPillText}>{budget.tier}</Text>
+            </View>
           </View>
-          <View style={styles.budgetPill}>
-            <Text style={styles.budgetPillText}>{budget.tier}</Text>
-          </View>
-        </View>
-      </ImageBackground>
+        </ImageBackground>
+      </View>
       <View style={styles.ideaBody}>
         <Text style={styles.ideaTitle}>{idea.title}</Text>
         {idea.venueName || idea.venueAddress ? (
@@ -837,6 +849,10 @@ const styles = StyleSheet.create({
   hero: {
     height: 120,
     justifyContent: 'flex-start',
+  },
+  heroWrap: {
+    overflow: 'hidden',
+    position: 'relative',
   },
   heroCompact: { height: 100 },
   heroImage: { borderTopLeftRadius: 16, borderTopRightRadius: 16 },

@@ -257,7 +257,16 @@ const LANE_VENUE_REJECT_PATTERNS: Record<DatePlanLane['id'], RegExp[]> = {
   dessert: [/\bmakerspace\b/i, /\bart\s*gallery\b/i],
   meal: [/\bmakerspace\b/i, /\bart\s*gallery\b/i, /\btrail\b/i, /\bpark\b/i],
   culture: [/\bgas\s*station\b/i, /\bmakerspace\b/i, /\btruck\s*stop\b/i],
-  market: [/\bmakerspace\b/i, /\bgas\s*station\b/i],
+  market: [
+    /\bmakerspace\b/i,
+    /\bgas\s*station\b/i,
+    /\b(bar|lounge|tavern|pub|night\s*club|nightclub|speakeasy|wine\s*bar|cocktail)\b/i,
+    /\blive\s*music\b/i,
+    /\bwatering\s*hole\b/i,
+    /\bdive\s*bar\b/i,
+    /\b21\s*and\s*over\b/i,
+    /\btalent\s*club\b/i,
+  ],
 };
 
 const FAR_AWAY_LOCATION_MARKERS = [
@@ -343,11 +352,38 @@ function venueLooksLikeCoffeeShop(venue: VenueSearchResult): boolean {
   return hasCoffeeSignal;
 }
 
+const MARKET_LANE_SIGNAL_RE =
+  /\b(farmers?\s*market|food\s*hall|public\s*market|artisan\s*market|street\s*market|growers?\s*market|produce\s*market|flea\s*market|night\s*market)\b/i;
+
+const BAR_NIGHTLIFE_SIGNAL_RE =
+  /\b(bar|lounge|tavern|pub|night\s*club|nightclub|speakeasy|wine\s*bar|cocktail|live\s*music|watering\s*hole|dive\s*bar)\b/i;
+
+const BAR_NIGHTLIFE_TYPES = new Set(['bar', 'night_club']);
+
+function venueNameLooksLikeSocialClub(name: string): boolean {
+  const lower = name.toLowerCase();
+  if (!/\bclub\b/.test(lower)) return false;
+  if (/\b(golf|country|athletic|health|yacht|rotary|kiwanis|market|food)\b/.test(lower)) return false;
+  return true;
+}
+
+function venueLooksLikeMarket(venue: VenueSearchResult): boolean {
+  const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
+  const types = venue.types ?? [];
+
+  if (BAR_NIGHTLIFE_SIGNAL_RE.test(haystack)) return false;
+  if (venueNameLooksLikeSocialClub(venue.name)) return false;
+  if (types.some((type) => BAR_NIGHTLIFE_TYPES.has(type))) return false;
+
+  return MARKET_LANE_SIGNAL_RE.test(haystack);
+}
+
 export function venueFitsLane(venue: VenueSearchResult, lane: DatePlanLane): boolean {
   const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
   const rejects = LANE_VENUE_REJECT_PATTERNS[lane.id] ?? [];
   if (rejects.some((re) => re.test(haystack))) return false;
   if (lane.id === 'coffee') return venueLooksLikeCoffeeShop(venue);
+  if (lane.id === 'market') return venueLooksLikeMarket(venue);
   return true;
 }
 
@@ -552,11 +588,15 @@ type VenueActivityKind =
   | 'market'
   | 'cafe'
   | 'bakery'
+  | 'bar'
   | 'restaurant';
 
 function inferVenueActivityKind(venue: VenueSearchResult): VenueActivityKind | null {
   const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
   const nameLower = venue.name.toLowerCase();
+  if (BAR_NIGHTLIFE_SIGNAL_RE.test(haystack) || venueNameLooksLikeSocialClub(venue.name)) {
+    return 'bar';
+  }
   if (/\b(clay|pottery|ceramic)\b/.test(haystack)) return 'clay';
   if (/\b(culinary|cooking\s+class|cookery|kitchen\s+studio)\b/.test(haystack)) return 'culinary';
   if (/\b(board\s*game|tabletop|game\s*(cafe|café|table|night|shop|store))\b/.test(haystack)) {
@@ -609,6 +649,7 @@ const VENUE_ACTIVITY_COPY: Record<VenueActivityKind, string> = {
   market: 'Wander the stalls, sample something new, and compare favorites as you go.',
   cafe: 'Order at the counter, find a table, and ease into conversation over a drink.',
   bakery: 'Pick a treat to share, linger over something sweet, and keep the conversation easy.',
+  bar: 'Share a drink or catch live music — keep it casual, public, and easy to talk between sets.',
   restaurant: 'Share a meal somewhere public and conversation-friendly — keep it relaxed and see if the vibe has momentum.',
 };
 
@@ -758,6 +799,7 @@ const VENUE_ACTIVITY_TITLE_VARIANTS: Partial<Record<VenueActivityKind, string[]>
   bookstore: ['Bookstore Browse & Talk', 'Shelf Picks & Conversation'],
   cafe: ['Coffee and Easy Conversation', 'Slow Pour, Good Talk'],
   bakery: ['Sweet Stop & Easy Talk', 'Dessert and a Stroll'],
+  bar: ['Live Music & Easy Conversation', 'Drinks & Good Chat', 'Casual Night Out Together'],
   restaurant: ['Table for Two Conversations', 'Shared Plates, Easy Vibes'],
 };
 
@@ -952,11 +994,12 @@ export async function gatherDatePlanVenues(
       meetingLat,
       meetingLng,
     );
-    const nearbyOnly = candidates.filter((venue) =>
-      venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
+    const laneFilteredNearby = candidates.filter(
+      (venue) =>
+        venueFitsLane(venue, lane) &&
+        venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
     );
-    const pool =
-      contextual.length > 0 ? contextual : nearbyOnly.length > 0 ? nearbyOnly : candidates;
+    const pool = contextual.length > 0 ? contextual : laneFilteredNearby;
     const ranked = rankDateVenues(pool, existingVenueNames);
     if (ranked.length > 0) venues = ranked;
     else {

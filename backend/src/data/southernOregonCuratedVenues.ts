@@ -194,6 +194,14 @@ const CURATED_VENUES: CuratedVenue[] = [
     types: ['book_store', 'store'],
   },
   {
+    laneIds: ['culture'],
+    name: 'The Talent Club',
+    address: '114 Talent Ave, Talent, OR',
+    lat: 42.2457,
+    lng: -122.7886,
+    types: ['bar', 'night_club', 'point_of_interest'],
+  },
+  {
     laneIds: ['market'],
     name: 'Rogue Valley Growers Market',
     address: 'Medford, OR',

@@ -156,7 +156,17 @@ function finalizeDatePlanIdea(
     venue = pickVenueForIdea(venues, new Set(), lane, meetingLocation, meetingLat, meetingLng);
   }
   if (!venue || !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng)) {
-    return { ...idea, description: withSafetyNote(idea.description) };
+    return {
+      ...idea,
+      laneId: lane.id,
+      venueName: undefined,
+      venueAddress: undefined,
+      venueLat: undefined,
+      venueLng: undefined,
+      description: withSafetyNote(
+        fallbackDatePlanCopy([], meetingLocation, null, lane).description,
+      ),
+    };
   }
 
   const description = withSafetyNote(
@@ -305,7 +315,7 @@ Return ONLY JSON:
           venueFitsLane(v, lane) &&
           venueNearMeetingLocation(v, meetingLocation, meetingLat, meetingLng),
       );
-      const venuePool = fittingVenues.length > 0 ? fittingVenues : laneVenues;
+      const venuePool = fittingVenues;
       const venueName = typeof raw.venueName === 'string' ? raw.venueName : undefined;
       const matchedVenue = venueName
         ? venuePool.find((v) => v.name.toLowerCase() === venueName.toLowerCase())

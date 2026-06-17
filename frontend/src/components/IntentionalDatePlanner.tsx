@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { Socket } from "socket.io-client";
 import { api, ApiError } from "../utils/api";
-import { budgetDisplay, formatVenuePinLabel, getDatePlanLaneVisual } from "../utils/datePlanLaneVisuals";
+import { budgetDisplay, formatVenuePinLabel, getDatePlanLaneVisual, laneHeroBackground } from "../utils/datePlanLaneVisuals";
 import {
   defaultDatetimeLocal,
   datetimeLocalToDate,
@@ -85,7 +85,7 @@ function DatePlanHeroBanner({
   return (
     <div
       className={`idp-hero${compact ? " idp-hero--compact" : ""}`}
-      style={{ backgroundImage: `url(${visual.imageUrl})` }}
+      style={{ backgroundImage: laneHeroBackground(visual) }}
       role="presentation"
     >
       <div className="idp-hero-overlay" />
@@ -114,7 +114,7 @@ function DatePlanIdeaCard({
       className={`idp-idea-card${selected ? " idp-idea-card--selected" : ""}`}
       onClick={onSelect}
     >
-      <div className="idp-idea-hero" style={{ backgroundImage: `url(${visual.imageUrl})` }}>
+      <div className="idp-idea-hero" style={{ backgroundImage: laneHeroBackground(visual) }}>
         <div className="idp-idea-hero-overlay" />
         <span className="idp-idea-lane-badge">
           {visual.emoji} {visual.label}
