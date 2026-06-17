@@ -724,6 +724,51 @@ export function describeVenueForLane(
   }
 }
 
+const LANE_TITLE_VARIANTS: Record<string, string[]> = {
+  coffee: ['Coffee and Easy Conversation', 'Slow Pour, Good Talk', 'Cafe Catch-Up'],
+  meal: ['Table for Two Conversations', 'Shared Plates, Easy Vibes', 'A Meal Worth Lingering Over'],
+  walk: ['Local Walk & Easy Conversation', 'Stroll and See Where It Goes', 'Park Loop & Good Chat'],
+  games: ['Playful Competition Night', 'Friendly Rivalry Hour', 'Something Playful Together'],
+  culture: ['Culture Stop & Conversation', 'Gallery Hop & Talk', 'A Little Culture, A Lot of Chat'],
+  market: ['Market Wander & Bites', 'Pick, Taste, Compare Favorites', 'Food Hall Discovery'],
+  dessert: ['Dessert and a Stroll', 'Sweet Stop & Easy Talk', 'Treats Then a Short Walk'],
+};
+
+const VENUE_ACTIVITY_TITLE_VARIANTS: Partial<Record<VenueActivityKind, string[]>> = {
+  golf: ['Range Time & Light Competition', 'A Few Holes Together', 'Golf & Easy Conversation'],
+  mini_golf: ['Mini Golf & Playful Stakes', 'Putt-Putt & Good Chat'],
+  bowling: ['Bowling & Banter', 'Frames & Friendly Rivalry'],
+  board_games: ['Playful Competition Night', 'Games, Laughs, and Snacks', 'Friendly Rivalry Hour'],
+  arcade: ['Arcade Night & High Scores', 'Games & Good Conversation'],
+  clay: ['Clay Session & Easy Chat', 'Hands-On Creative Hour'],
+  culinary: ['Cook Together & Compare Notes', 'Kitchen Collaboration'],
+  park: ['Park Loop & Good Chat', 'Stroll and See Where It Goes'],
+  garden: ['Garden Stroll & Good Chat', 'Grounds & Easy Conversation'],
+  museum: ['Gallery Hop & Talk', 'Culture Stop & Conversation'],
+  bookstore: ['Bookstore Browse & Talk', 'Shelf Picks & Conversation'],
+  cafe: ['Coffee and Easy Conversation', 'Slow Pour, Good Talk'],
+  bakery: ['Sweet Stop & Easy Talk', 'Dessert and a Stroll'],
+  restaurant: ['Table for Two Conversations', 'Shared Plates, Easy Vibes'],
+};
+
+export function pickVenueAwareTitle(
+  lane: DatePlanLane,
+  venue: VenueSearchResult | null | undefined,
+  excludeTitles: string[] = [],
+): string {
+  const activityKind = venue ? inferVenueActivityKind(venue) : null;
+  const activityTitles = activityKind ? VENUE_ACTIVITY_TITLE_VARIANTS[activityKind] : undefined;
+  const variants = activityTitles?.length ? activityTitles : LANE_TITLE_VARIANTS[lane.id] ?? [lane.label];
+  const exclude = new Set(excludeTitles.map((title) => title.toLowerCase()));
+  const fresh = variants.filter((title) => !exclude.has(title.toLowerCase()));
+  const pool = fresh.length > 0 ? fresh : variants;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+export function primaryDatePlanDescription(description: string): string {
+  return description.split('\n\n')[0]?.trim() ?? description.trim();
+}
+
 export function fallbackDatePlanCopy(
   sharedInterests: string[],
   meetingLocation: string,

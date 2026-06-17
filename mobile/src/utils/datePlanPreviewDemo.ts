@@ -21,14 +21,14 @@ const TITLE_VARIANTS: Record<string, string[]> = {
   walk: ['Sunset walk along the river', 'Park loop & good chat', 'Golden hour stroll'],
   meal: ['Shared plates downtown', 'Small plates, big conversation', 'A meal worth lingering over'],
   dessert: ['Dessert & evening stroll', 'Sweet stop & easy talk', 'Treats then a short walk'],
-  games: ['Board games & friendly competition', 'Playful competition night', 'Games, laughs, and snacks'],
+  games: ['Board games & friendly competition', 'Playful competition night', 'Something playful together'],
   culture: ['Gallery hop downtown', 'Culture stop & conversation', 'A little art, a lot of chat'],
   market: ['Farmers market tasting tour', 'Market wander & bites', 'Food hall discovery'],
 };
 
 const VENUE_VARIANTS: Record<
   string,
-  Array<{ venueName: string; venueAddress?: string; description?: string }>
+  Array<{ venueName: string; venueAddress?: string; description?: string; title?: string }>
 > = {
   coffee: [
     {
@@ -56,6 +56,7 @@ const VENUE_VARIANTS: Record<
     {
       venueName: 'Lithia Park',
       venueAddress: 'Ashland, OR',
+      title: 'Park Loop & Good Chat',
       description:
         'Meet at Lithia Park in Ashland, OR. Take an easy stroll, comment on what you notice, and let movement keep the conversation natural.',
     },
@@ -114,6 +115,7 @@ const VENUE_VARIANTS: Record<
     {
       venueName: 'Bear Creek Golf Center',
       venueAddress: 'Medford, OR',
+      title: 'Range Time & Light Competition',
       description:
         'Meet at Bear Creek Golf Center in Medford, OR. Hit the range or play a few holes together — take turns, keep scores light, and grab food or drinks between swings if the bay has them.',
     },
@@ -222,12 +224,14 @@ export function getDatePlanPreviewMockIdeas(options?: {
   }
 
   return picked.map((lane) => {
-    const title = pickVariant(TITLE_VARIANTS[lane.laneId] ?? [lane.laneId], excludeTitles, (t) => t);
     const venue = pickVariant(
       VENUE_VARIANTS[lane.laneId] ?? [{ venueName: 'Downtown Medford', venueAddress: 'Medford, OR' }],
       excludeVenues,
       (v) => v.venueName,
     );
+    const title =
+      venue.title ??
+      pickVariant(TITLE_VARIANTS[lane.laneId] ?? [lane.laneId], excludeTitles, (t) => t);
     return {
       laneId: lane.laneId,
       title,

@@ -209,7 +209,7 @@ function DatePlanIdeaCard({
       </ImageBackground>
       <View style={styles.ideaBody}>
         <Text style={styles.ideaTitle}>{idea.title}</Text>
-        <Text style={styles.ideaDesc} numberOfLines={3}>
+        <Text style={styles.ideaDesc}>
           {idea.description.split('\n\n')[0]}
         </Text>
         {idea.venueName ? (
@@ -846,7 +846,7 @@ const styles = StyleSheet.create({
   },
   skeletonLineShort: { width: '55%' },
   ideaTitle: { fontSize: 16, fontWeight: '800', color: '#1e1b4b' },
-  ideaDesc: { fontSize: 13, color: '#475569', marginTop: 4, lineHeight: 18 },
+  ideaDesc: { fontSize: 13, color: '#475569', marginTop: 4, lineHeight: 20 },
   meta: { fontSize: 12, color: '#334155', marginTop: 6 },
   proposePanel: {
     marginTop: 8,

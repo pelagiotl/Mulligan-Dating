@@ -11,6 +11,7 @@ import {
   fallbackDatePlanCopy,
   formatVenueDisplayAddress,
   gatherDatePlanVenues,
+  pickVenueAwareTitle,
   scrubDateTerminology,
   venueFitsLane,
   venueNearMeetingLocation,
@@ -51,16 +52,6 @@ function pickLanesForIdeas(count: number, excludeLaneIds: string[] = []): DatePl
   const used = [...DATE_PLAN_LANES.filter((lane) => exclude.has(lane.id))].sort(() => Math.random() - 0.5);
   return [...fresh, ...used].slice(0, Math.min(count, DATE_PLAN_LANES.length));
 }
-
-const FALLBACK_TITLE_VARIANTS: Record<string, string[]> = {
-  coffee: ['Coffee and Easy Conversation', 'Slow Pour, Good Talk', 'Cafe Catch-Up'],
-  meal: ['Table for Two Conversations', 'Shared Plates, Easy Vibes', 'A Meal Worth Lingering Over'],
-  walk: ['Local Walk & Easy Conversation', 'Stroll and See Where It Goes', 'Park Loop & Good Chat'],
-  games: ['Playful Competition Night', 'Games, Laughs, and Snacks', 'Friendly Rivalry Hour'],
-  culture: ['Culture Stop & Conversation', 'Gallery Hop & Talk', 'A Little Culture, A Lot of Chat'],
-  market: ['Market Wander & Bites', 'Pick, Taste, Compare Favorites', 'Food Hall Discovery'],
-  dessert: ['Dessert and a Stroll', 'Sweet Stop & Easy Talk', 'Treats Then a Short Walk'],
-};
 
 function pickVenueForIdea(
   venues: VenueSearchResult[],
@@ -128,6 +119,7 @@ async function finalizeDatePlanIdeas(
 
       return {
         ...idea,
+        title: scrubDateTerminology(pickVenueAwareTitle(lane, venue, [idea.title])),
         description,
         venueName: venue.name,
         venueAddress: formatVenueDisplayAddress(venue, meetingLocation),
@@ -138,14 +130,6 @@ async function finalizeDatePlanIdeas(
   );
 }
 
-function pickFallbackTitle(lane: DatePlanLane, excludeTitles: string[]): string {
-  const variants = FALLBACK_TITLE_VARIANTS[lane.id] ?? [lane.label];
-  const exclude = new Set(excludeTitles.map((t) => t.toLowerCase()));
-  const fresh = variants.filter((title) => !exclude.has(title.toLowerCase()));
-  const pool = fresh.length > 0 ? fresh : variants;
-  return pool[Math.floor(Math.random() * pool.length)];
-}
-
 function ideaFromLane(
   lane: DatePlanLane,
   sharedInterests: string[],
@@ -154,7 +138,7 @@ function ideaFromLane(
   excludeTitles: string[] = [],
 ): DatePlanIdea {
   const copy = fallbackDatePlanCopy(sharedInterests, meetingLocation, venue, lane);
-  const title = pickFallbackTitle(lane, excludeTitles);
+  const title = pickVenueAwareTitle(lane, venue, excludeTitles);
   let description = copy.description;
   if (!description.includes('Public meetups recommended')) {
     description = `${description.trim()}\n\n${HANGOUT_SAFETY_NOTE}`;
