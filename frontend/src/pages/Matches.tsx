@@ -16,6 +16,9 @@ import TruthOrDareWeb from "../components/TruthOrDareWeb";
 import NeverHaveIEverWeb from "../components/NeverHaveIEverWeb";
 import HangoutPlanHeaderButton from "../components/HangoutPlanHeaderButton";
 import IntentionalDatePlanner from "../components/IntentionalDatePlanner";
+import DatePlanProposalMessageCard, {
+  type DatePlanMessageSnapshot,
+} from "../components/DatePlanProposalMessageCard";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
 import ReportUserModal from "../components/ReportUserModal";
@@ -192,6 +195,7 @@ interface Message {
   imageUrl?: string | null;
   videoUrl?: string | null;
   audioUrl?: string | null;
+  datePlan?: DatePlanMessageSnapshot;
 }
 
 const CHAT_MEDIA_LOCKED_HINT =
@@ -2763,6 +2767,22 @@ export default function Matches() {
                     <div className="messages-list" key={selectedMatch.id}>
                       {messages.map((msg) => {
                         const hasMedia = !!(msg.imageUrl || msg.videoUrl || msg.audioUrl);
+                        if (msg.datePlan) {
+                          return (
+                            <div key={msg.id} className="message message--date-plan">
+                              <DatePlanProposalMessageCard
+                                plan={msg.datePlan}
+                                proposerName={msg.senderName}
+                              />
+                              <div className="chat-date-plan-time">
+                                {new Date(msg.sentAt).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
                         return (
                           <div
                             key={msg.id}

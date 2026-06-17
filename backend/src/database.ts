@@ -1189,6 +1189,16 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists
   }
+  try {
+    await execSQL(`ALTER TABLE date_plans ADD COLUMN lane_id ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN date_plan_id ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists
+  }
 
   try {
     const { syncAccountStatusFromProfileReadiness } = await import('./utils/accountStatus.js');

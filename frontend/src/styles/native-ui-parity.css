@@ -2998,6 +2998,14 @@ button.connect-landing__cta:disabled::before {
   margin-bottom: 0.75rem;
 }
 
+.idp-ideas-section-heading {
+  margin: 0.75rem 0 0.85rem;
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #1e1b4b;
+  text-align: center;
+}
+
 .idp-idea-card {
   text-align: left;
   border: 2px solid rgba(167, 139, 250, 0.2);

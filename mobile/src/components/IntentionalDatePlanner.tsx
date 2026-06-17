@@ -45,6 +45,7 @@ export interface DatePlan {
   suggestedBy: string;
   title: string;
   description: string;
+  laneId?: string;
   venueName?: string;
   venueAddress?: string;
   suggestedDate?: string;
@@ -70,6 +71,7 @@ type Props = {
 };
 
 function resolveLaneId(plan: DatePlan, ideas: DatePlanIdea[]): string | undefined {
+  if (plan.laneId) return plan.laneId;
   return ideas.find((i) => i.title === plan.title)?.laneId;
 }
 
@@ -648,12 +650,26 @@ export default function IntentionalDatePlanner({
                     </TouchableOpacity>
                   </View>
                 ) : null}
+                {!awaitingMyResponse && !bothConfirmed ? (
+                  <Text style={styles.waitingLabel}>
+                    {mineAccepted
+                      ? 'You accepted — waiting for your match.'
+                      : isProposer
+                        ? `Waiting for ${partnerName} to respond…`
+                        : 'Waiting for a response…'}
+                  </Text>
+                ) : null}
                 </View>
               </View>
             ) : null}
 
-            {!bothConfirmed && !activePlan?.isProposed ? (
+            {!bothConfirmed ? (
               <>
+                {activePlan?.isProposed ? (
+                  <Text style={styles.ideasSectionHeading}>
+                    {isProposer ? 'Pick another idea to send' : `Or suggest a different hangout to ${partnerName}`}
+                  </Text>
+                ) : null}
                 {loadingIdeas ? (
                   <>
                     <Text style={styles.loadingLabel}>Finding intentional ideas for you two…</Text>
@@ -691,7 +707,11 @@ export default function IntentionalDatePlanner({
                     />
                     <TouchableOpacity style={styles.primaryBtn} disabled={submitting} onPress={() => void handlePropose()}>
                       <Text style={styles.primaryBtnText}>
-                        {submitting ? 'Sending…' : `Send proposal to ${partnerName}`}
+                        {submitting
+                          ? 'Sending…'
+                          : activePlan?.isProposed
+                            ? `Send new proposal to ${partnerName}`
+                            : `Send proposal to ${partnerName}`}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -777,6 +797,21 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 12, fontWeight: '700', color: '#5b21b6' },
   loadingLabel: { fontSize: 14, color: '#64748b', marginBottom: 12, textAlign: 'center' },
+  ideasSectionHeading: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#1e1b4b',
+    marginTop: 8,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  waitingLabel: {
+    fontSize: 13,
+    color: '#64748b',
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '600',
+  },
   ideaCard: {
     borderRadius: 18,
     marginBottom: 14,

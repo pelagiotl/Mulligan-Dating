@@ -30,6 +30,33 @@ export interface DatePlanIdea {
   conversationTopics: string[];
 }
 
+/** Snapshot attached to chat messages for rich hangout proposal cards. */
+export type DatePlanMessageSnapshot = {
+  id: string;
+  title: string;
+  description: string;
+  laneId?: string;
+  venueName?: string;
+  venueAddress?: string;
+  suggestedDate?: string;
+  suggestedTime?: string;
+  budgetRange?: 'low' | 'medium' | 'high';
+};
+
+export function serializeDatePlanForMessage(plan: DatePlan): DatePlanMessageSnapshot {
+  return {
+    id: plan.id,
+    title: plan.title,
+    description: plan.description,
+    laneId: plan.laneId,
+    venueName: plan.venueName,
+    venueAddress: plan.venueAddress,
+    suggestedDate: plan.suggestedDate,
+    suggestedTime: plan.suggestedTime,
+    budgetRange: plan.budgetRange,
+  };
+}
+
 const HANGOUT_SAFETY_NOTE =
   'Meet in a busy public place and share your plans with a friend.';
 
@@ -442,6 +469,7 @@ export async function proposeDatePlan(
     matchId,
     suggestedBy: proposedBy,
     planType: 'first_date',
+    laneId: idea.laneId,
     title: idea.title,
     description: idea.description,
     venueName: idea.venueName,
@@ -464,17 +492,18 @@ export async function proposeDatePlan(
   await (db
     .prepare(
       `INSERT INTO date_plans 
-       (id, match_id, suggested_by, plan_type, title, description, 
+       (id, match_id, suggested_by, plan_type, lane_id, title, description, 
         venue_name, venue_address, venue_lat, venue_lng, 
         suggested_date, suggested_time, budget_range, conversation_topics,
         status, user1_accepted, user2_accepted, is_proposed, proposed_at, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
     )
     .run([
       planId,
       matchId,
       proposedBy,
       plan.planType,
+      plan.laneId || null,
       plan.title,
       plan.description,
       plan.venueName || null,

@@ -9,6 +9,7 @@ export interface DatePlan {
   matchId: string;
   suggestedBy: string;
   planType: 'first_date' | 'follow_up';
+  laneId?: string;
   title: string;
   description: string;
   venueName?: string;
@@ -1393,7 +1394,7 @@ Return ONLY a JSON object with this exact format:
 export async function getDatePlan(matchId: string): Promise<DatePlan | null> {
   const result = db
     .prepare(
-      `SELECT id, match_id, suggested_by, plan_type, title, description,
+      `SELECT id, match_id, suggested_by, plan_type, lane_id, title, description,
               venue_name, venue_address, venue_lat, venue_lng,
               suggested_date, suggested_time, budget_range, conversation_topics,
               status, user1_accepted, user2_accepted, user1_modifications, user2_modifications,
@@ -1409,6 +1410,7 @@ export async function getDatePlan(matchId: string): Promise<DatePlan | null> {
     match_id: string;
     suggested_by: string;
     plan_type: string;
+    lane_id: string | null;
     title: string;
     description: string;
     venue_name: string | null;
@@ -1446,6 +1448,7 @@ export async function getDatePlan(matchId: string): Promise<DatePlan | null> {
     matchId: plan.match_id,
     suggestedBy: plan.suggested_by,
     planType: plan.plan_type as 'first_date' | 'follow_up',
+    laneId: plan.lane_id || undefined,
     title: plan.title,
     description: plan.description,
     venueName: plan.venue_name || undefined,

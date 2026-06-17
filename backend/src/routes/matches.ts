@@ -16,6 +16,23 @@ import {
   profileHasMinPhotosForConnect,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
+
+function datePlanSnapshotFromJoin(m: Record<string, unknown>) {
+  if (!m.date_plan_id) return undefined;
+  const title = m.dp_title;
+  if (!title) return undefined;
+  return {
+    id: String(m.date_plan_id),
+    title: String(title),
+    description: String(m.dp_description ?? ''),
+    laneId: m.dp_lane_id ? String(m.dp_lane_id) : undefined,
+    venueName: m.dp_venue_name ? String(m.dp_venue_name) : undefined,
+    venueAddress: m.dp_venue_address ? String(m.dp_venue_address) : undefined,
+    suggestedDate: m.dp_suggested_date ? String(m.dp_suggested_date) : undefined,
+    suggestedTime: m.dp_suggested_time ? String(m.dp_suggested_time) : undefined,
+    budgetRange: (m.dp_budget_range as 'low' | 'medium' | 'high' | null) || undefined,
+  };
+}
 import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
 import {
   getActiveMatchCount,
@@ -1076,9 +1093,18 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
     const messagesResult = db
       .prepare(
         `SELECT * FROM (
-           SELECT m.*, COALESCE(p.display_name, 'Unknown User') as sender_name
+           SELECT m.*, COALESCE(p.display_name, 'Unknown User') as sender_name,
+             dp.title as dp_title,
+             dp.description as dp_description,
+             dp.lane_id as dp_lane_id,
+             dp.venue_name as dp_venue_name,
+             dp.venue_address as dp_venue_address,
+             dp.suggested_date as dp_suggested_date,
+             dp.suggested_time as dp_suggested_time,
+             dp.budget_range as dp_budget_range
            FROM messages m
            LEFT JOIN profiles p ON p.user_id = m.sender_id
+           LEFT JOIN date_plans dp ON dp.id = m.date_plan_id
            WHERE m.match_id = ?
            ORDER BY m.sent_at DESC
            LIMIT ?
@@ -1139,6 +1165,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         likedBy: m.liked_by_id || null,
         laughedBy: m.laughed_by_id || null,
         heartEyesBy: m.heart_eyes_by_id || null,
+        datePlan: datePlanSnapshotFromJoin(m),
       })),
     });
   } catch (error) {
@@ -3546,8 +3573,9 @@ matchesRouter.post("/:matchId/date-plan/propose", authenticateToken, rateLimitAP
       return res.status(404).json({ error: 'Match not found' });
     }
 
-    const { proposeDatePlan } = await import('../services/intentionalDatePlanner.js');
+    const { proposeDatePlan, serializeDatePlanForMessage } = await import('../services/intentionalDatePlanner.js');
     const plan = await proposeDatePlan(matchId, userId, idea, String(suggestedDate), String(suggestedTime));
+    const datePlanSnapshot = serializeDatePlanForMessage(plan);
 
     const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
     const profileResult = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]);
@@ -3567,11 +3595,12 @@ matchesRouter.post("/:matchId/date-plan/propose", authenticateToken, rateLimitAP
     try {
       const systemMessageId = uuidv4();
       const systemContent = `📅 ${proposerName} proposed a hangout: "${plan.title}" — ${dateLabel}`;
-      db.prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`).run([
+      db.prepare(`INSERT INTO messages (id, match_id, sender_id, content, date_plan_id) VALUES (?, ?, ?, ?, ?)`).run([
         systemMessageId,
         matchId,
         userId,
         systemContent,
+        plan.id,
       ]);
       const { getIO } = await import('../socket.js');
       const io = getIO();
@@ -3585,6 +3614,7 @@ matchesRouter.post("/:matchId/date-plan/propose", authenticateToken, rateLimitAP
           senderName: proposerName,
           sentAt: new Date().toISOString(),
           readAt: null,
+          datePlan: datePlanSnapshot,
         });
         io.to(`match:${matchId}`).emit('date_plan_proposed', { matchId, plan });
       }

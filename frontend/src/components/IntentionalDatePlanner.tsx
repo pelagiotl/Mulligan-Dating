@@ -26,6 +26,7 @@ export interface DatePlan {
   suggestedBy: string;
   title: string;
   description: string;
+  laneId?: string;
   venueName?: string;
   venueAddress?: string;
   suggestedDate?: string;
@@ -53,6 +54,7 @@ type Props = {
 };
 
 function resolveLaneId(plan: DatePlan, ideas: DatePlanIdea[]): string | undefined {
+  if (plan.laneId) return plan.laneId;
   return ideas.find((i) => i.title === plan.title)?.laneId;
 }
 
@@ -485,15 +487,24 @@ export default function IntentionalDatePlanner({
             ) : null}
             {!awaitingMyResponse && !bothConfirmed ? (
               <p className="idp-muted">
-                {mineAccepted ? "You accepted — waiting for your match." : "Waiting for a response…"}
+                {mineAccepted
+                  ? "You accepted — waiting for your match."
+                  : isProposer
+                    ? `Waiting for ${partnerName} to respond…`
+                    : "Waiting for a response…"}
               </p>
             ) : null}
             </div>
           </div>
         ) : null}
 
-        {!bothConfirmed && !activePlan?.isProposed ? (
+        {!bothConfirmed ? (
           <>
+            {activePlan?.isProposed ? (
+              <h3 className="idp-ideas-section-heading">
+                {isProposer ? "Pick another idea to send" : `Or suggest a different hangout to ${partnerName}`}
+              </h3>
+            ) : null}
             {loadingIdeas ? (
               <>
                 <p className="idp-muted idp-loading-label">Finding intentional ideas for you two…</p>
@@ -526,7 +537,11 @@ export default function IntentionalDatePlanner({
                   disabled={submitting}
                   onClick={() => void handlePropose()}
                 >
-                  {submitting ? "Sending…" : `Send proposal to ${partnerName}`}
+                  {submitting
+                    ? "Sending…"
+                    : activePlan?.isProposed
+                      ? `Send new proposal to ${partnerName}`
+                      : `Send proposal to ${partnerName}`}
                 </button>
               </div>
             ) : null}

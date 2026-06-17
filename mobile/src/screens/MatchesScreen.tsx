@@ -62,6 +62,9 @@ import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
 import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
+import DatePlanProposalMessageCard, {
+  type DatePlanMessageSnapshot,
+} from '../components/DatePlanProposalMessageCard';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import BlockMatchConfirmModal from '../components/BlockMatchConfirmModal';
@@ -153,6 +156,7 @@ interface Message {
   likedBy?: string | null;
   laughedBy?: string | null;
   heartEyesBy?: string | null;
+  datePlan?: DatePlanMessageSnapshot;
 }
 
 type MessageReaction = 'like' | 'laugh' | 'heart-eyes';
@@ -260,7 +264,16 @@ const MessageBubble = React.memo(function MessageBubble({
   const isLikedByMe = !item.isOwn && item.likedBy === currentUserId;
   const isLaughedByMe = !item.isOwn && item.laughedBy === currentUserId;
   const isHeartEyesByMe = !item.isOwn && item.heartEyesBy === currentUserId;
-  const canReact = !item.isOwn && matchId && currentUserId && onReactionPress;
+  const canReact = !item.isOwn && matchId && currentUserId && onReactionPress && !item.datePlan;
+
+  if (item.datePlan) {
+    return (
+      <View style={s.datePlanMessageWrap}>
+        <DatePlanProposalMessageCard plan={item.datePlan} proposerName={item.senderName} />
+        <Text style={s.datePlanMessageTime}>{formattedTime}</Text>
+      </View>
+    );
+  }
 
   const renderBubbleContent = (isOwn: boolean) => (
     <>
@@ -5386,6 +5399,19 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginBottom: 2,
     maxWidth: '85%',
+  },
+  datePlanMessageWrap: {
+    alignSelf: 'center',
+    alignItems: 'center',
+    marginVertical: 10,
+    paddingHorizontal: 8,
+    width: '100%',
+  },
+  datePlanMessageTime: {
+    marginTop: 6,
+    fontSize: 11,
+    color: '#94a3b8',
+    fontWeight: '600',
   },
   messageBubbleOwn: {
     paddingHorizontal: 9,
