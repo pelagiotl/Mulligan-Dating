@@ -32,6 +32,8 @@ interface Stats {
   restrictedUsers: number;
   activeUsers: number;
   onboardingUsers?: number;
+  verifiedUsers?: number;
+  notVerifiedUsers?: number;
 }
 
 interface User {
@@ -45,6 +47,7 @@ interface User {
   is_admin: boolean;
   is_restricted: boolean;
   hiddenFromBrowse?: boolean;
+  photoVerified?: boolean;
   created_at: string;
   last_active_at?: string;
   tokenCount: number;
@@ -144,7 +147,14 @@ interface AdminUserMatch {
   stage1At: string;
 }
 
-type StatDrillDownType = 'users' | 'matches' | 'restricted' | 'active' | 'onboarding';
+type StatDrillDownType =
+  | 'users'
+  | 'matches'
+  | 'restricted'
+  | 'active'
+  | 'onboarding'
+  | 'verified'
+  | 'not_verified';
 
 export default function AdminScreen() {
   const navigation = useNavigation();
@@ -172,6 +182,7 @@ export default function AdminScreen() {
   const [drillDownLoading, setDrillDownLoading] = useState(false);
   const drillDownRequestRef = React.useRef<StatDrillDownType | null>(null);
   const [drillDownUnrestricting, setDrillDownUnrestricting] = useState<string | null>(null);
+  const [drillDownVerifying, setDrillDownVerifying] = useState<string | null>(null);
   const [adminDenied, setAdminDenied] = useState(false);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
   const [messagesUserId, setMessagesUserId] = useState<string | null>(null);
@@ -372,6 +383,50 @@ export default function AdminScreen() {
       Alert.alert('Error', error.message || 'Failed to update user restriction');
     } finally {
       setActionLoading(null);
+    }
+  };
+
+  const handlePhotoVerified = async (userId: string, verified: boolean) => {
+    setActionLoading(userId);
+    try {
+      const data = await api.post<{ message: string }>(`/admin/users/${userId}/photo-verify`, {
+        verified,
+      });
+      Alert.alert('Success', data.message || (verified ? 'Verification granted' : 'Verification removed'));
+      await Promise.all([fetchUsers(), fetchStats()]);
+      if (selectedUser?.id === userId) {
+        await fetchUserDetails(userId);
+      }
+      if (statDrillDown === 'verified' && !verified) {
+        setDrillDownUsers((prev) => prev.filter((u) => u.id !== userId));
+      } else if (statDrillDown === 'not_verified' && verified) {
+        setDrillDownUsers((prev) => prev.filter((u) => u.id !== userId));
+      }
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update verification');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handlePhotoVerifyFromDrillDown = async (userId: string, verified: boolean) => {
+    setDrillDownVerifying(userId);
+    try {
+      await api.post(`/admin/users/${userId}/photo-verify`, { verified });
+      if (statDrillDown === 'verified') {
+        setDrillDownUsers((prev) => prev.filter((u) => u.id !== userId));
+      } else if (statDrillDown === 'not_verified' && verified) {
+        setDrillDownUsers((prev) => prev.filter((u) => u.id !== userId));
+      } else {
+        setDrillDownUsers((prev) =>
+          prev.map((u) => (u.id === userId ? { ...u, photoVerified: verified } : u)),
+        );
+      }
+      await fetchStats();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to update verification');
+    } finally {
+      setDrillDownVerifying(null);
     }
   };
 
@@ -728,6 +783,18 @@ export default function AdminScreen() {
                 <Text style={styles.statLabel} numberOfLines={1}>Onboarding</Text>
               </LinearGradient>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('verified')} activeOpacity={0.9}>
+              <LinearGradient colors={['#3b82f6', '#2563eb']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.verifiedUsers ?? 0}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Verified</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.statCardTouchable} onPress={() => openStatDrillDown('not_verified')} activeOpacity={0.9}>
+              <LinearGradient colors={['#94a3b8', '#64748b']} style={styles.statCardGradient}>
+                <Text style={styles.statValue}>{stats.notVerifiedUsers ?? 0}</Text>
+                <Text style={styles.statLabel} numberOfLines={1}>Not verified</Text>
+              </LinearGradient>
+            </TouchableOpacity>
           </View>
           <TouchableOpacity
             style={[styles.button, styles.exportButton]}
@@ -940,12 +1007,17 @@ export default function AdminScreen() {
                         <Text style={styles.badgeText}>Restricted</Text>
                       </LinearGradient>
                     )}
+                    {u.photoVerified && !u.is_admin && (
+                      <LinearGradient colors={['#3b82f6', '#2563eb']} style={styles.badgeGradient}>
+                        <Text style={styles.badgeText}>Verified</Text>
+                      </LinearGradient>
+                    )}
                     {u.hiddenFromBrowse && !u.is_admin && (
                       <LinearGradient colors={['#64748b', '#475569']} style={styles.badgeGradient}>
                         <Text style={styles.badgeText}>Hidden</Text>
                       </LinearGradient>
                     )}
-                    {!u.is_admin && !u.is_restricted && !u.hiddenFromBrowse && (
+                    {!u.is_admin && !u.is_restricted && !u.hiddenFromBrowse && !u.photoVerified && (
                       <LinearGradient colors={['#10b981', '#059669']} style={styles.badgeGradient}>
                         <Text style={styles.badgeText}>Active</Text>
                       </LinearGradient>
@@ -985,6 +1057,15 @@ export default function AdminScreen() {
                 >
                   <Text style={styles.smallButtonText}>{u.is_restricted ? 'Unrestrict' : 'Restrict'}</Text>
                 </TouchableOpacity>
+                {!u.is_admin ? (
+                  <TouchableOpacity
+                    style={[styles.smallButton, u.photoVerified ? styles.successButton : styles.secondaryButton]}
+                    onPress={() => handlePhotoVerified(u.id, !u.photoVerified)}
+                    disabled={actionLoading === u.id}
+                  >
+                    <Text style={styles.smallButtonText}>{u.photoVerified ? 'Unverify' : 'Verify'}</Text>
+                  </TouchableOpacity>
+                ) : null}
                 {!u.is_admin && (
                   <TouchableOpacity
                     style={[styles.smallButton, styles.dangerButton]}
@@ -1162,6 +1243,19 @@ export default function AdminScreen() {
                         {selectedUser.is_restricted ? 'Unrestrict User' : 'Restrict User'}
                       </Text>
                     </TouchableOpacity>
+                    {!selectedUser.is_admin ? (
+                      <TouchableOpacity
+                        style={[styles.actionButton, selectedUser.photoVerified ? styles.successButton : styles.primaryButton]}
+                        onPress={() => handlePhotoVerified(selectedUser.id, !selectedUser.photoVerified)}
+                        disabled={actionLoading === selectedUser.id}
+                      >
+                        <Text style={styles.actionButtonText}>
+                          {selectedUser.photoVerified
+                            ? 'Remove verification badge'
+                            : 'Grant verification badge'}
+                        </Text>
+                      </TouchableOpacity>
+                    ) : null}
                     <TouchableOpacity
                       style={[styles.actionButton, styles.secondaryButton]}
                       onPress={() => handleSetAdmin(selectedUser.id, !selectedUser.is_admin)}
@@ -1317,6 +1411,9 @@ export default function AdminScreen() {
                 statDrillDown === 'restricted' ? ['#fa709a', '#fee140'] :
                 statDrillDown === 'active' ? ['#30cfd0', '#330867'] :
                 statDrillDown === 'matches' ? ['#4facfe', '#00f2fe'] :
+                statDrillDown === 'verified' ? ['#3b82f6', '#2563eb'] :
+                statDrillDown === 'not_verified' ? ['#94a3b8', '#64748b'] :
+                statDrillDown === 'onboarding' ? ['#f093fb', '#f5576c'] :
                 ['#667eea', '#764ba2']
               }
               start={{ x: 0, y: 0 }}
@@ -1329,6 +1426,9 @@ export default function AdminScreen() {
                   {statDrillDown === 'matches' && '💕 Match Pairs'}
                   {statDrillDown === 'restricted' && '🚫 Restricted Users'}
                   {statDrillDown === 'active' && '✨ Active (7d)'}
+                  {statDrillDown === 'onboarding' && '📝 Onboarding'}
+                  {statDrillDown === 'verified' && '✓ Verified Users'}
+                  {statDrillDown === 'not_verified' && '○ Not Verified'}
                 </Text>
                 <TouchableOpacity onPress={() => setStatDrillDown(null)} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
                   <Text style={styles.drillDownModalClose}>✕</Text>
@@ -1441,6 +1541,44 @@ export default function AdminScreen() {
                             )}
                           </View>
                           <Text style={styles.drillDownMetaLight}>{u.email || u.phoneNumber || 'No contact'}{u.age && u.gender ? ` • ${u.age} ${u.gender}` : ''}</Text>
+                        </LinearGradient>
+                      ) : statDrillDown === 'verified' || statDrillDown === 'not_verified' ? (
+                        <LinearGradient
+                          colors={statDrillDown === 'verified' ? ['#3b82f6', '#2563eb'] : ['#94a3b8', '#64748b']}
+                          style={styles.drillDownCardGradient}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                        >
+                          <View style={styles.drillDownRestrictedRow}>
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.drillDownNameLight}>{u.display_name || u.email || u.phoneNumber || 'N/A'}</Text>
+                              <Text style={styles.drillDownMetaLight}>
+                                {u.email || u.phoneNumber || 'No contact'}
+                                {u.age && u.gender ? ` • ${u.age} ${u.gender}` : ''}
+                              </Text>
+                            </View>
+                            {!u.is_admin ? (
+                              <TouchableOpacity
+                                style={styles.drillDownUnrestrictBtn}
+                                onPress={(e) => {
+                                  e.stopPropagation();
+                                  void handlePhotoVerifyFromDrillDown(
+                                    u.id,
+                                    statDrillDown === 'not_verified',
+                                  );
+                                }}
+                                disabled={drillDownVerifying === u.id}
+                              >
+                                {drillDownVerifying === u.id ? (
+                                  <ActivityIndicator size="small" color="#fff" />
+                                ) : (
+                                  <Text style={styles.drillDownUnrestrictText}>
+                                    {statDrillDown === 'verified' ? 'Unverify' : 'Verify'}
+                                  </Text>
+                                )}
+                              </TouchableOpacity>
+                            ) : null}
+                          </View>
                         </LinearGradient>
                       ) : (
                         <View style={styles.drillDownCardPlain}>
