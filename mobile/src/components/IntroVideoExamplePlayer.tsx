@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
+import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
 import { INTRO_VIDEO_EXAMPLE_ASPECT, INTRO_VIDEO_EXAMPLE_SOURCE } from '../utils/introVideo';
@@ -25,6 +25,22 @@ function buildPlayerSize(maxPlayerHeight?: number) {
   };
 }
 
+function playControlMetrics(maxPlayerHeight?: number, compact?: boolean) {
+  if (maxPlayerHeight != null) {
+    const buttonSize = Math.round(Math.max(36, Math.min(44, maxPlayerHeight * 0.42)));
+    return {
+      barHeight: Math.max(50, buttonSize + 16),
+      buttonSize,
+      iconSize: Math.max(14, Math.round(buttonSize * 0.36)),
+      hintSize: Math.max(12, Math.round(buttonSize * 0.32)),
+      gap: 10,
+    };
+  }
+  return compact
+    ? { barHeight: 50, buttonSize: 36, iconSize: 14, hintSize: 12, gap: 10 }
+    : { barHeight: 54, buttonSize: 40, iconSize: 15, hintSize: 13, gap: 10 };
+}
+
 /** Bundled Luke example clip shown during onboarding. */
 export default function IntroVideoExamplePlayer({
   compact = false,
@@ -36,6 +52,7 @@ export default function IntroVideoExamplePlayer({
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const sizedPlayer = buildPlayerSize(maxPlayerHeight);
+  const playControl = playControlMetrics(maxPlayerHeight, compact);
 
   const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -97,15 +114,24 @@ export default function IntroVideoExamplePlayer({
           <>
             <LinearGradient
               colors={['transparent', 'rgba(15, 6, 24, 0.88)']}
-              style={styles.playBarGradient}
+              style={[styles.playBarGradient, { height: playControl.barHeight }]}
               pointerEvents="none"
             />
-            <View style={styles.playBar} pointerEvents="none">
-              <View style={styles.playBarRow}>
-                <View style={styles.playButton}>
-                  <Text style={styles.playIcon}>▶</Text>
+            <View style={[styles.playBar, { height: playControl.barHeight }]} pointerEvents="none">
+              <View style={[styles.playBarRow, { gap: playControl.gap }]}>
+                <View
+                  style={[
+                    styles.playButton,
+                    {
+                      width: playControl.buttonSize,
+                      height: playControl.buttonSize,
+                      borderRadius: playControl.buttonSize / 2,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.playIcon, { fontSize: playControl.iconSize }]}>▶</Text>
                 </View>
-                <Text style={styles.playHint}>Watch example</Text>
+                <Text style={[styles.playHint, { fontSize: playControl.hintSize }]}>Watch example</Text>
               </View>
             </View>
           </>
@@ -190,40 +216,32 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    height: Platform.OS === 'ios' ? 44 : 40,
   },
   playBar: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: Platform.OS === 'ios' ? 44 : 40,
     justifyContent: 'center',
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
   },
   playBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
   },
   playButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   playIcon: {
     color: '#2d1b4e',
-    fontSize: 11,
-    marginLeft: 1,
+    marginLeft: 2,
     fontWeight: '700',
   },
   playHint: {
     color: 'rgba(255, 255, 255, 0.96)',
-    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 0.2,
   },

@@ -354,6 +354,7 @@ export default function CreateProfileScreen() {
   const [gender, setGender] = useState('');
   const [introVideoUrl, setIntroVideoUrl] = useState<string | null>(null);
   const [introVideoPreviewUri, setIntroVideoPreviewUri] = useState<string | null>(null);
+  const [showIntroSavedToast, setShowIntroSavedToast] = useState(false);
   const [showIntroVideoModal, setShowIntroVideoModal] = useState(false);
   const [location, setLocation] = useState('');
   const [locationRegionError, setLocationRegionError] = useState('');
@@ -480,7 +481,7 @@ export default function CreateProfileScreen() {
     const bodyBudget =
       h - insets.top - insets.bottom - headerBudget - footerBudget - keyboardOverlap;
     // Name ~84, location ~68–96, intro chrome ~84–104 (excl. player), gaps — player height filled dynamically.
-    const threeCardStackEstimate = 84 + 96 + 104 + 72 + 12;
+    const threeCardStackEstimate = 84 + 96 + 220 + 72 + 12;
     const rawSqueeze = bodyBudget / threeCardStackEstimate;
     const minSqueeze = isOnboardingLayout && keyboardHeight > 0 ? 0.52 : 0.58;
     const onboardingSqueeze = Math.min(1, Math.max(minSqueeze, rawSqueeze));
@@ -490,22 +491,42 @@ export default function CreateProfileScreen() {
     const locationStackEstimate = onboardingVeryTight ? 68 : onboardingTight ? 78 : 96;
     const locationStack = sq(locationStackEstimate);
     const nameLocStack = sq(84) + locationStack + sq(6) * 2;
-    const introChromeEstimate = onboardingVeryTight ? 78 : onboardingTight ? 94 : 132;
-    const introChrome = sq(introChromeEstimate);
-    const onboardingScrollBottomInset = sq(14);
+    const introVideoSaved =
+      isOnboardingLayout && typeof introVideoUrl === 'string' && introVideoUrl.trim().length > 0;
+    const showIntroBadge = isOnboardingLayout && onboardingSqueeze >= 0.76;
+    const showIntroEncourage = isOnboardingLayout && !onboardingTight;
+    const showIntroLibrary = isOnboardingLayout && !onboardingTight;
+    const introCardPadding = sq(Math.round(14 * scaleW)) * 2;
+    const introChromeFixed =
+      introCardPadding +
+      (onboardingSqueeze >= 0.78 ? sq(22) : 0) +
+      sq(onboardingVeryTight ? 28 : onboardingTight ? 34 : 44) +
+      (showIntroBadge ? sq(30) : 0) +
+      (showIntroEncourage ? sq(34) : 0) +
+      sq(48) +
+      (showIntroLibrary ? sq(44) : 0) +
+      (introVideoSaved ? sq(onboardingVeryTight ? 46 : 54) : 0) +
+      sq(10);
+    const layoutSafetyMargin = 28;
     const introPlayerMaxHeight = Math.max(
-      52,
+      onboardingVeryTight ? 44 : 52,
       Math.min(
-        onboardingVeryTight ? 72 : onboardingTight ? 84 : 100,
+        onboardingVeryTight ? 64 : onboardingTight ? 76 : 88,
         Math.floor(
-          bodyBudget - nameLocStack - introChrome - onboardingScrollBottomInset - 18,
+          bodyBudget -
+            nameLocStack -
+            introChromeFixed -
+            layoutSafetyMargin -
+            sq(18),
         ),
       ),
     );
     const estimatedStackHeight =
-      nameLocStack + introChrome + introPlayerMaxHeight + onboardingScrollBottomInset;
-    const onboardingFitsWithoutScroll = estimatedStackHeight <= bodyBudget - 14;
+      nameLocStack + introChromeFixed + introPlayerMaxHeight + sq(18);
+    const onboardingFitsWithoutScroll =
+      estimatedStackHeight <= bodyBudget - layoutSafetyMargin;
     const onboardingOverflow = !onboardingFitsWithoutScroll;
+    const onboardingScrollBottomInset = onboardingFitsWithoutScroll ? sq(8) : sq(24);
     return {
       sectionMinHeight: h * 0.62,
       sectionPaddingH: Math.round(20 * scaleW),
@@ -550,7 +571,7 @@ export default function CreateProfileScreen() {
       lifestyleTitleSize: Math.round(22 * scaleW),
       lifestyleSubtitleSize: Math.round(13 * scaleW),
     };
-  }, [screenWidth, screenHeight, insets.top, insets.bottom, keyboardHeight, isOnboardingWizard, step]);
+  }, [screenWidth, screenHeight, insets.top, insets.bottom, keyboardHeight, isOnboardingWizard, step, introVideoUrl]);
 
   // Animate name + location on the single onboarding screen
   useEffect(() => {
@@ -577,10 +598,13 @@ export default function CreateProfileScreen() {
 
   useEffect(() => {
     if (!introVideoUrl || !hasIntroVideo({ intro_video_url: introVideoUrl })) {
+      setShowIntroSavedToast(false);
       introSavedScale.setValue(0.92);
       introSavedOpacity.setValue(0);
       return;
     }
+
+    setShowIntroSavedToast(true);
     introSavedScale.setValue(0.9);
     introSavedOpacity.setValue(0);
     Animated.parallel([
@@ -596,6 +620,18 @@ export default function CreateProfileScreen() {
         useNativeDriver: true,
       }),
     ]).start();
+
+    const dismissTimer = setTimeout(() => {
+      Animated.timing(introSavedOpacity, {
+        toValue: 0,
+        duration: 420,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) setShowIntroSavedToast(false);
+      });
+    }, 3200);
+
+    return () => clearTimeout(dismissTimer);
   }, [introVideoUrl, introSavedOpacity, introSavedScale]);
 
   useEffect(() => {
@@ -1694,8 +1730,14 @@ export default function CreateProfileScreen() {
   };
 
   // Steps 1–2: compact onboarding layout (name, location)
+  const introSavedForLayout = hasIntroVideo({ intro_video_url: introVideoUrl });
   const onboardingScrollLocked =
-    Platform.OS === 'ios' && isOnboardingWizard && rs.onboardingFitsWithoutScroll && keyboardHeight === 0;
+    Platform.OS === 'ios' &&
+    isOnboardingWizard &&
+    rs.onboardingFitsWithoutScroll &&
+    !rs.onboardingOverflow &&
+    !introSavedForLayout &&
+    keyboardHeight === 0;
   const onboardingStepContentStyle = [
     styles.onboardingStepScrollContent,
     styles.onboardingStepScrollContentAndroidIdle,
@@ -2047,7 +2089,7 @@ export default function CreateProfileScreen() {
               </LinearGradient>
             </TouchableOpacity>
           ) : null}
-          {introVideoValid ? (
+          {introVideoValid && showIntroSavedToast ? (
             <Animated.View
               style={[
                 styles.onboardingIntroSavedWrap,
@@ -2061,7 +2103,10 @@ export default function CreateProfileScreen() {
                 colors={['#6ee7b7', '#34d399', '#10b981']}
                 start={{ x: 0, y: 0 }}
                 end={{ x: 1, y: 1 }}
-                style={styles.onboardingIntroSavedBanner}
+                style={[
+                  styles.onboardingIntroSavedBanner,
+                  rs.onboardingTight && styles.onboardingIntroSavedBannerCompact,
+                ]}
               >
                 <View style={styles.onboardingIntroSavedRow}>
                   <View style={styles.onboardingIntroSavedCheck}>
@@ -2069,7 +2114,11 @@ export default function CreateProfileScreen() {
                   </View>
                   <View style={styles.onboardingIntroSavedCopy}>
                     <Text style={styles.onboardingIntroSavedText}>Intro video saved!</Text>
-                    <Text style={styles.onboardingIntroSavedSubtext}>Looking good — you're almost done</Text>
+                    {!rs.onboardingVeryTight ? (
+                      <Text style={styles.onboardingIntroSavedSubtext}>
+                        Looking good — you're almost done
+                      </Text>
+                    ) : null}
                   </View>
                 </View>
               </LinearGradient>
@@ -3057,36 +3106,42 @@ export default function CreateProfileScreen() {
         <View style={styles.actions}>
             <Animated.View
               style={[
-                styles.modernNextButton,
+                styles.modernNextButtonGlow,
                 {
-                  transform: [{ scale: completeProfileScale }],
                   shadowRadius: completeProfileShadowRadius,
                   shadowOpacity: completeProfileShadowOpacity,
                 },
               ]}
             >
-            <TouchableOpacity
-              style={styles.modernNextButtonTouchable}
-              onPress={handleSubmit}
-              disabled={completeProfileDisabled}
-              activeOpacity={completeProfileDisabled ? 1 : 0.8}
-              hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
-            >
-              <LinearGradient
-                colors={completeProfileDisabled
-                  ? ['#ccc', '#bbb'] 
-                  : ['#667eea', '#764ba2', '#f093fb']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.modernNextButtonGradient}
+              <Animated.View
+                style={[
+                  styles.modernNextButton,
+                  { transform: [{ scale: completeProfileScale }] },
+                ]}
               >
-                {loading ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.modernNextButtonText}>Complete Profile →</Text>
-                )}
-              </LinearGradient>
-            </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.modernNextButtonTouchable}
+                  onPress={handleSubmit}
+                  disabled={completeProfileDisabled}
+                  activeOpacity={completeProfileDisabled ? 1 : 0.8}
+                  hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                >
+                  <LinearGradient
+                    colors={completeProfileDisabled
+                      ? ['#ccc', '#bbb']
+                      : ['#667eea', '#764ba2', '#f093fb']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.modernNextButtonGradient}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.modernNextButtonText}>Complete Profile →</Text>
+                    )}
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
             </Animated.View>
         </View>
       </View>
@@ -4823,7 +4878,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   onboardingIntroSectionWrap: {
-    marginBottom: Platform.OS === 'ios' ? 4 : 2,
+    marginBottom: Platform.OS === 'ios' ? 8 : 6,
   },
   onboardingIntroCard: {
     overflow: 'hidden',
@@ -4959,6 +5014,10 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
   onboardingIntroRerecordBorder: {
+    borderRadius: 16,
+    padding: 1.5,
+  },
+  onboardingIntroRerecordIconWrap: {
     width: 28,
     height: 28,
     borderRadius: 14,
@@ -4977,10 +5036,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '800',
     letterSpacing: 0.25,
-  },
-  onboardingIntroRerecordBorder: {
-    borderRadius: 16,
-    padding: 1.5,
   },
   onboardingIntroRerecordInner: {
     borderRadius: 14.5,
@@ -5061,6 +5116,10 @@ const styles = StyleSheet.create({
           shadowOpacity: 0.35,
           shadowRadius: 10,
         }),
+  },
+  onboardingIntroSavedBannerCompact: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
   },
   onboardingIntroSavedRow: {
     flexDirection: 'row',
@@ -5242,13 +5301,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 0.2,
   },
-  modernNextButton: {
+  modernNextButtonGlow: {
     flex: 1,
     borderRadius: 10,
-    overflow: 'hidden',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 2 },
     elevation: 4,
+  },
+  modernNextButton: {
+    borderRadius: 10,
+    overflow: 'hidden',
   },
   modernNextButtonTouchable: {
     width: '100%',
