@@ -99,28 +99,31 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
     // Expire matches past 7-day limit so they don't count as "already matched" when user hasn't opened Matches tab
     await expireOldMatches();
 
-    // Check if browsing is unlocked
-    const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([req.userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
-    
-    console.log('🔍 Browse check:', { userId: req.userId, browse_unlocked_at: userResult?.browse_unlocked_at });
-    
-    if (!userResult?.browse_unlocked_at) {
-      console.log('🔒 Browsing is LOCKED for user:', req.userId);
-      return res.status(403).json({ 
-        error: 'Browsing is locked. Use a token to unlock browsing and see profiles.',
-        requiresToken: true
-      });
+    const pool = (req.query.pool as string) || 'main';
+    const soberPool = pool === 'sober';
+
+    if (!soberPool) {
+      const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([req.userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
+
+      console.log('🔍 Browse check:', { userId: req.userId, browse_unlocked_at: userResult?.browse_unlocked_at });
+
+      if (!userResult?.browse_unlocked_at) {
+        console.log('🔒 Browsing is LOCKED for user:', req.userId);
+        return res.status(403).json({
+          error: 'Browsing is locked. Use a token to unlock browsing and see profiles.',
+          requiresToken: true,
+        });
+      }
+
+      console.log('✅ Browsing is UNLOCKED for user:', req.userId);
     }
-    
-    console.log('✅ Browsing is UNLOCKED for user:', req.userId);
 
     // Get one profile at a time (swipe-style interface)
     const limit = 1;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const pool = (req.query.pool as string) || 'main';
     const poolResult = await resolveBrowseCandidatePool(req.userId!, {
-      soberCircleOnly: pool === 'sober',
+      soberCircleOnly: soberPool,
     });
     if (!poolResult.ok) {
       const code =
@@ -144,7 +147,10 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
     // Fast path for offset=0 (Connect flow): best interest overlap among filtered candidates
     if (offset === 0 && filteredProfiles.length > 0) {
-      const p = filteredProfiles[0];
+      const pickIndex = soberPool
+        ? Math.floor(Math.random() * filteredProfiles.length)
+        : 0;
+      const p = filteredProfiles[pickIndex];
       let photoUrl: string | null = p.photo_url;
       if (!photoUrl || !String(photoUrl).trim()) {
         const primaryPhotoResult = db

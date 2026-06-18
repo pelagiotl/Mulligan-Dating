@@ -7,17 +7,9 @@ export const MULLIGAN_LIVE_DATES_EVENT_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae
 const FEATURED_EVENT = {
   id: MULLIGAN_LIVE_DATES_EVENT_ID,
   title: 'Mulligan Live Dates',
-  description: `Real connections, zero swiping.
+  description: `Speed dating IRL — 5-minute rounds, then music, food trucks, and time to keep talking.
 
-Join us for relaxed speed dating nights with great people, good music, food trucks, and a chill afterparty vibe.
-
-Meet matches face-to-face in a fun, low-pressure environment at our gated venue. Talk for 5-6 minutes per round, then hang out freely afterward.
-
-These events are designed for intentional connections — no pressure, just good conversations and summer nights.
-
-First event coming soon — only 25 spots. Sign up below to secure yours.
-
-Be yourself. Meet intentionally.`,
+Low pressure, gated venue, built for real connections. Only 25 spots for our first night.`,
   venueName: 'Mulligan Live Dates',
   venueAddress: '812 S Riverside, Medford, OR 97501',
   eventAt: '2026-07-25T17:30:00-07:00',
