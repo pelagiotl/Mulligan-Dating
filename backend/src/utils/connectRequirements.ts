@@ -34,6 +34,62 @@ export function hasIntroVideo(introVideoUrl: string | null | undefined): boolean
   return typeof introVideoUrl === 'string' && introVideoUrl.trim().length > 0;
 }
 
+type UserGrandfatherRow = {
+  profile_activated_at: string | null;
+  last_client_platform: string | null;
+};
+
+type ProfileGrandfatherRow = {
+  id: string;
+  display_name: string;
+  location: string | null;
+  age: number | null;
+  gender: string | null;
+  intro_video_url: string | null;
+};
+
+/** Users who finished setup on web before intro video was required. */
+export async function userGrandfatheredFromIntroVideoRequirement(
+  userId: string,
+): Promise<boolean> {
+  const userResult = db
+    .prepare(
+      'SELECT profile_activated_at, last_client_platform FROM users WHERE id = ?',
+    )
+    .get([userId]);
+  const user = (userResult instanceof Promise ? await userResult : userResult) as
+    | UserGrandfatherRow
+    | undefined;
+  if (!user) return false;
+
+  if (user.profile_activated_at != null && String(user.profile_activated_at).trim()) {
+    return true;
+  }
+
+  // Mobile signups after intro video launched should not skip the requirement.
+  const platform = (user.last_client_platform ?? '').trim().toLowerCase();
+  if (platform === 'ios' || platform === 'android') return false;
+
+  const profileResult = db
+    .prepare(
+      'SELECT id, display_name, location, age, gender, intro_video_url FROM profiles WHERE user_id = ?',
+    )
+    .get([userId]);
+  const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+    | ProfileGrandfatherRow
+    | undefined;
+  if (!profile || hasIntroVideo(profile.intro_video_url)) return false;
+
+  const photoCount = await getProfilePhotoCount(profile.id);
+  return (
+    hasConnectDisplayName(profile.display_name) &&
+    isValidConnectLocation(profile.location) &&
+    hasValidProfileAge(profile.age) &&
+    hasValidProfileGender(profile.gender) &&
+    photoCount >= MIN_PHOTOS_TO_CONNECT
+  );
+}
+
 export type OnboardingProgress = {
   hasName: boolean;
   hasLocation: boolean;
@@ -61,7 +117,10 @@ export async function getActivationSetupViolationsForUser(userId: string): Promi
   const violations: string[] = [];
   if (!hasConnectDisplayName(profile.display_name)) violations.push('name');
   if (!isValidConnectLocation(profile.location)) violations.push('location');
-  if (!hasIntroVideo(profile.intro_video_url)) violations.push('introVideo');
+  const grandfatherIntroVideo = await userGrandfatheredFromIntroVideoRequirement(userId);
+  if (!hasIntroVideo(profile.intro_video_url) && !grandfatherIntroVideo) {
+    violations.push('introVideo');
+  }
   return violations;
 }
 
@@ -146,7 +205,10 @@ export async function getConnectSetupViolationsForUser(userId: string): Promise<
 
   if (!hasValidProfileAge(profile.age)) return ['age'];
   if (!hasValidProfileGender(profile.gender)) return ['gender'];
-  if (!hasIntroVideo(profile.intro_video_url)) return ['introVideo'];
+  const grandfatherIntroVideo = await userGrandfatheredFromIntroVideoRequirement(userId);
+  if (!hasIntroVideo(profile.intro_video_url) && !grandfatherIntroVideo) {
+    return ['introVideo'];
+  }
 
   if (!(await profileHasMinPhotosForConnect(profile.id))) return ['photos'];
 

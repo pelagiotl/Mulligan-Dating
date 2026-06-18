@@ -1254,7 +1254,7 @@ export default function Admin() {
                             >
                               {Boolean(user.is_restricted) ? 'Unrestrict' : 'Restrict'}
                             </button>
-                            {!isAdmin ? (
+                            {!Boolean(user.is_admin) ? (
                               <button
                                 type="button"
                                 className={`btn btn-sm admin-action-verify ${Boolean(user.photoVerified) ? 'btn-success' : 'btn-secondary'}`}

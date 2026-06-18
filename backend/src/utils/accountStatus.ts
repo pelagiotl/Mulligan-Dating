@@ -2,6 +2,7 @@ import { db } from '../database.js';
 import {
   getActivationSetupViolationsForUser,
   MIN_PHOTOS_TO_CONNECT,
+  userGrandfatheredFromIntroVideoRequirement,
 } from './connectRequirements.js';
 
 export const ACCOUNT_STATUS_ONBOARDING = 'onboarding';
@@ -105,6 +106,18 @@ export async function syncAccountStatusFromProfileReadiness(): Promise<void> {
         .run([ACCOUNT_STATUS_ONBOARDING, row.id]) as Promise<unknown>);
       continue;
     }
+
+    if (row.account_status === ACCOUNT_STATUS_ONBOARDING) {
+      if (await userGrandfatheredFromIntroVideoRequirement(row.id)) {
+        await (db
+          .prepare(
+            `UPDATE users SET account_status = ?, profile_activated_at = COALESCE(profile_activated_at, CURRENT_TIMESTAMP) WHERE id = ?`,
+          )
+          .run([ACCOUNT_STATUS_ACTIVE, row.id]) as Promise<unknown>);
+      }
+      continue;
+    }
+
     // Legacy rows auto-promoted to active without tapping Complete Profile
     if (
       row.account_status === ACCOUNT_STATUS_ACTIVE &&
