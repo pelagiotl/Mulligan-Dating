@@ -26,6 +26,23 @@ function parseAdminCount(row: { count: number | string } | undefined): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+function sevenDaysAgoIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() - 7);
+  return d.toISOString();
+}
+
+/** Users who opened the app recently (last_active_at), not token grants. */
+async function countRecentlyActiveUsers(sinceIso: string): Promise<number> {
+  const row = await (db
+    .prepare(
+      `SELECT COUNT(*) as count FROM users u
+       WHERE u.last_active_at IS NOT NULL AND u.last_active_at >= ?`,
+    )
+    .get([sinceIso]) as Promise<{ count: number | string }>);
+  return parseAdminCount(row);
+}
+
 /** Profile display name (normalized) that only the primary owner may review in admin. */
 const PROTECTED_REVIEW_DISPLAY = 'taya';
 
@@ -506,12 +523,8 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
       .get([]) as Promise<{ count: number | string }>);
     const restrictedUsers = parseAdminCount(restrictedUsersResult);
 
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const activeUsersResult = await (db.prepare(
-      `SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ? WHERE 1=1${activeOnly}`,
-    ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number | string }>);
-    const activeUsers = parseAdminCount(activeUsersResult);
+    const sinceActive = sevenDaysAgoIso();
+    const activeUsers = await countRecentlyActiveUsers(sinceActive);
 
     const onboardingOnly = sqlOnlyOnboardingAccounts('u');
     const onboardingUsersResult = await (db
@@ -568,12 +581,8 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
       .get([]) as Promise<{ count: number | string }>);
     const restrictedUsers = parseAdminCount(restrictedUsersResult);
 
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const activeUsersResult = await (db.prepare(
-      `SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ? WHERE 1=1${activeOnly}`,
-    ).get([sevenDaysAgo.toISOString()]) as Promise<{ count: number | string }>);
-    const activeUsers = parseAdminCount(activeUsersResult);
+    const sinceActive = sevenDaysAgoIso();
+    const activeUsers = await countRecentlyActiveUsers(sinceActive);
 
     const onboardingOnly = sqlOnlyOnboardingAccounts('u');
     const onboardingUsersResult = await (db
@@ -971,19 +980,9 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     const conditions: string[] = [];
 
     if (filter === 'active') {
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-      query = `
-        SELECT DISTINCT
-          u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, 
-          u.created_at, u.last_active_at, u.account_status,
-          p.display_name, p.age, p.gender, p.location
-        FROM users u
-        LEFT JOIN profiles p ON p.user_id = u.id
-        INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ?
-      `;
-      params.push(sevenDaysAgo.toISOString());
-      conditions.push(`COALESCE(u.account_status, 'active') = 'active'`);
+      const sinceActive = sevenDaysAgoIso();
+      conditions.push('u.last_active_at IS NOT NULL AND u.last_active_at >= ?');
+      params.push(sinceActive);
     }
 
     if (search) {
@@ -1000,19 +999,21 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       query += ` WHERE ${conditions.join(' AND ')}`;
     }
 
-    query += ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
+    query += filter === 'active'
+      ? ` ORDER BY u.last_active_at DESC LIMIT ? OFFSET ?`
+      : ` ORDER BY u.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
 
     const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
     
     // Get total count for pagination (mirror filter logic)
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const sinceActive = sevenDaysAgoIso();
     let countQuery: string;
     const countParams: any[] = [];
     if (filter === 'active') {
-      countQuery = 'SELECT COUNT(DISTINCT u.id) as count FROM users u INNER JOIN mulligan_tokens t ON t.user_id = u.id AND t.granted_at >= ? LEFT JOIN profiles p ON p.user_id = u.id';
-      countParams.push(sevenDaysAgo.toISOString());
+      countQuery =
+        'SELECT COUNT(DISTINCT u.id) as count FROM users u LEFT JOIN profiles p ON p.user_id = u.id WHERE u.last_active_at IS NOT NULL AND u.last_active_at >= ?';
+      countParams.push(sinceActive);
     } else {
       countQuery = 'SELECT COUNT(DISTINCT u.id) as count FROM users u LEFT JOIN profiles p ON p.user_id = u.id';
     }
@@ -1025,10 +1026,6 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     if (!ownerView) {
       countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
       countQuery += `(COALESCE(LOWER(TRIM(p.display_name)), '') != '${PROTECTED_REVIEW_DISPLAY}')`;
-    }
-    if (filter === 'active') {
-      countQuery += countQuery.includes('WHERE') ? ' AND ' : ' WHERE ';
-      countQuery += `COALESCE(u.account_status, 'active') = 'active'`;
     }
     const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number | string }>);
     const total = parseAdminCount(totalResult);
