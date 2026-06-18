@@ -40,7 +40,7 @@ const LANE_VISUALS: Record<DatePlanLaneId, DatePlanLaneVisual> = {
     label: 'Walk & nature',
     emoji: '🌿',
     imageUrl:
-      'https://images.unsplash.com/photo-1441974231531-c6227db76b6e?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1775260014413-15d0b518566e?auto=format&fit=crop&w=800&q=80',
     gradientFrom: '#14532d',
     gradientTo: '#22c55e',
   },
@@ -49,7 +49,7 @@ const LANE_VISUALS: Record<DatePlanLaneId, DatePlanLaneVisual> = {
     label: 'Playful activity',
     emoji: '🎳',
     imageUrl:
-      'https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1660129071363-d13390de351f?auto=format&fit=crop&w=800&q=80',
     gradientFrom: '#1e3a5f',
     gradientTo: '#6366f1',
   },
@@ -84,9 +84,91 @@ const LANE_VISUALS: Record<DatePlanLaneId, DatePlanLaneVisual> = {
 
 const LANE_IDS = new Set<string>(Object.keys(LANE_VISUALS));
 
-export function getDatePlanLaneVisual(laneId: string | undefined): DatePlanLaneVisual {
+const UNSPLASH = (id: string) =>
+  `https://images.unsplash.com/photo-${id}?auto=format&fit=crop&w=800&q=80`;
+
+const PLAYFUL_ACTIVITY_IMAGES = {
+  default: UNSPLASH('1660129071363-d13390de351f'),
+  miniGolf: UNSPLASH('1758966075321-4a929f9b90fa'),
+  golf: UNSPLASH('1633597782927-621093a8d817'),
+  bowling: UNSPLASH('1660129071363-d13390de351f'),
+  arcade: UNSPLASH('1511512578047-dfb367046420'),
+} as const;
+
+const WALK_NATURE_IMAGES = {
+  default: UNSPLASH('1775260014413-15d0b518566e'),
+  park: UNSPLASH('1775260014413-15d0b518566e'),
+  garden: UNSPLASH('1756655386547-8b55617975c2'),
+  forest: UNSPLASH('1441974231531-c6227db76b6e'),
+} as const;
+
+export type DatePlanVisualContext = {
+  title?: string;
+  description?: string;
+  venueName?: string;
+};
+
+export function getDatePlanLaneVisual(
+  laneId: string | undefined,
+  context?: DatePlanVisualContext,
+): DatePlanLaneVisual {
   const normalized = normalizeDatePlanLaneId(laneId);
-  return LANE_VISUALS[normalized];
+  const base = LANE_VISUALS[normalized];
+  const haystack = buildDatePlanVisualHaystack(context);
+
+  if (normalized === 'games') {
+    const imageUrl = haystack ? resolvePlayfulActivityImageUrl(haystack) : PLAYFUL_ACTIVITY_IMAGES.default;
+    return { ...base, imageUrl };
+  }
+  if (normalized === 'walk') {
+    const imageUrl = haystack ? resolveWalkNatureImageUrl(haystack) : WALK_NATURE_IMAGES.default;
+    return { ...base, imageUrl };
+  }
+  return base;
+}
+
+function buildDatePlanVisualHaystack(context?: DatePlanVisualContext): string {
+  return [context?.title, context?.description, context?.venueName].filter(Boolean).join(' ').toLowerCase();
+}
+
+function resolvePlayfulActivityImageUrl(haystack: string): string {
+  if (/\b(mini\s*golf|miniature\s*golf|putt[\s-]?putt)\b/.test(haystack)) {
+    return PLAYFUL_ACTIVITY_IMAGES.miniGolf;
+  }
+  if (
+    /\b(top\s*golf|topgolf|driving\s*range|golf\s*(center|course|club)|bear\s*creek)\b/.test(haystack) ||
+    /\bgolf\b/.test(haystack)
+  ) {
+    return PLAYFUL_ACTIVITY_IMAGES.golf;
+  }
+  if (/\b(bowl|bowling)\b/.test(haystack)) return PLAYFUL_ACTIVITY_IMAGES.bowling;
+  if (/\b(arcade)\b/.test(haystack)) return PLAYFUL_ACTIVITY_IMAGES.arcade;
+  return PLAYFUL_ACTIVITY_IMAGES.default;
+}
+
+function resolveWalkNatureImageUrl(haystack: string): string {
+  if (
+    /\b(hike|hiking|forest|wilderness|woodland|backcountry|national\s*forest|old\s*growth|timber)\b/.test(
+      haystack,
+    ) ||
+    /\b(state\s*park|national\s*park)\b/.test(haystack)
+  ) {
+    return WALK_NATURE_IMAGES.forest;
+  }
+  if (/\b(botanical|arboretum|garden)\b/.test(haystack)) {
+    return WALK_NATURE_IMAGES.garden;
+  }
+  if (
+    /\b(park|greenway|playground|promenade|plaza|waterfront|river\s*walk|lakeside|lithia|bear\s*creek\s*park)\b/.test(
+      haystack,
+    )
+  ) {
+    return WALK_NATURE_IMAGES.park;
+  }
+  if (/\b(trail|walk|stroll|overlook)\b/.test(haystack)) {
+    return WALK_NATURE_IMAGES.park;
+  }
+  return WALK_NATURE_IMAGES.default;
 }
 
 function normalizeDatePlanLaneId(laneId: string | undefined): DatePlanLaneId {

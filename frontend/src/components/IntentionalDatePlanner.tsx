@@ -79,12 +79,18 @@ function DatePlanHeroBanner({
   laneId,
   budgetRange,
   compact,
+  title,
+  description,
+  venueName,
 }: {
   laneId?: string;
   budgetRange?: string;
   compact?: boolean;
+  title?: string;
+  description?: string;
+  venueName?: string;
 }) {
-  const visual = getDatePlanLaneVisual(laneId);
+  const visual = getDatePlanLaneVisual(laneId, { title, description, venueName });
   const budget = budgetDisplay(budgetRange);
   return (
     <div
@@ -110,7 +116,11 @@ function DatePlanIdeaCard({
   selected: boolean;
   onSelect: () => void;
 }) {
-  const visual = getDatePlanLaneVisual(idea.laneId);
+  const visual = getDatePlanLaneVisual(idea.laneId, {
+    title: idea.title,
+    description: idea.description,
+    venueName: idea.venueName,
+  });
   const budget = budgetDisplay(idea.budgetRange);
   return (
     <button
@@ -421,6 +431,9 @@ export default function IntentionalDatePlanner({
             <DatePlanHeroBanner
               laneId={resolveLaneId(activePlan, ideas)}
               budgetRange={activePlan.budgetRange}
+              title={activePlan.title}
+              description={activePlan.description}
+              venueName={activePlan.venueName}
               compact
             />
             <div className="idp-status-body">
@@ -440,6 +453,9 @@ export default function IntentionalDatePlanner({
             <DatePlanHeroBanner
               laneId={resolveLaneId(activePlan, ideas)}
               budgetRange={activePlan.budgetRange}
+              title={activePlan.title}
+              description={activePlan.description}
+              venueName={activePlan.venueName}
               compact
             />
             <div className="idp-status-body">

@@ -40,7 +40,11 @@ export default function DatePlanProposalMessageCard({
   plan: DatePlanMessageSnapshot;
   proposerName: string;
 }) {
-  const visual = getDatePlanLaneVisual(plan.laneId);
+  const visual = getDatePlanLaneVisual(plan.laneId, {
+    title: plan.title,
+    description: plan.description,
+    venueName: plan.venueName,
+  });
   const budget = budgetDisplay(plan.budgetRange);
   const when = formatPlanWhen(plan);
 
