@@ -21,6 +21,7 @@ import {
   KeyboardAvoidingView,
   Keyboard,
   InteractionManager,
+  type LayoutChangeEvent,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused } from '@react-navigation/native';
@@ -100,8 +101,9 @@ function filterInterestCompatReasons(reasons: string[]): string[] {
 import * as ImagePicker from 'expo-image-picker';
 import { Video, Audio } from 'expo-av';
 
-/** Scroll clearance above composer when the post-date reflection pill is shown. */
-const DATE_REFLECTION_PILL_CHAT_INSET = 48;
+/** Extra clearance so bubble corners, shadows, and reactions clear the composer. */
+const CHAT_MESSAGES_BOTTOM_BUFFER = 20;
+const DEFAULT_COMPOSER_STACK_HEIGHT = 72;
 
 interface Photo {
   id: string;
@@ -1432,6 +1434,7 @@ export default function MatchesScreen() {
   const [chatDatePlannerOpen, setChatDatePlannerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
+  const [composerStackHeight, setComposerStackHeight] = useState(DEFAULT_COMPOSER_STACK_HEIGHT);
   const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
   const [isTyping, setIsTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -1958,19 +1961,45 @@ export default function MatchesScreen() {
     selectedMatch && selectedMatch.stage !== 'pending',
   );
 
+  const handleComposerStackLayout = useCallback((event: LayoutChangeEvent) => {
+    const nextHeight = Math.ceil(event.nativeEvent.layout.height);
+    if (nextHeight > 0) {
+      setComposerStackHeight((prev) => (prev === nextHeight ? prev : nextHeight));
+    }
+  }, []);
+
+  const chatMessagesBottomInset = useMemo(() => {
+    const tabBarOffset =
+      effectiveKeyboardHeight > 0
+        ? 0
+        : Platform.OS === 'ios'
+          ? 56 + Math.round(insets.bottom * 0.5)
+          : 0;
+    return (
+      (effectiveKeyboardHeight > 0 ? effectiveKeyboardHeight : 0) +
+      composerStackHeight +
+      tabBarOffset +
+      CHAT_MESSAGES_BOTTOM_BUFFER
+    );
+  }, [composerStackHeight, effectiveKeyboardHeight, insets.bottom]);
+
   const messagesContentStyle = useMemo(
     () => [
       styles.messagesContent,
-      showDateReflectionPill ? { paddingTop: 4 + DATE_REFLECTION_PILL_CHAT_INSET } : null,
+      { paddingTop: 4 + CHAT_MESSAGES_BOTTOM_BUFFER },
     ],
-    [showDateReflectionPill],
+    [],
   );
 
   useEffect(() => {
-    if (!showDateReflectionPill || messages.length === 0) return;
+    if (messages.length === 0) return;
     const t = setTimeout(() => scrollToLatestMessageRef.current(), 120);
     return () => clearTimeout(t);
-  }, [showDateReflectionPill, messages.length]);
+  }, [composerStackHeight, showDateReflectionPill, messages.length]);
+
+  useEffect(() => {
+    setComposerStackHeight(DEFAULT_COMPOSER_STACK_HEIGHT);
+  }, [selectedMatch?.id, showDateReflectionPill]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -4192,9 +4221,7 @@ export default function MatchesScreen() {
           styles.chatMessagesWrapper,
           {
             opacity: chatFadeAnim,
-            paddingBottom: effectiveKeyboardHeight > 0
-              ? effectiveKeyboardHeight + 72 + (showDateReflectionPill ? DATE_REFLECTION_PILL_CHAT_INSET : 0)
-              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 0) + 72 + (showDateReflectionPill ? DATE_REFLECTION_PILL_CHAT_INSET : 0),
+            paddingBottom: chatMessagesBottomInset,
           },
         ]}
       >
@@ -4324,6 +4351,7 @@ export default function MatchesScreen() {
               flexDirection: 'column',
             }
           ]}
+          onLayout={handleComposerStackLayout}
           pointerEvents="box-none"
           collapsable={false}
         >
@@ -5534,7 +5562,7 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
     maxWidth: '100%',
-    overflow: 'hidden',
+    overflow: 'visible',
     alignSelf: 'stretch',
   },
   messagesList: {
@@ -5553,12 +5581,12 @@ const styles = StyleSheet.create({
   },
   messageContainerOwn: {
     alignSelf: 'flex-end',
-    marginBottom: 2,
+    marginBottom: 6,
     maxWidth: '85%',
   },
   messageContainerOther: {
     alignSelf: 'flex-start',
-    marginBottom: 2,
+    marginBottom: 6,
     maxWidth: '85%',
   },
   datePlanMessageWrap: {
