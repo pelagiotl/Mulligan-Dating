@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,20 +10,24 @@ import {
   Platform,
   Vibration,
   Modal,
+  Animated,
+  Easing,
+  useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
 import type { StackNavigationProp } from '@react-navigation/stack';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
-import { connectShellGradientStops } from '../lib/connectShellTheme';
+import { connectShellGradientStops, soberCircleButtonShimmerColors } from '../lib/connectShellTheme';
 import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
 import OptimizedImage from '../components/OptimizedImage';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { SOBER_CIRCLE_LEVELS, soberCircleLevelLabel } from '../constants/soberCircle';
 import MatchCelebration from '../components/MatchCelebration';
+import ConnectButtonShimmerEffect, { CONNECT_SHIMMER_DURATION_MS } from '../components/ConnectButtonShimmerEffect';
 import type { SoberCircleStackParamList } from '../navigation/SoberCircleNavigator';
 import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
 
@@ -165,11 +169,67 @@ function LevelPicker({
 
 export default function SoberCircleScreen() {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const isFocused = useIsFocused();
   const navigation = useNavigation<StackNavigationProp<SoberCircleStackParamList, 'SoberCircleHome'>>();
   const { profile, refreshProfile, registerMatchListRefresh } = useAuth();
   const { mode: shellMode } = useConnectShellTheme();
   const midnight = shellMode === 'midnight';
   const bottomPad = iosFloatingTabBarInset(insets.bottom) + 88;
+  const matchButtonSweepWidth = Math.max(280, windowWidth - 48);
+
+  const matchButtonPulse = useRef(new Animated.Value(1)).current;
+  const matchButtonShimmer = useRef(new Animated.Value(0)).current;
+  const matchButtonScale = useRef(new Animated.Value(1)).current;
+  const matchButtonLoopsRef = useRef<{
+    pulseLoop: Animated.CompositeAnimation;
+    shimmerLoop: Animated.CompositeAnimation;
+  } | null>(null);
+
+  const startMatchButtonAnimations = useCallback(() => {
+    const loops = matchButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      matchButtonLoopsRef.current = null;
+    }
+    matchButtonPulse.setValue(1);
+    matchButtonShimmer.stopAnimation();
+    matchButtonShimmer.setValue(0);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(matchButtonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(matchButtonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ]),
+    );
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(matchButtonShimmer, {
+          toValue: 1,
+          duration: CONNECT_SHIMMER_DURATION_MS,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.delay(50),
+        Animated.timing(matchButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    pulseLoop.start();
+    shimmerLoop.start();
+    matchButtonLoopsRef.current = { pulseLoop, shimmerLoop };
+  }, [matchButtonPulse, matchButtonShimmer]);
+
+  const stopMatchButtonAnimations = useCallback(() => {
+    const loops = matchButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      matchButtonLoopsRef.current = null;
+    }
+    matchButtonPulse.setValue(1);
+    matchButtonShimmer.stopAnimation();
+    matchButtonShimmer.setValue(0);
+  }, [matchButtonPulse, matchButtonShimmer]);
 
   const viewerSoberLevel =
     (profile as { sober_circle_level?: string; soberCircleLevel?: string } | null)?.sober_circle_level ??
@@ -206,6 +266,19 @@ export default function SoberCircleScreen() {
     visible: false,
     poolHasPeople: false,
   });
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!level || changingLevel) return () => {};
+      const timeoutId = setTimeout(() => {
+        if (isFocused) startMatchButtonAnimations();
+      }, 80);
+      return () => {
+        clearTimeout(timeoutId);
+        stopMatchButtonAnimations();
+      };
+    }, [level, changingLevel, isFocused, startMatchButtonAnimations, stopMatchButtonAnimations]),
+  );
 
   const loadSoberMatches = useCallback(async () => {
     if (!level) return;
@@ -494,19 +567,53 @@ export default function SoberCircleScreen() {
         <TouchableOpacity
           style={styles.connectBtnOuter}
           onPress={() => void handleMainAction()}
+          onPressIn={() => {
+            if (connecting || loadingBrowse) return;
+            try {
+              Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30);
+            } catch (_) {}
+            Animated.timing(matchButtonScale, {
+              toValue: 0.96,
+              duration: 30,
+              useNativeDriver: true,
+            }).start();
+          }}
+          onPressOut={() => {
+            Animated.spring(matchButtonScale, {
+              toValue: 1,
+              friction: 6,
+              tension: 300,
+              useNativeDriver: true,
+            }).start();
+          }}
           disabled={connecting || loadingBrowse}
-          activeOpacity={0.9}
+          activeOpacity={1}
         >
-          <LinearGradient colors={['#22c55e', '#16a34a', '#667eea']} style={styles.connectGrad}>
-            {connecting || loadingBrowse ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Text style={styles.connectText}>{actionLabel}</Text>
-                <Text style={styles.connectSub}>{actionSub}</Text>
-              </>
-            )}
-          </LinearGradient>
+          <Animated.View
+            style={{
+              transform: [{ scale: Animated.multiply(matchButtonPulse, matchButtonScale) }],
+            }}
+          >
+            <LinearGradient colors={['#22c55e', '#16a34a', '#667eea']} style={styles.connectGrad}>
+              <ConnectButtonShimmerEffect
+                key={`sober-match-shimmer-${shellMode}`}
+                shell={shellMode}
+                colors={soberCircleButtonShimmerColors}
+                progress={matchButtonShimmer}
+                borderRadius={28}
+                sweepWidth={matchButtonSweepWidth}
+                showHearts={false}
+              />
+              {connecting || loadingBrowse ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.connectText}>{actionLabel}</Text>
+                  <Text style={styles.connectSub}>{actionSub}</Text>
+                </>
+              )}
+            </LinearGradient>
+          </Animated.View>
         </TouchableOpacity>
       </View>
 
@@ -711,7 +818,7 @@ const styles = StyleSheet.create({
   },
   connectBtnOuter: {
     borderRadius: 999,
-    overflow: 'hidden',
+    overflow: 'visible',
     shadowColor: '#16a34a',
     shadowOpacity: 0.28,
     shadowRadius: 12,
@@ -722,6 +829,8 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 16 : 14,
     paddingHorizontal: 20,
     alignItems: 'center',
+    borderRadius: 999,
+    overflow: 'hidden',
   },
   connectText: { color: '#fff', fontSize: 17, fontWeight: '800' },
   connectSub: {

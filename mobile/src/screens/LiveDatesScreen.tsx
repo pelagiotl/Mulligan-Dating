@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,19 @@ import {
   RefreshControl,
   Platform,
   Image,
+  Animated,
+  Easing,
+  useWindowDimensions,
+  Vibration,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { api } from '../utils/api';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
-import { connectShellGradientStops } from '../lib/connectShellTheme';
+import { connectShellGradientStops, liveDatesButtonShimmerColors } from '../lib/connectShellTheme';
 import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
+import ConnectButtonShimmerEffect, { CONNECT_SHIMMER_DURATION_MS } from '../components/ConnectButtonShimmerEffect';
 
 const LIVE_DATES_HERO = require('../../assets/live-dates-hero.png');
 
@@ -144,12 +150,69 @@ function LiveEventStats({ event, midnight }: { event: LiveEvent; midnight: boole
 
 export default function LiveDatesScreen() {
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
+  const isFocused = useIsFocused();
   const { mode: shellMode } = useConnectShellTheme();
   const midnight = shellMode === 'midnight';
   const [event, setEvent] = useState<LiveEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
+
+  const signupButtonSweepWidth = Math.max(240, windowWidth - 76);
+
+  const signupButtonPulse = useRef(new Animated.Value(1)).current;
+  const signupButtonShimmer = useRef(new Animated.Value(0)).current;
+  const signupButtonScale = useRef(new Animated.Value(1)).current;
+  const signupButtonLoopsRef = useRef<{
+    pulseLoop: Animated.CompositeAnimation;
+    shimmerLoop: Animated.CompositeAnimation;
+  } | null>(null);
+
+  const startSignupButtonAnimations = useCallback(() => {
+    const loops = signupButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      signupButtonLoopsRef.current = null;
+    }
+    signupButtonPulse.setValue(1);
+    signupButtonShimmer.stopAnimation();
+    signupButtonShimmer.setValue(0);
+    const pulseLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(signupButtonPulse, { toValue: 1.05, duration: 1500, useNativeDriver: true }),
+        Animated.timing(signupButtonPulse, { toValue: 1, duration: 1500, useNativeDriver: true }),
+      ]),
+    );
+    const shimmerLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(signupButtonShimmer, {
+          toValue: 1,
+          duration: CONNECT_SHIMMER_DURATION_MS,
+          easing: Easing.linear,
+          useNativeDriver: true,
+        }),
+        Animated.delay(50),
+        Animated.timing(signupButtonShimmer, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+    );
+    pulseLoop.start();
+    shimmerLoop.start();
+    signupButtonLoopsRef.current = { pulseLoop, shimmerLoop };
+  }, [signupButtonPulse, signupButtonShimmer]);
+
+  const stopSignupButtonAnimations = useCallback(() => {
+    const loops = signupButtonLoopsRef.current;
+    if (loops) {
+      loops.pulseLoop.stop();
+      loops.shimmerLoop.stop();
+      signupButtonLoopsRef.current = null;
+    }
+    signupButtonPulse.setValue(1);
+    signupButtonShimmer.stopAnimation();
+    signupButtonShimmer.setValue(0);
+  }, [signupButtonPulse, signupButtonShimmer]);
 
   const load = useCallback(async () => {
     try {
@@ -196,6 +259,21 @@ export default function LiveDatesScreen() {
   const bottomPad = iosFloatingTabBarInset(insets.bottom) + 16;
   const paragraphs = descriptionParagraphs(event?.description ?? null);
   const spotsLeft = event ? Math.max(0, toCount(event.capacity) - toCount(event.signupCount)) : 0;
+  const showSignupButton = Boolean(event && !event.isSignedUp);
+  const animateSignupButton = showSignupButton && spotsLeft > 0;
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!animateSignupButton) return () => {};
+      const timeoutId = setTimeout(() => {
+        if (isFocused) startSignupButtonAnimations();
+      }, 80);
+      return () => {
+        clearTimeout(timeoutId);
+        stopSignupButtonAnimations();
+      };
+    }, [animateSignupButton, isFocused, startSignupButtonAnimations, stopSignupButtonAnimations]),
+  );
 
   return (
     <LinearGradient colors={connectShellGradientStops(shellMode)} style={styles.flex}>
@@ -263,18 +341,52 @@ export default function LiveDatesScreen() {
               <TouchableOpacity
                 style={styles.signupBtn}
                 onPress={() => { void signup(); }}
+                onPressIn={() => {
+                  if (signingUp || spotsLeft === 0) return;
+                  try {
+                    Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30);
+                  } catch (_) {}
+                  Animated.timing(signupButtonScale, {
+                    toValue: 0.96,
+                    duration: 30,
+                    useNativeDriver: true,
+                  }).start();
+                }}
+                onPressOut={() => {
+                  Animated.spring(signupButtonScale, {
+                    toValue: 1,
+                    friction: 6,
+                    tension: 300,
+                    useNativeDriver: true,
+                  }).start();
+                }}
                 disabled={signingUp || spotsLeft === 0}
-                activeOpacity={0.85}
+                activeOpacity={1}
               >
-                <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} style={styles.signupGrad}>
-                  {signingUp ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.signupText}>
-                      {spotsLeft === 0 ? 'Event full' : 'Sign up for this event'}
-                    </Text>
-                  )}
-                </LinearGradient>
+                <Animated.View
+                  style={{
+                    transform: [{ scale: Animated.multiply(signupButtonPulse, signupButtonScale) }],
+                  }}
+                >
+                  <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} style={styles.signupGrad}>
+                    <ConnectButtonShimmerEffect
+                      key={`live-signup-shimmer-${shellMode}`}
+                      shell={shellMode}
+                      colors={liveDatesButtonShimmerColors}
+                      progress={signupButtonShimmer}
+                      borderRadius={28}
+                      sweepWidth={signupButtonSweepWidth}
+                      showHearts={false}
+                    />
+                    {signingUp ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <Text style={styles.signupText}>
+                        {spotsLeft === 0 ? 'Event full' : 'Sign up for this event'}
+                      </Text>
+                    )}
+                  </LinearGradient>
+                </Animated.View>
               </TouchableOpacity>
             ) : (
               <Text style={[styles.signedUpNote, midnight && styles.leadMidnight]}>
@@ -517,8 +629,21 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#64748b',
   },
-  signupBtn: { borderRadius: 999, overflow: 'hidden' },
-  signupGrad: { paddingVertical: Platform.OS === 'ios' ? 14 : 12, alignItems: 'center' },
+  signupBtn: {
+    borderRadius: 999,
+    overflow: 'visible',
+    shadowColor: '#f5576c',
+    shadowOpacity: 0.28,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 6,
+  },
+  signupGrad: {
+    paddingVertical: Platform.OS === 'ios' ? 14 : 12,
+    alignItems: 'center',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
   signupText: { color: '#fff', fontSize: 16, fontWeight: '800' },
   signedUpNote: {
     fontSize: 14,

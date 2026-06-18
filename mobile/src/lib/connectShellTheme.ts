@@ -43,6 +43,20 @@ export type ConnectButtonShimmerColors = {
   glow: string;
 };
 
+/** Sober Circle match button — green perimeter trace. */
+export const soberCircleButtonShimmerColors: ConnectButtonShimmerColors = {
+  trace: 'rgba(187, 247, 208, 0.98)',
+  resting: 'rgba(74, 222, 128, 0.36)',
+  glow: '#4ade80',
+};
+
+/** Live Dates signup button — warm pink/purple perimeter trace. */
+export const liveDatesButtonShimmerColors: ConnectButtonShimmerColors = {
+  trace: 'rgba(255, 255, 255, 0.95)',
+  resting: 'rgba(240, 147, 251, 0.38)',
+  glow: '#f472b6',
+};
+
 /** Matches list row — warm blush cards (soft/sunny) or dark glass (midnight). */
 export type MatchListCardColors = {
   background: string;

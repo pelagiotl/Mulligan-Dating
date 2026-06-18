@@ -3,6 +3,7 @@ import { Animated, StyleSheet, View, type StyleProp, type ViewStyle } from 'reac
 import ConnectButtonHeartFireworks from './ConnectButtonHeartFireworks';
 import {
   connectButtonShimmerColors,
+  type ConnectButtonShimmerColors,
   type ConnectShellMode,
 } from '../lib/connectShellTheme';
 
@@ -21,6 +22,8 @@ type ConnectButtonShimmerEffectProps = {
   showHearts?: boolean;
   /** Landing chrome — trace contrast on sunny/soft shells. */
   shell?: ConnectShellMode;
+  /** Optional override (e.g. Sober Circle green trace). */
+  colors?: ConnectButtonShimmerColors;
   style?: StyleProp<ViewStyle>;
 };
 
@@ -142,9 +145,13 @@ export default function ConnectButtonShimmerEffect({
   sweepWidth = 320,
   showHearts = true,
   shell = 'midnight',
+  colors: colorsOverride,
   style,
 }: ConnectButtonShimmerEffectProps) {
-  const colors = useMemo(() => connectButtonShimmerColors(shell), [shell]);
+  const colors = useMemo(
+    () => colorsOverride ?? connectButtonShimmerColors(shell),
+    [colorsOverride, shell],
+  );
   const layoutLocked = useRef(false);
   const [metrics, setMetrics] = useState(() =>
     computeMetrics(sweepWidth, 56, borderRadius)
