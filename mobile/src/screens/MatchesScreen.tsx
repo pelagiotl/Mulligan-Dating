@@ -128,6 +128,7 @@ interface Match {
   gameUnlocks?: GameUnlocks;
   compatibilityScore?: number | null;
   profileCompatibility?: number | null;
+  mutualSecondDate?: boolean;
   otherUser: {
     userId: string;
     displayName: string;
@@ -941,6 +942,11 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
+              {item.mutualSecondDate ? (
+                <View style={styles.date2ReadyBadge}>
+                  <Text style={styles.date2ReadyBadgeText}>Date 2 ready ✨</Text>
+                </View>
+              ) : null}
               {(item.connectedVia === 'sober_circle') ? (
                 <SoberCircleBadge
                   level={item.otherUser.soberCircleLevel}
@@ -1005,6 +1011,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
     prevProps.item.stage === nextProps.item.stage &&
     prevProps.item.expiresAt === nextProps.item.expiresAt &&
     prevProps.item.profileCompatibility === nextProps.item.profileCompatibility &&
+    prevProps.item.mutualSecondDate === nextProps.item.mutualSecondDate &&
     prevProps.photoUrl === nextProps.photoUrl &&
     prevProps.cardColors.perimeterGlow === nextProps.cardColors.perimeterGlow
   );
@@ -1537,7 +1544,10 @@ export default function MatchesScreen() {
   // Only show matches that haven't passed their 7-day expiration (so they disappear when timer hits 0)
   const visibleMatches = useMemo(() => {
     const now = currentTime.getTime();
-    return matches.filter(m => !m.expiresAt || new Date(m.expiresAt).getTime() > now);
+    const active = matches.filter(m => !m.expiresAt || new Date(m.expiresAt).getTime() > now);
+    const mutual = active.filter(m => m.mutualSecondDate);
+    const rest = active.filter(m => !m.mutualSecondDate);
+    return [...mutual, ...rest];
   }, [matches, currentTime]);
 
   // Clear selected match if it has expired (so we don't show chat for an expired match)
@@ -2000,6 +2010,7 @@ export default function MatchesScreen() {
       socket.on(
         'second_date_match',
         (data: { matchId: string; partnerName?: string; title?: string; body?: string }) => {
+          void fetchMatches();
           const title = data.title ?? 'Second date vibes ❤️';
           const body =
             data.body ??
@@ -4108,7 +4119,18 @@ export default function MatchesScreen() {
           visible={dateReflectionOpen}
           matchId={selectedMatch.id}
           partnerName={selectedMatch.otherUser.displayName || 'your match'}
+          viewerName={viewerDisplayName}
           onClose={() => setDateReflectionOpen(false)}
+          onSubmitted={(mutual) => {
+            if (mutual) {
+              setMatches((prev) =>
+                prev.map((m) => (m.id === selectedMatch.id ? { ...m, mutualSecondDate: true } : m)),
+              );
+              setSelectedMatch((prev) => (prev ? { ...prev, mutualSecondDate: true } : prev));
+            }
+            void fetchMatches();
+          }}
+          onPlanDate2={() => setChatDatePlannerOpen(true)}
         />
       ) : null}
 
@@ -4308,11 +4330,16 @@ export default function MatchesScreen() {
         >
           {selectedMatch && selectedMatch.stage !== 'pending' ? (
             <TouchableOpacity
-              style={styles.dateReflectionPill}
+              style={[
+                styles.dateReflectionPill,
+                selectedMatch.mutualSecondDate ? styles.dateReflectionPillMutual : null,
+              ]}
               onPress={() => setDateReflectionOpen(true)}
               activeOpacity={0.85}
             >
-              <Text style={styles.dateReflectionPillText}>💑 We went on a date</Text>
+              <Text style={styles.dateReflectionPillText}>
+                {selectedMatch.mutualSecondDate ? 'Date 2 ready ✨' : '💑 We went on a date'}
+              </Text>
             </TouchableOpacity>
           ) : null}
           {isRecordingVoice ? (
@@ -5891,10 +5918,27 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(102, 126, 234, 0.28)',
   },
+  dateReflectionPillMutual: {
+    backgroundColor: 'rgba(245, 87, 108, 0.12)',
+    borderColor: 'rgba(245, 87, 108, 0.35)',
+  },
   dateReflectionPillText: {
     fontSize: 13,
     fontWeight: '700',
     color: '#5b21b6',
+  },
+  date2ReadyBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: 'rgba(245, 87, 108, 0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 87, 108, 0.28)',
+  },
+  date2ReadyBadgeText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#be185d',
   },
   chatComposerRow: {
     flexDirection: 'row',

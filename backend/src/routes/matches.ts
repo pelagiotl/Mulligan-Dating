@@ -17,6 +17,7 @@ import {
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
 import { MATCH_POOL_CONNECT, sqlMatchesInPool, normalizeConnectSource } from "../utils/matchPools.js";
+import { getMutualSecondDateFlagsByMatchIds } from "../services/dateReflections.js";
 
 function datePlanSnapshotFromJoin(m: Record<string, unknown>) {
   if (!m.date_plan_id) return undefined;
@@ -42,8 +43,8 @@ import {
 } from "../utils/matchSlotLimits.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
+import { uploadChatImageToCloudinary } from "../services/profilePhotoUpload.js";
 import {
-  moderateImageUpload,
   moderateVideoUpload,
   handleModerationRouteError,
 } from "../services/contentModeration.js";
@@ -438,6 +439,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
+    const mutualSecondDateFlags = await getMutualSecondDateFlagsByMatchIds(allMatchIds);
+
     // Now format matches using the batch-fetched data and add profile-based compatibility for cards
     const formattedMatches: any[] = [];
     for (const m of matches) {
@@ -515,6 +518,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         gameUnlocks,
         compatibilityScore,
         profileCompatibility,
+        mutualSecondDate: mutualSecondDateFlags.get(m.id) === true,
         otherUser: {
           ...otherUser,
           profileId: otherProfileId,
@@ -1587,14 +1591,12 @@ matchesRouter.post("/:matchId/messages/upload-image", authenticateToken, rateLim
     }
 
     try {
-      await moderateImageUpload(file.buffer, file.mimetype);
+      const imageUrl = await uploadChatImageToCloudinary(file.buffer, file.mimetype);
+      res.json({ imageUrl });
     } catch (modError) {
       if (handleModerationRouteError(modError, res)) return;
       throw modError;
     }
-
-    const imageUrl = await uploadToCloudinary(file.buffer, 'chat-images');
-    res.json({ imageUrl });
   } catch (error) {
     console.error("Chat image upload error:", error);
     const msg = error instanceof Error ? error.message : String(error);

@@ -16,10 +16,87 @@ export type DateReflection = {
   createdAt: string;
 };
 
+/** Shared reflection fields exposed to the other person after mutual Yes/Maybe. */
+export type DateReflectionShared = {
+  wentWell: string;
+  secondDateInterest: SecondDateInterest;
+  extraNotes: string | null;
+};
+
 const POSITIVE_INTEREST = new Set<SecondDateInterest>(['yes', 'maybe']);
 
 function interestIsPositive(interest: string): boolean {
   return POSITIVE_INTEREST.has(interest as SecondDateInterest);
+}
+
+type ReflectionRow = {
+  id: string;
+  match_id: string;
+  user_id: string;
+  went_well: string;
+  second_date_interest: string;
+  extra_notes: string | null;
+  voice_note_url: string | null;
+  created_at: string;
+  mutual_notified_at?: string | null;
+};
+
+function rowToReflection(row: ReflectionRow): DateReflection {
+  return {
+    id: row.id,
+    matchId: row.match_id,
+    userId: row.user_id,
+    wentWell: row.went_well,
+    secondDateInterest: row.second_date_interest as SecondDateInterest,
+    extraNotes: row.extra_notes,
+    voiceNoteUrl: row.voice_note_url,
+    createdAt: row.created_at,
+  };
+}
+
+function rowToShared(row: ReflectionRow): DateReflectionShared {
+  return {
+    wentWell: row.went_well,
+    secondDateInterest: row.second_date_interest as SecondDateInterest,
+    extraNotes: row.extra_notes,
+  };
+}
+
+function rowsAreMutualPositive(rows: ReflectionRow[]): boolean {
+  return rows.length >= 2 && rows.every((r) => interestIsPositive(r.second_date_interest));
+}
+
+/** Batch lookup for match list badges and sorting. */
+export async function getMutualSecondDateFlagsByMatchIds(
+  matchIds: string[],
+): Promise<Map<string, boolean>> {
+  const flags = new Map<string, boolean>();
+  if (matchIds.length === 0) return flags;
+
+  const placeholders = matchIds.map(() => '?').join(',');
+  const rows = await (db
+    .prepare(
+      `SELECT match_id, user_id, second_date_interest
+       FROM date_reflections WHERE match_id IN (${placeholders})`,
+    )
+    .all(matchIds) as Promise<Array<{ match_id: string; user_id: string; second_date_interest: string }>>);
+
+  const byMatch = new Map<string, string[]>();
+  for (const row of rows) {
+    const interests = byMatch.get(row.match_id) ?? [];
+    interests.push(row.second_date_interest);
+    byMatch.set(row.match_id, interests);
+  }
+
+  for (const matchId of matchIds) {
+    const interests = byMatch.get(matchId) ?? [];
+    flags.set(
+      matchId,
+      interests.length >= 2 && interests.every((i) => interestIsPositive(i)),
+    );
+  }
+
+  return flags;
 }
 
 async function getMatchParticipants(matchId: string): Promise<{
@@ -63,7 +140,11 @@ export async function saveDateReflection(
     extraNotes?: string;
     voiceNoteUrl?: string;
   },
-): Promise<{ reflection: DateReflection; mutualSecondDate: boolean }> {
+): Promise<{
+  reflection: DateReflection;
+  mutualSecondDate: boolean;
+  partner: DateReflectionShared | null;
+}> {
   const participants = await getMatchParticipants(input.matchId);
   if (!participants) {
     throw new Error('Match not found');
@@ -129,7 +210,20 @@ export async function saveDateReflection(
   if (!mutualSecondDate && interestIsPositive(input.secondDateInterest)) {
     await maybeNotifyPartnerReflectionNudge(input.matchId, userId, reflectionId, participants);
   }
-  return { reflection, mutualSecondDate };
+
+  let partner: DateReflectionShared | null = null;
+  if (mutualSecondDate) {
+    const allRows = await (db
+      .prepare(
+        `SELECT id, match_id, user_id, went_well, second_date_interest, extra_notes, voice_note_url, created_at
+         FROM date_reflections WHERE match_id = ?`,
+      )
+      .all([input.matchId]) as Promise<ReflectionRow[]>);
+    const partnerRow = allRows.find((r) => r.user_id !== userId);
+    if (partnerRow) partner = rowToShared(partnerRow);
+  }
+
+  return { reflection, mutualSecondDate, partner };
 }
 
 async function maybeNotifyPartnerReflectionNudge(
@@ -244,6 +338,7 @@ export async function getDateReflectionStatus(
   matchId: string,
 ): Promise<{
   mine: DateReflection | null;
+  partner: DateReflectionShared | null;
   partnerSubmitted: boolean;
   mutualSecondDate: boolean;
 }> {
@@ -260,43 +355,18 @@ export async function getDateReflectionStatus(
       `SELECT id, match_id, user_id, went_well, second_date_interest, extra_notes, voice_note_url, created_at, mutual_notified_at
        FROM date_reflections WHERE match_id = ?`,
     )
-    .all([matchId]) as Promise<
-    Array<{
-      id: string;
-      match_id: string;
-      user_id: string;
-      went_well: string;
-      second_date_interest: string;
-      extra_notes: string | null;
-      voice_note_url: string | null;
-      created_at: string;
-      mutual_notified_at: string | null;
-    }>
-  >);
+    .all([matchId]) as Promise<ReflectionRow[]>);
 
   const mineRow = rows.find((r) => r.user_id === userId);
   const partnerRow = rows.find((r) => r.user_id !== userId);
 
-  const mine = mineRow
-    ? {
-        id: mineRow.id,
-        matchId: mineRow.match_id,
-        userId: mineRow.user_id,
-        wentWell: mineRow.went_well,
-        secondDateInterest: mineRow.second_date_interest as SecondDateInterest,
-        extraNotes: mineRow.extra_notes,
-        voiceNoteUrl: mineRow.voice_note_url,
-        createdAt: mineRow.created_at,
-      }
-    : null;
-
-  const mutualSecondDate =
-    rows.length >= 2 &&
-    rows.every((r) => interestIsPositive(r.second_date_interest)) &&
-    !!rows[0]?.mutual_notified_at;
+  const mine = mineRow ? rowToReflection(mineRow) : null;
+  const mutualSecondDate = rowsAreMutualPositive(rows);
+  const partner = mutualSecondDate && partnerRow ? rowToShared(partnerRow) : null;
 
   return {
     mine,
+    partner,
     partnerSubmitted: !!partnerRow,
     mutualSecondDate,
   };
