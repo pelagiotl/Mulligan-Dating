@@ -322,7 +322,7 @@ export default function LiveDatesScreen() {
             ) : null}
 
             <View style={[styles.whenCard, midnight && styles.whenCardMidnight]}>
-              <Text style={[styles.whenLabel, midnight && styles.leadMidnight]}>First event</Text>
+              <Text style={[styles.whenLabel, midnight && styles.leadMidnight]}>First event at The Backyard</Text>
               <Text style={[styles.when, midnight && styles.whenMidnight]}>{formatEventWhen(event.eventAt)}</Text>
               {event.venueAddress ? (
                 <Text style={[styles.venue, midnight && styles.leadMidnight]}>📍 {event.venueAddress}</Text>

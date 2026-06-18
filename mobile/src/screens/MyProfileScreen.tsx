@@ -185,13 +185,6 @@ interface Photo {
   isPrimary: boolean;
 }
 
-interface SettingsData {
-  email: string;
-  createdAt: string;
-  lastActiveAt: string | null;
-  showActiveStatus?: boolean;
-}
-
 // Values sent to API (matching uses profile.gender: "Man" | "Woman" | "Non-binary" etc.)
 const PREFERRED_GENDERS_VALUES = ['Man', 'Woman', 'Everyone'];
 const PREFERRED_GENDERS_LABELS: Record<string, string> = { Man: 'Men', Woman: 'Women', Everyone: 'Everyone' };
@@ -279,7 +272,6 @@ export default function MyProfileScreen() {
   );
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [settings, setSettings] = useState<SettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [uploadingSlotIndices, setUploadingSlotIndices] = useState<number[]>([]);
@@ -331,7 +323,6 @@ export default function MyProfileScreen() {
   const [editLifestyle, setEditLifestyle] = useState<LifestyleForm>(() => lifestyleFormFromApi(null));
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
-  const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
   const [reordering, setReordering] = useState(false);
   const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Bump when photos change so the header avatar reloads (avoids stale image cache after upload/reorder/delete)
@@ -368,9 +359,6 @@ export default function MyProfileScreen() {
   const avatarScale = useRef(new Animated.Value(1)).current;
   
   // Animations for stat cards
-  const statCard1Anim = useRef(new Animated.Value(0)).current;
-  const statCard2Anim = useRef(new Animated.Value(0)).current;
-  
   // Animations for sections (scroll-based)
   const sectionAnims = useRef<Animated.Value[]>([]).current;
   const sectionFallbackAnim = useRef(new Animated.Value(1)).current; // Single stable fallback to avoid creating new Animated values in render
@@ -650,7 +638,6 @@ export default function MyProfileScreen() {
       profileCheckDoneRef.current = false;
       fetchProfile();
       fetchPhotos();
-      fetchSettings();
     } else {
       profileCheckDoneRef.current = false;
       if (!authLoading) setLoading(false);
@@ -665,7 +652,6 @@ export default function MyProfileScreen() {
         if (user) {
           fetchProfile();
           fetchPhotos();
-          fetchSettings();
         }
       });
       return () => task.cancel();
@@ -730,28 +716,6 @@ export default function MyProfileScreen() {
     ).start();
   }, [data]);
   
-  // Animate stat cards on mount
-  useEffect(() => {
-    if (settings) {
-      Animated.parallel([
-        Animated.spring(statCard1Anim, {
-          toValue: 1,
-          tension: 80,
-          friction: 12,
-          delay: 200,
-          useNativeDriver: true,
-        }),
-        Animated.spring(statCard2Anim, {
-          toValue: 1,
-          tension: 80,
-          friction: 12,
-          delay: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [settings]);
-
   // Load cached primary photo URL on mount so avatar can show immediately when opening Profile tab
   useEffect(() => {
     let cancelled = false;
@@ -821,50 +785,6 @@ export default function MyProfileScreen() {
     }
   };
   
-  const fetchSettings = async () => {
-    if (!user) return;
-    try {
-      const settingsData = await api.get<SettingsData>('/settings');
-      setSettings(settingsData);
-    } catch (err: any) {
-      // Silently fail - settings are optional
-      console.log('Could not fetch settings:', err?.message);
-    }
-  };
-
-  const toggleActiveStatus = async () => {
-    if (!settings || updatingActiveStatus) return;
-    const next = !(settings.showActiveStatus !== false);
-    setUpdatingActiveStatus(true);
-    try {
-      const prefs = data?.preferences;
-      if (prefs) {
-        let preferredGenders: string[] | null = null;
-        if (prefs.preferred_genders) {
-          try {
-            preferredGenders = JSON.parse(prefs.preferred_genders) as string[];
-          } catch {
-            preferredGenders = null;
-          }
-        }
-        await api.put('/profile/preferences', {
-          minAge: prefs.min_age ?? null,
-          maxAge: prefs.max_age ?? null,
-          preferredGenders: preferredGenders ?? null,
-          maxDistance: prefs.max_distance ?? null,
-          showActiveStatus: next,
-        });
-      } else {
-        await api.put('/profile/preferences', { showActiveStatus: next });
-      }
-      setSettings((prev) => prev ? { ...prev, showActiveStatus: next } : null);
-    } catch (e: any) {
-      Alert.alert('Error', e?.message || 'Failed to update active status.');
-    } finally {
-      setUpdatingActiveStatus(false);
-    }
-  };
-
   const detectLocation = async () => {
     setDetectingLocation(true);
     try {
@@ -2158,103 +2078,6 @@ export default function MyProfileScreen() {
             )}
             <View style={styles.info}>
               <Text style={[styles.name, profileUi.name]}>{profile.display_name}</Text>
-
-              {/* Animated Profile Stats Cards */}
-              {settings && (
-                <View style={styles.statsRow}>
-                  <Animated.View
-                    style={[
-                      styles.statCardWrapper,
-                      {
-                        opacity: statCard1Anim,
-                        transform: [{ scale: statCard1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
-                      },
-                    ]}
-                  >
-                    <ProfileEditableCardBorder
-                      delay={0}
-                      borderRadius={24}
-                      traceColors={[...profileColors.traceMember]}
-                      style={{ flex: 1, marginBottom: 0 }}
-                    >
-                      <LinearGradient
-                        colors={[...profileColors.gradMember]}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 1 }}
-                        style={styles.statCardInBorder}
-                      >
-                        <ProfileCardAnimatedEmoji
-                          emoji="🎉"
-                          variant="celebrate"
-                          fontSize={26}
-                          delay={0}
-                          containerStyle={styles.statEmojiWrap}
-                        />
-                        <Text style={styles.statLabel}>Member Since</Text>
-                        <Text style={styles.statValue} numberOfLines={1}>
-                          {settings.createdAt
-                            ? new Date(settings.createdAt).toLocaleDateString('en-US', {
-                                month: 'short',
-                                year: 'numeric',
-                              })
-                            : 'N/A'}
-                        </Text>
-                      </LinearGradient>
-                    </ProfileEditableCardBorder>
-                  </Animated.View>
-
-                  <Animated.View
-                    style={[
-                      styles.statCardWrapper,
-                      {
-                        opacity: statCard2Anim,
-                        transform: [{ scale: statCard2Anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
-                      },
-                    ]}
-                  >
-                    <ProfileEditableCardBorder
-                      delay={180}
-                      borderRadius={24}
-                      traceColors={[...profileColors.traceActive]}
-                      style={{ flex: 1, marginBottom: 0 }}
-                    >
-                      <TouchableOpacity
-                        activeOpacity={0.9}
-                        onPress={toggleActiveStatus}
-                        disabled={updatingActiveStatus}
-                        style={styles.statCardTouchable}
-                      >
-                        <LinearGradient
-                          colors={[...profileColors.gradActive]}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 1 }}
-                          style={[styles.statCardInBorder, styles.statCardLastActive]}
-                        >
-                          <ProfileCardAnimatedEmoji
-                            emoji="🟢"
-                            variant="pulse"
-                            fontSize={26}
-                            delay={200}
-                            containerStyle={styles.statEmojiWrap}
-                          />
-                          <Text style={styles.statLabel}>Last Active</Text>
-                          <Text style={styles.statValue} numberOfLines={1}>
-                            {settings.lastActiveAt
-                              ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                })
-                              : 'Just now'}
-                          </Text>
-                          <Text style={styles.statSubtext} numberOfLines={1}>
-                            {settings.showActiveStatus !== false ? 'Visible: On' : 'Visible: Off'}
-                          </Text>
-                        </LinearGradient>
-                      </TouchableOpacity>
-                    </ProfileEditableCardBorder>
-                  </Animated.View>
-                </View>
-              )}
 
               <TouchableOpacity
                 style={styles.viewProfilePreviewButton}
@@ -4777,89 +4600,9 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 6 },
     textShadowRadius: 20,
   },
-  statsRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 20,
-    gap: 12,
-    width: '100%',
-  },
-  statCardWrapper: {
-    flex: 1,
-  },
-  statCard: {
-    flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 110,
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4,
-    shadowRadius: 20,
-    elevation: 12,
-    borderWidth: 2.5,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  statCardInBorder: {
-    flex: 1,
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 110,
-    borderWidth: 0,
-    ...(Platform.OS === 'android'
-      ? { elevation: 0, shadowOpacity: 0 }
-      : { shadowOpacity: 0, elevation: 0 }),
-  },
-  statCardLastActive: {
-    minHeight: 110,
-  },
-  statEmoji: {
-    fontSize: 32,
-    marginBottom: 6,
-  },
-  statEmojiSmall: {
-    fontSize: 26,
-    marginBottom: 4,
-  },
-  statEmojiWrap: {
-    marginBottom: 4,
-    alignItems: 'center',
-  },
   infoCardEmojiWrap: {
     marginBottom: 10,
     alignItems: 'center',
-  },
-  statLabel: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.95)',
-    marginBottom: 4,
-    fontWeight: '800',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  statValue: {
-    fontSize: 15,
-    color: '#fff',
-    fontWeight: '800',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  statCardTouchable: {
-    flex: 1,
-  },
-  statSubtext: {
-    fontSize: 10,
-    color: 'rgba(255, 255, 255, 0.9)',
-    marginTop: 2,
-    fontWeight: '600',
   },
   infoGrid: {
     flexDirection: 'row',

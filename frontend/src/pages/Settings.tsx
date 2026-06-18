@@ -15,6 +15,14 @@ import {
   syncWebPushSubscription,
 } from "../lib/webPush";
 
+function formatOwnLastActive(lastActiveAt: string | null | undefined): string {
+  if (!lastActiveAt) return "Just now";
+  return new Date(lastActiveAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
+
 interface SettingsData {
   email: string | null;
   createdAt: string;
@@ -530,11 +538,20 @@ export default function Settings() {
             <span>👤</span> Account
           </h2>
 
+          {settings ? (
+            <div className="settings-info" style={{ marginBottom: "var(--space-4)" }}>
+              <div className="info-item">
+                <label data-emoji="🟢">🟢 Last active</label>
+                <span>{formatOwnLastActive(settings.lastActiveAt)}</span>
+              </div>
+            </div>
+          ) : null}
+
           <div className="settings-active-toggle-row">
             <div>
               <strong>Show last active to matches</strong>
               <p className="settings-hint">
-                When off, others won&apos;t see your last active time in Matches (same as Profile tab toggle).
+                When off, others won&apos;t see your last active time in Matches.
               </p>
             </div>
             <button

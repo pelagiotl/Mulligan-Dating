@@ -28,6 +28,7 @@ import { getPhotoUrl } from '../utils/photoUrl';
 import { SOBER_CIRCLE_LEVELS, soberCircleLevelLabel } from '../constants/soberCircle';
 import MatchCelebration from '../components/MatchCelebration';
 import ConnectButtonShimmerEffect, { CONNECT_SHIMMER_DURATION_MS } from '../components/ConnectButtonShimmerEffect';
+import SmoothPulsingEmoji from '../components/SmoothPulsingEmoji';
 import type { SoberCircleStackParamList } from '../navigation/SoberCircleNavigator';
 import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
 
@@ -546,7 +547,7 @@ export default function SoberCircleScreen() {
           </View>
         ) : (
           <View style={[styles.emptyCard, midnight && styles.emptyCardMidnight]}>
-            <Text style={styles.emptyEmoji}>🌿</Text>
+            <SmoothPulsingEmoji emoji="🌿" fontSize={40} variant="emoji" containerStyle={styles.emptyEmojiWrap} />
             <Text style={[styles.emptyTitle, midnight && styles.textLight]}>Ready when you are</Text>
             <Text style={[styles.emptySub, midnight && styles.leadMidnight]}>
               {poolTotal > 0
@@ -771,7 +772,7 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
   emptyCardMidnight: { backgroundColor: 'rgba(30,27,46,0.85)' },
-  emptyEmoji: { fontSize: 40, marginBottom: 8 },
+  emptyEmojiWrap: { marginBottom: 8, alignItems: 'center' },
   emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1e1b4b' },
   emptySub: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 6, lineHeight: 20 },
   matchFoundLabel: {

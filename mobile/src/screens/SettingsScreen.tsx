@@ -85,6 +85,14 @@ interface SettingsData {
 const DEBUG_TAP_COUNT = 7;
 const SETTINGS_DISPLAY_EMAIL_KEY = 'mulligan:settings-display-email';
 
+function formatOwnLastActive(lastActiveAt: string | null | undefined): string {
+  if (!lastActiveAt) return 'Just now';
+  return new Date(lastActiveAt).toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+  });
+}
+
 async function readStoredDisplayEmail(): Promise<string> {
   try {
     const v = await AsyncStorage.getItem(SETTINGS_DISPLAY_EMAIL_KEY);
@@ -261,6 +269,7 @@ export default function SettingsScreen() {
   const [emailSaving, setEmailSaving] = useState(false);
   const [emailPassword, setEmailPassword] = useState('');
   const [emailNeedsPassword, setEmailNeedsPassword] = useState(false);
+  const [activeStatusSaving, setActiveStatusSaving] = useState(false);
   const pendingDisplayEmailRef = React.useRef<string | null>(null);
   const debugTapCountRef = React.useRef(0);
   const debugTapTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -438,6 +447,23 @@ export default function SettingsScreen() {
     setDisplayEmail(normalized);
     await writeStoredDisplayEmail(normalized);
   }, []);
+
+  const toggleActiveStatusSetting = async () => {
+    if (!settings || activeStatusSaving) return;
+    const next = !(settings.showActiveStatus !== false);
+    setActiveStatusSaving(true);
+    setError('');
+    setSuccess('');
+    try {
+      await api.put('/settings/active-status', { showActiveStatus: next });
+      setSettings((prev) => (prev ? { ...prev, showActiveStatus: next } : null));
+      setSuccess(next ? 'Matches can see your last active time.' : 'Last active hidden from matches.');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to update active status');
+    } finally {
+      setActiveStatusSaving(false);
+    }
+  };
 
   const fetchSettings = async (opts?: { silent?: boolean }) => {
     const gen = ++settingsFetchGen.current;
@@ -996,6 +1022,35 @@ export default function SettingsScreen() {
             />
             <Text style={styles.pushNotificationsRowText}>Block list</Text>
             <Text style={styles.pushNotificationsRowChevron}>›</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.pushNotificationsRowWrap}>
+          <TouchableOpacity
+            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
+            onPress={() => void toggleActiveStatusSetting()}
+            disabled={!settings || activeStatusSaving}
+            activeOpacity={0.8}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: settings?.showActiveStatus !== false }}
+            accessibilityLabel="Show last active to matches"
+          >
+            <ProfileCardAnimatedEmoji
+              emoji="🟢"
+              variant="pulse"
+              fontSize={22}
+              delay={0}
+              containerStyle={styles.pushNotificationsRowIconWrap}
+            />
+            <View style={styles.activeStatusRowCopy}>
+              <Text style={styles.activeStatusRowTitle}>Show last active to matches</Text>
+              <Text style={styles.activeStatusRowMeta}>
+                Last active: {formatOwnLastActive(settings?.lastActiveAt)}
+              </Text>
+            </View>
+            <Text style={styles.activeStatusRowToggle}>
+              {activeStatusSaving ? '…' : settings?.showActiveStatus !== false ? 'On' : 'Off'}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -1976,6 +2031,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#fff',
     letterSpacing: 0.2,
+  },
+  activeStatusRowCopy: {
+    flex: 1,
+    marginRight: 8,
+  },
+  activeStatusRowTitle: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+    letterSpacing: 0.2,
+  },
+  activeStatusRowMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255, 255, 255, 0.75)',
+    lineHeight: 16,
+  },
+  activeStatusRowToggle: {
+    fontSize: 15,
+    fontWeight: '800',
+    color: '#fff',
+    minWidth: 28,
+    textAlign: 'right',
   },
   pushNotificationsRowChevron: {
     fontSize: 22,

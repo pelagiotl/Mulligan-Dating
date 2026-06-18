@@ -66,6 +66,7 @@ import ConnectLandingValueProps, {
 } from '../components/ConnectLandingValueProps';
 import ConnectLandingTagline from '../components/ConnectLandingTagline';
 import ConnectLandingMark from '../components/ConnectLandingMark';
+import ConnectLandingUseMulliganHint from '../components/ConnectLandingUseMulliganHint';
 import ConnectButtonShimmerEffect, {
   CONNECT_SHIMMER_DURATION_MS,
 } from '../components/ConnectButtonShimmerEffect';
@@ -1707,8 +1708,6 @@ export default function BrowseScreen() {
     </Animated.View>
   );
 
-  const landingConnectHint = '⛳ Use a Mulligan';
-
   // Tab blur hides this screen (opacity 0); Android pauses native-driver loops. Stop on blur, restart after focus when visible again.
   useFocusEffect(
     useCallback(() => {
@@ -2217,7 +2216,7 @@ export default function BrowseScreen() {
               )}
 
               <View style={styles.landingHintWrap}>
-                <Text style={styles.midnightHint}>{landingConnectHint}</Text>
+                <ConnectLandingUseMulliganHint textStyle={styles.midnightHint} />
               </View>
 
               {renderProfileEnhancement('midnight')}
@@ -2280,7 +2279,7 @@ export default function BrowseScreen() {
                     )}
 
                     <View style={styles.landingHintWrap}>
-                      <Text style={styles.sunnyHint}>{landingConnectHint}</Text>
+                      <ConnectLandingUseMulliganHint textStyle={styles.sunnyHint} />
                     </View>
 
                     {renderProfileEnhancement('sunny')}
@@ -2342,7 +2341,7 @@ export default function BrowseScreen() {
                     )}
 
                     <View style={styles.landingHintWrap}>
-                      <Text style={styles.softHint}>{landingConnectHint}</Text>
+                      <ConnectLandingUseMulliganHint textStyle={styles.softHint} />
                     </View>
 
                     {renderProfileEnhancement('soft')}

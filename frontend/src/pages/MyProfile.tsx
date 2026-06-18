@@ -110,10 +110,12 @@ interface Photo {
   isPrimary: boolean;
 }
 
-interface SettingsRow {
-  createdAt: string;
-  lastActiveAt: string | null;
-  showActiveStatus?: boolean;
+function formatOwnLastActive(lastActiveAt: string | null | undefined): string {
+  if (!lastActiveAt) return "Just now";
+  return new Date(lastActiveAt).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
 }
 
 function formatPreferredMatchesLabel(preferredGendersJson: string | null | undefined): string {
@@ -407,7 +409,6 @@ export default function MyProfile() {
   const { refreshProfile } = useAuth();
   const [data, setData] = useState<ProfileData | null>(null);
   const [photos, setPhotos] = useState<Photo[]>([]);
-  const [settings, setSettings] = useState<SettingsRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -431,7 +432,6 @@ export default function MyProfile() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
   const [preferredModalError, setPreferredModalError] = useState("");
-  const [updatingActiveStatus, setUpdatingActiveStatus] = useState(false);
 
   const [showInterestsModal, setShowInterestsModal] = useState(false);
   const [editInterests, setEditInterests] = useState<string[]>([]);
@@ -515,21 +515,11 @@ export default function MyProfile() {
     }
   };
 
-  const fetchSettings = async () => {
-    try {
-      const s = await api.get<SettingsRow>("/settings");
-      setSettings(s);
-    } catch {
-      setSettings(null);
-    }
-  };
-
   useEffect(() => {
     setError("");
     setLoading(true);
     fetchProfile();
     fetchPhotos();
-    fetchSettings();
     return () => {
       abortControllerRef.current?.abort();
     };
@@ -578,21 +568,6 @@ export default function MyProfile() {
       preferredGenders: preferredGenders ?? null,
       maxDistance: clampMaxDistanceMiles(prefs?.max_distance ?? null),
     };
-  };
-
-  const toggleActiveStatus = async () => {
-    if (!settings || updatingActiveStatus) return;
-    const next = !(settings.showActiveStatus !== false);
-    setUpdatingActiveStatus(true);
-    try {
-      await api.put("/settings/active-status", { showActiveStatus: next });
-      setSettings((prev) => (prev ? { ...prev, showActiveStatus: next } : null));
-      await refreshProfile();
-    } catch (e: unknown) {
-      setError((e as Error)?.message || "Failed to update active status visibility.");
-    } finally {
-      setUpdatingActiveStatus(false);
-    }
   };
 
   const detectLocation = () => {
@@ -1079,82 +1054,23 @@ export default function MyProfile() {
             <span className="my-profile-name-edit-hint">Tap to edit name</span>
           </button>
 
-          {settings ? (
-            <div className="my-profile-hero-row">
-              <div className="my-profile-stats-row">
-                <div className="my-profile-stat-card my-profile-stat-card--member">
-                  <span className="my-profile-stat-emoji my-profile-stat-emoji--member" aria-hidden>
-                    ✨
-                  </span>
-                  <span className="my-profile-stat-label">Member Since</span>
-                  <span className="my-profile-stat-value">
-                    {settings.createdAt
-                      ? new Date(settings.createdAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          year: "numeric",
-                        })
-                      : "—"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  className="my-profile-stat-card my-profile-stat-card--active"
-                  onClick={() => void toggleActiveStatus()}
-                  disabled={updatingActiveStatus}
-                >
-                  <span className="my-profile-stat-emoji">🟢</span>
-                  <span className="my-profile-stat-label">Last Active</span>
-                  <span className="my-profile-stat-value">
-                    {settings.lastActiveAt
-                      ? new Date(settings.lastActiveAt).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                        })
-                      : "Just now"}
-                  </span>
-                  <span className="my-profile-stat-sub">
-                    {settings.showActiveStatus !== false ? "Visible: On" : "Visible: Off"}
-                  </span>
-                  <span className="my-profile-stat-hint">Tap to toggle</span>
-                </button>
-              </div>
-              <button
-                type="button"
-                className="my-profile-preview-btn"
-                onClick={() => setShowProfilePreview(true)}
-                aria-label="View how your profile appears to others"
-              >
-                <span className="my-profile-preview-btn__icon" aria-hidden>
-                  👁
-                </span>
-                <span className="my-profile-preview-btn__copy">
-                  <span className="my-profile-preview-btn__title">View my profile</span>
-                  <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
-                </span>
-                <span className="my-profile-preview-btn__chevron" aria-hidden>
-                  ›
-                </span>
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              className="my-profile-preview-btn my-profile-preview-btn--solo"
-              onClick={() => setShowProfilePreview(true)}
-              aria-label="View how your profile appears to others"
-            >
-              <span className="my-profile-preview-btn__icon" aria-hidden>
-                👁
-              </span>
-              <span className="my-profile-preview-btn__copy">
-                <span className="my-profile-preview-btn__title">View my profile</span>
-                <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
-              </span>
-              <span className="my-profile-preview-btn__chevron" aria-hidden>
-                ›
-              </span>
-            </button>
-          )}
+          <button
+            type="button"
+            className="my-profile-preview-btn my-profile-preview-btn--solo"
+            onClick={() => setShowProfilePreview(true)}
+            aria-label="View how your profile appears to others"
+          >
+            <span className="my-profile-preview-btn__icon" aria-hidden>
+              👁
+            </span>
+            <span className="my-profile-preview-btn__copy">
+              <span className="my-profile-preview-btn__title">View my profile</span>
+              <span className="my-profile-preview-btn__sub">Preview as matches see you</span>
+            </span>
+            <span className="my-profile-preview-btn__chevron" aria-hidden>
+              ›
+            </span>
+          </button>
 
           <section className="my-profile-identity-section" aria-labelledby="my-profile-basics-heading">
             <h2 id="my-profile-basics-heading" className="my-profile-identity-section-title">

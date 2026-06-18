@@ -1,72 +1,83 @@
 # App Review Information – Notes for App Store Connect
 
-**Paste the content below into the "Notes" field in App Store Connect → Your App → 1.0 → App Review Information.**
+**Paste the content from `APP_STORE_REVIEW_NOTES_4000.txt` into the "Notes" field in App Store Connect → Your App → App Review Information.**
 
 ---
 
 ## 1. Screen recording
 
-We have provided a screen recording (uploaded/linked below) captured on a physical iPhone. The recording shows:
-- Launching the app and the initial experience
-- **Account registration and login:** Phone number verification (SMS) flow
-- **Account deletion:** Settings → Danger Zone → Delete Account (with confirmation)
-- **Paid content / IAP:** Browse → token-based connections; Settings or token modal → Buy Mulligan Tokens (RevenueCat in-app purchase flow)
-- **User-generated content:** Profile creation (photos, bio, interests), in-app messaging; **reporting and blocking:** reporting a user from profile/chat, blocking from Settings or match list
-- **Sensitive data prompts:** Camera and photo library (for profile photos and chat), optional location (for Southern Oregon region check), push notifications
+We have provided a screen recording captured on a physical iPhone. The recording shows:
 
-*(If you upload the video to a link, add the URL here. Otherwise write: "Screen recording attached to this submission.")*
+- App launch and onboarding (phone + SMS verification)
+- **Connect tab:** token-based matching (not an endless swipe deck) — browse profiles, tap **Connect & Match** (uses 1 Mulligan token)
+- **Sober tab (Sober Circle):** choose sober level, find matches in a separate sober/sober-curious pool, in-tab messaging
+- **Live tab (Mulligan Live Dates):** view and sign up for a local IRL dating event in Southern Oregon
+- **Matches tab:** messaging, optional icebreaker games (Truth or Dare), intentional date planner, post-date reflection
+- **Profile tab:** edit photos, bio, interests, dealbreakers, lifestyle
+- **Settings tab:** Mulligan tokens (weekly claim + IAP via RevenueCat), privacy (show/hide last active), block list, **Delete Account** (Danger Zone)
+- **Reporting and blocking** from match chat / profile
+- Permission prompts: camera, photo library, optional location (Southern Oregon region check), push notifications
+
+*(Attach the video to this submission or add a link here.)*
 
 ---
 
-## 2. App purpose and value
+## 2. App purpose and value (differentiation)
 
-**Mulligan** is a dating app that helps adults in **Southern Oregon** find meaningful connections. The problem it solves: generic dating apps encourage endless swiping with little focus on compatibility or intent. Mulligan provides **value** by (1) focusing on a specific region (Southern Oregon) so matches are local and meetable, (2) using **tokens** to encourage intentional connections rather than mass swiping, (3) emphasizing **profiles** (interests, dealbreakers, lifestyle) so users can assess fit before connecting, and (4) offering in-app messaging and optional icebreaker games (Truth or Dare). The intended audience is adults 18+ in or near Southern Oregon who want more intentional, local dating.
+**Mulligan** is a dating app for adults **18+** focused on **Southern Oregon**. It is **not** a generic endless-swipe app.
+
+**How Mulligan differs:**
+
+1. **Regional focus** — Southern Oregon only; matches are local and meetable in person.
+2. **Intentional connections** — users spend **Mulligan tokens** to connect (no unlimited swiping).
+3. **Rich profiles** — interests, dealbreakers, lifestyle, and photos before connecting.
+4. **Sober Circle** — a separate tab and matching pool for people on a sober or sober-curious path.
+5. **Mulligan Live Dates** — sign up for curated in-person dating events (IRL), not profile-only matching.
+6. **In-match tools** — messaging, Truth or Dare, intentional date ideas, and private post-date reflections.
+
+**Audience:** Adults 18+ in or near Southern Oregon who want intentional, local dating — including sober-curious users and people who want real-world events.
 
 ---
 
 ## 3. Instructions and test credentials
 
-**How to access main features:**
-- **Login:** Use the test credentials below. The app uses phone number + SMS verification; the demo account is pre-verified.
-- **Main tabs:** Connect (browse and use tokens to connect), Matches (conversations), Profile, Settings.
-- **Connect:** Browse cards → tap to view full profile → use "Use token to connect" to start a match (consumes 1 Mulligan token).
-- **Matches:** Open a match to chat; use the menu (⋯) for Truth or Dare, report, or block.
-- **Profile:** Edit profile, photos, interests, dealbreakers.
-- **Settings:** Tokens (claim free weekly token, buy more via IAP), Delete Account (Danger Zone), Privacy Policy, etc.
+**Login:** We do not provide a shared test account. Please **Sign Up** with your own phone number; you will receive an SMS one-time code. Registration is quick: phone → code → create profile.
 
-**Test account credentials for App Review:**
-- *(Replace with a real test account you create; Apple needs to log in.)*
-- **Phone number:** [Provide a phone number that receives SMS for your test account]
-- **Or:** "Demo / test account: We have created a test account for review. Phone: +1 XXX XXX XXXX. A one-time code will be sent to this number at login; we can provide the code upon request, or the reviewer may use their own phone to sign up in the app."
+**Suggested review path (5–7 minutes):**
 
-*(You must create a real test account and put its phone number here. If the app allows email login for testing, add that too.)*
+1. Complete sign-up and create a minimal profile (name, photo, location in Southern Oregon if prompted).
+2. **Connect** — browse profiles → **Connect & Match** (uses 1 free/weekly token if available).
+3. **Sober** — open Sober Circle, select a sober level, explore the separate match flow.
+4. **Live** — open Mulligan Live Dates and view the featured local event.
+5. **Matches** — open a conversation; explore chat tools from the match screen.
+6. **Settings** — view tokens; confirm **Delete Account** exists under Danger Zone (no need to delete if testing).
+
+**Main tabs:** Connect · Matches · Live · Sober · Profile · Settings
 
 ---
 
-## 4. External services and platforms
+## 4. External services
 
-The app uses the following to deliver core functionality:
-- **Backend API:** Node.js/Express backend hosted on Render ([mulligan-backend.onrender.com](https://mulligan-backend.onrender.com)) for auth, profiles, matching, messages, tokens, and IAP webhook.
-- **Web app (optional):** React frontend on Render ([mulligan-frontend.onrender.com](https://mulligan-frontend.onrender.com)); mobile app is the primary client.
-- **Authentication:** Custom phone-based auth with SMS verification (e.g. Twilio or similar provider).
-- **Payments / IAP:** RevenueCat for in-app purchases (Mulligan tokens); Apple In-App Purchase for processing payments. Backend webhook receives purchase events from RevenueCat to grant tokens.
-- **Database:** PostgreSQL (production) for users, profiles, matches, messages, tokens.
-- **Push notifications:** Expo Push Notifications; device tokens stored on backend for out-of-app alerts.
-- **Geocoding/location:** Used to confirm users are in Southern Oregon (region lock); optional location permission.
-- **AI (optional):** OpenAI API for generative icebreaker prompts (Truth or Dare / Never Have I Ever) when configured; fallback to static prompts if not set.
+- **Backend API:** Node.js/Express on Render (`mulligan-backend.onrender.com`) — auth, profiles, matching, messages, tokens, Sober Circle, Live Dates, IAP webhook
+- **Authentication:** Phone number + SMS verification
+- **IAP:** RevenueCat + Apple In-App Purchase (Mulligan tokens)
+- **Database:** PostgreSQL
+- **Push:** Expo Push Notifications
+- **Location:** Geocoding for Southern Oregon region eligibility
+- **AI (optional):** OpenAI for some icebreaker / date-plan copy when configured; static fallbacks otherwise
 
 ---
 
 ## 5. Regional differences
 
-The app **restricts usage to Southern Oregon, USA**. Users outside this region see a message that the app is not available in their area and cannot browse or match. All other features (account creation, profile, IAP, messaging, reporting, blocking) function the same for users within the allowed region. There are no other regional variations in content or features.
+Usage is restricted to **Southern Oregon, USA**. Users outside the allowed region are told the app is not available there and cannot browse or match. Other features (account, profile, IAP, messaging, report, block) work the same inside the region.
 
 ---
 
 ## 6. Regulated industry
 
-Mulligan is a **dating/social connection app** for adults 18+. We do not provide financial, health, legal, or other regulated services. We comply with applicable consumer and privacy laws and our Privacy Policy and Child Safety/CSAE policy are linked in the app and on our backend. No additional industry-specific documentation or credentials are required.
+Dating/social connection app for adults 18+. No financial, health, or legal services. Privacy Policy and Child Safety/CSAE policy are linked in the app and on our backend.
 
 ---
 
-*End of Notes content. Remember to add your actual test account phone number (and screen recording link if applicable) before submitting.*
+*Before submitting: attach your screen recording and confirm the build includes Connect, Sober, Live, Matches, Profile, and Settings.*

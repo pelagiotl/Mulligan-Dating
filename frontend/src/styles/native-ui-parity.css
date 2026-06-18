@@ -1612,6 +1612,10 @@
     animation: none;
     opacity: 0;
   }
+
+  .connect-landing__hint-flag {
+    animation: none;
+  }
 }
 
 .connect-landing__spinner {
@@ -1636,6 +1640,28 @@
   color: rgba(251, 113, 133, 0.92);
   text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
   margin: 0;
+}
+
+@keyframes connectLandingHintFlagPulse {
+  0%,
+  100% {
+    transform: scale(1) rotate(-4deg);
+    opacity: 0.92;
+  }
+  35% {
+    transform: scale(1.14) rotate(6deg);
+    opacity: 1;
+  }
+  65% {
+    transform: scale(1.06) rotate(-2deg);
+    opacity: 0.96;
+  }
+}
+
+.connect-landing__hint-flag {
+  display: inline-block;
+  margin-right: 0.35em;
+  animation: connectLandingHintFlagPulse 2.8s ease-in-out infinite;
 }
 
 a.connect-landing__cta {

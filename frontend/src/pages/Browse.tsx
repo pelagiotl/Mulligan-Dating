@@ -232,7 +232,12 @@ function BrowseConnectLandingChrome({
             </div>
           )}
 
-          <p className="connect-landing__hint">⛳ Use a Mulligan</p>
+          <p className="connect-landing__hint">
+            <span className="connect-landing__hint-flag" aria-hidden>
+              ⛳
+            </span>
+            Use a Mulligan
+          </p>
 
           {enhancementSlot}
         </div>
