@@ -100,6 +100,9 @@ function filterInterestCompatReasons(reasons: string[]): string[] {
 import * as ImagePicker from 'expo-image-picker';
 import { Video, Audio } from 'expo-av';
 
+/** Scroll clearance above composer when the post-date reflection pill is shown. */
+const DATE_REFLECTION_PILL_CHAT_INSET = 48;
+
 interface Photo {
   id: string;
   url: string;
@@ -1951,10 +1954,23 @@ export default function MatchesScreen() {
     [typingUsers.size, selectedMatch?.stage, selectedMatch?.otherUser?.displayName, selectedMatch?.id, connectShellMode]
   );
 
-  const messagesContentStyle = useMemo(
-    () => [styles.messagesContent],
-    []
+  const showDateReflectionPill = Boolean(
+    selectedMatch && selectedMatch.stage !== 'pending',
   );
+
+  const messagesContentStyle = useMemo(
+    () => [
+      styles.messagesContent,
+      showDateReflectionPill ? { paddingTop: 4 + DATE_REFLECTION_PILL_CHAT_INSET } : null,
+    ],
+    [showDateReflectionPill],
+  );
+
+  useEffect(() => {
+    if (!showDateReflectionPill || messages.length === 0) return;
+    const t = setTimeout(() => scrollToLatestMessageRef.current(), 120);
+    return () => clearTimeout(t);
+  }, [showDateReflectionPill, messages.length]);
 
   // Initialize WebSocket connection
   useEffect(() => {
@@ -4177,8 +4193,8 @@ export default function MatchesScreen() {
           {
             opacity: chatFadeAnim,
             paddingBottom: effectiveKeyboardHeight > 0
-              ? effectiveKeyboardHeight + 72
-              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 0) + 72,
+              ? effectiveKeyboardHeight + 72 + (showDateReflectionPill ? DATE_REFLECTION_PILL_CHAT_INSET : 0)
+              : (Platform.OS === 'ios' ? 56 + Math.round(insets.bottom * 0.5) : 0) + 72 + (showDateReflectionPill ? DATE_REFLECTION_PILL_CHAT_INSET : 0),
           },
         ]}
       >

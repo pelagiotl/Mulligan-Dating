@@ -7,7 +7,11 @@ import {
   defaultDatetimeLocal,
   datetimeLocalToDate,
 } from "../utils/datetimeLocal";
-import { getCachedDateIdeas, setCachedDateIdeas } from "../utils/dateIdeasCache";
+import {
+  exclusionKeysFromIdeas,
+  getCachedDateIdeas,
+  setCachedDateIdeas,
+} from "../utils/dateIdeasCache";
 import DayTimePickerField from "./DayTimePickerField";
 
 export interface DatePlanIdea {
@@ -268,19 +272,24 @@ export default function IntentionalDatePlanner({
     if (!open) return;
     setSelectedIdea(null);
     setShowCounter(false);
-    seenLaneIdsRef.current = [];
-    seenTitlesRef.current = [];
-    seenVenueNamesRef.current = [];
     setError("");
     void fetchActivePlan();
+
     const cached = getCachedDateIdeas(matchId);
-    if (cached) {
+    if (cached && cached.ideas.length > 0) {
       setIdeas(cached.ideas);
       setMeetingLocation(cached.meetingLocation);
       setSharedInterests(cached.sharedInterests);
-      void fetchIdeas([], { silent: true });
+      const exclusions = exclusionKeysFromIdeas(cached.ideas);
+      seenLaneIdsRef.current = exclusions.laneIds;
+      seenTitlesRef.current = exclusions.titles;
+      seenVenueNamesRef.current = exclusions.venueNames;
       return;
     }
+
+    seenLaneIdsRef.current = [];
+    seenTitlesRef.current = [];
+    seenVenueNamesRef.current = [];
     void fetchIdeas();
   }, [open, matchId, fetchActivePlan, fetchIdeas]);
 

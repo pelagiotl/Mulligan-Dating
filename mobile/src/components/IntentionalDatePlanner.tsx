@@ -24,7 +24,11 @@ import {
   formatDatetimeParts,
   datetimeLocalToDate,
 } from '../utils/datetimeLocal';
-import { getCachedDateIdeas, setCachedDateIdeas } from '../utils/dateIdeasCache';
+import {
+  exclusionKeysFromIdeas,
+  getCachedDateIdeas,
+  setCachedDateIdeas,
+} from '../utils/dateIdeasCache';
 import DayTimePickerModal from './DayTimePickerModal';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { dateTimePickerTheme } from '../lib/dateTimePickerTheme';
@@ -407,21 +411,26 @@ export default function IntentionalDatePlanner({
       clearTimeout(pickerTimerRef.current);
       pickerTimerRef.current = null;
     }
-    seenLaneIdsRef.current = [];
-    seenTitlesRef.current = [];
-    seenVenueNamesRef.current = [];
     setError('');
     void fetchActivePlan();
+
     if (!isPreview) {
       const cached = getCachedDateIdeas(matchId);
-      if (cached) {
+      if (cached && cached.ideas.length > 0) {
         setIdeas(cached.ideas);
         setMeetingLocation(cached.meetingLocation);
         setSharedInterests(cached.sharedInterests);
-        void fetchIdeas([], { silent: true });
+        const exclusions = exclusionKeysFromIdeas(cached.ideas);
+        seenLaneIdsRef.current = exclusions.laneIds;
+        seenTitlesRef.current = exclusions.titles;
+        seenVenueNamesRef.current = exclusions.venueNames;
         return;
       }
     }
+
+    seenLaneIdsRef.current = [];
+    seenTitlesRef.current = [];
+    seenVenueNamesRef.current = [];
     void fetchIdeas();
   }, [visible, matchId, isPreview, fetchActivePlan, fetchIdeas]);
 
