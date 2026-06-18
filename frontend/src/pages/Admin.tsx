@@ -356,12 +356,12 @@ export default function Admin() {
       verified: {
         title: 'Verified users',
         subtitle:
-          'Profiles granted the Mulligan verification badge. Click a row to review or revoke verification.',
+          'Users granted the Mulligan verification badge (includes onboarding accounts). Click a row to review or revoke verification.',
       },
       not_verified: {
         title: 'Not verified',
         subtitle:
-          'Active users with profiles who do not have the verification badge yet. Grant verification from the user detail panel.',
+          'All registered users without the verification badge yet (includes onboarding). Grant verification from the user detail panel.',
       },
     };
     return map[key];

@@ -538,8 +538,7 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
     const verifiedUsersResult = await (db
       .prepare(
         `SELECT COUNT(*) as count FROM users u
-         INNER JOIN profiles p ON p.user_id = u.id
-         WHERE u.photo_verified_at IS NOT NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`,
+         WHERE u.photo_verified_at IS NOT NULL AND COALESCE(u.is_admin, 0) = 0`,
       )
       .get([]) as Promise<{ count: number | string }>);
     const verifiedUsers = parseAdminCount(verifiedUsersResult);
@@ -547,8 +546,7 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
     const notVerifiedUsersResult = await (db
       .prepare(
         `SELECT COUNT(*) as count FROM users u
-         INNER JOIN profiles p ON p.user_id = u.id
-         WHERE u.photo_verified_at IS NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`,
+         WHERE u.photo_verified_at IS NULL AND COALESCE(u.is_admin, 0) = 0`,
       )
       .get([]) as Promise<{ count: number | string }>);
     const notVerifiedUsers = parseAdminCount(notVerifiedUsersResult);
@@ -832,7 +830,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     }
 
     if (filter === 'verified') {
-      const baseWhere = `u.photo_verified_at IS NOT NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`;
+      const baseWhere = `u.photo_verified_at IS NOT NULL AND COALESCE(u.is_admin, 0) = 0`;
       const searchWhere = search
         ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
         : '';
@@ -842,7 +840,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
-        INNER JOIN profiles p ON p.user_id = u.id
+        LEFT JOIN profiles p ON p.user_id = u.id
         WHERE ${baseWhere}${tayaHide}${searchWhere}
         ORDER BY u.photo_verified_at DESC, u.created_at DESC
         LIMIT ? OFFSET ?
@@ -852,7 +850,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
 
       const countQuery = `
         SELECT COUNT(DISTINCT u.id) as count FROM users u
-        INNER JOIN profiles p ON p.user_id = u.id
+        LEFT JOIN profiles p ON p.user_id = u.id
         WHERE ${baseWhere}${tayaHide}${searchWhere}
       `;
       const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
@@ -878,7 +876,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     }
 
     if (filter === 'not_verified') {
-      const baseWhere = `u.photo_verified_at IS NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`;
+      const baseWhere = `u.photo_verified_at IS NULL AND COALESCE(u.is_admin, 0) = 0`;
       const searchWhere = search
         ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
         : '';
@@ -888,7 +886,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
-        INNER JOIN profiles p ON p.user_id = u.id
+        LEFT JOIN profiles p ON p.user_id = u.id
         WHERE ${baseWhere}${tayaHide}${searchWhere}
         ORDER BY u.created_at DESC
         LIMIT ? OFFSET ?
@@ -898,7 +896,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
 
       const countQuery = `
         SELECT COUNT(DISTINCT u.id) as count FROM users u
-        INNER JOIN profiles p ON p.user_id = u.id
+        LEFT JOIN profiles p ON p.user_id = u.id
         WHERE ${baseWhere}${tayaHide}${searchWhere}
       `;
       const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
