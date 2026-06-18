@@ -1386,6 +1386,8 @@ export default function MyProfileScreen() {
         const newIndex = Math.min(wasCurrentIndex, previousLength - 2);
         setCurrentPhotoIndex(newIndex >= 0 ? newIndex : 0);
       }
+    } else {
+      setShowPhotoGallery(false);
     }
 
     try {
@@ -3427,15 +3429,6 @@ export default function MyProfileScreen() {
                   maxPointers={1}
                   enabled={!isDragging || draggingPhotoId === photo.id}
                 >
-                  <TapGestureHandler
-                    onActivated={() => {
-                      setCurrentPhotoIndex(index);
-                      setShowPhotoGallery(true);
-                      if (Platform.OS === 'ios') {
-                        Vibration.vibrate(30);
-                      }
-                    }}
-                  >
                   <Animated.View
                     style={[
                       styles.photoContainer,
@@ -3443,12 +3436,24 @@ export default function MyProfileScreen() {
                       isDragging && styles.photoContainerDragging,
                     ]}
                   >
-                    <OptimizedImage
-                      source={photo.url}
-                      style={styles.photo}
-                      resizeMode="cover"
-                      showLoadingIndicator={false}
-                    />
+                    <TapGestureHandler
+                      onActivated={() => {
+                        setCurrentPhotoIndex(index);
+                        setShowPhotoGallery(true);
+                        if (Platform.OS === 'ios') {
+                          Vibration.vibrate(30);
+                        }
+                      }}
+                    >
+                      <Animated.View style={styles.photoTapTarget}>
+                        <OptimizedImage
+                          source={photo.url}
+                          style={styles.photo}
+                          resizeMode="cover"
+                          showLoadingIndicator={false}
+                        />
+                      </Animated.View>
+                    </TapGestureHandler>
                     {index === 0 && (
                       <View style={styles.primaryBadge}>
                         <Text style={styles.primaryBadgeText}>Primary</Text>
@@ -3457,6 +3462,7 @@ export default function MyProfileScreen() {
                     <TouchableOpacity
                       style={styles.deleteButton}
                       onPress={() => handleDeletePhoto(photo.id)}
+                      hitSlop={{ top: 8, right: 8, bottom: 8, left: 8 }}
                     >
                       <Text style={styles.deleteButtonText}>×</Text>
                     </TouchableOpacity>
@@ -3466,7 +3472,6 @@ export default function MyProfileScreen() {
                       </View>
                     )}
                   </Animated.View>
-                  </TapGestureHandler>
                 </PanGestureHandler>
               );
             }
@@ -3862,91 +3867,16 @@ export default function MyProfileScreen() {
         onRequestClose={() => setShowPhotoGallery(false)}
       >
         <View style={styles.photoGalleryModal}>
-          {/* Top Bar with Close, Delete, and Add buttons */}
           <View style={styles.photoGalleryTopBar}>
             <TouchableOpacity
               style={styles.photoGalleryCloseButton}
               onPress={() => setShowPhotoGallery(false)}
               activeOpacity={0.8}
+              accessibilityLabel="Close photo viewer"
+              hitSlop={{ top: 12, right: 12, bottom: 12, left: 12 }}
             >
               <Text style={styles.photoGalleryCloseText}>✕</Text>
             </TouchableOpacity>
-            
-            <View style={styles.photoGalleryActions}>
-              {/* Delete Button */}
-              {photos.length > 0 && photos[currentPhotoIndex] && (
-                <TouchableOpacity
-                  style={styles.photoGalleryDeleteButton}
-                  onPress={async () => {
-                    const photoToDelete = photos[currentPhotoIndex];
-                    if (photoToDelete) {
-                      Alert.alert(
-                        'Delete Photo',
-                        'Are you sure you want to delete this photo?',
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          {
-                            text: 'Delete',
-                            style: 'destructive',
-                            onPress: async () => {
-                              try {
-                                await handleDeletePhoto(photoToDelete.id);
-                                // If we deleted the last photo, close gallery
-                                if (photos.length === 1) {
-                                  setShowPhotoGallery(false);
-                                } else {
-                                  // Adjust index if needed
-                                  const newIndex = Math.min(currentPhotoIndex, photos.length - 2);
-                                  setCurrentPhotoIndex(newIndex >= 0 ? newIndex : 0);
-                                }
-                                // Haptic feedback
-                                if (Platform.OS === 'ios') {
-                                  Vibration.vibrate([0, 50]);
-                                } else {
-                                  Vibration.vibrate(50);
-                                }
-                              } catch (error) {
-                                console.error('Failed to delete photo:', error);
-                              }
-                            },
-                          },
-                        ]
-                      );
-                    }
-                  }}
-                  activeOpacity={0.8}
-                >
-                  <Text style={styles.photoGalleryDeleteText}>🗑️</Text>
-                </TouchableOpacity>
-              )}
-              
-              {/* Add Photo Button */}
-              {photos.length < 6 && (
-                <TouchableOpacity
-                  style={styles.photoGalleryAddButton}
-                  onPress={async () => {
-                    try {
-                      await handlePickImage(photos.length); // next empty slot shows spinner
-                      if (Platform.OS === 'ios') {
-                        Vibration.vibrate([0, 50]);
-                      } else {
-                        Vibration.vibrate(50);
-                      }
-                    } catch (error) {
-                      console.error('Failed to upload photo:', error);
-                    }
-                  }}
-                  disabled={uploadingPhotos}
-                  activeOpacity={0.8}
-                >
-                  {uploadingPhotos ? (
-                    <ActivityIndicator color="#fff" size="small" />
-                  ) : (
-                    <Text style={styles.photoGalleryAddText}>➕</Text>
-                  )}
-                </TouchableOpacity>
-              )}
-            </View>
           </View>
           
           {photos.length > 0 && (
@@ -4984,6 +4914,10 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: '#fff',
   },
+  photoTapTarget: {
+    width: '100%',
+    height: '100%',
+  },
   photoContainerDragging: {
     elevation: 20,
     shadowOpacity: 0.5,
@@ -5443,7 +5377,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     paddingHorizontal: 20,
     zIndex: 1000,
@@ -5457,38 +5391,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  photoGalleryActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  photoGalleryDeleteButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(239, 68, 68, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(239, 68, 68, 0.5)',
-  },
-  photoGalleryDeleteText: {
-    fontSize: 20,
-  },
-  photoGalleryAddButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(16, 185, 129, 0.3)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    borderColor: 'rgba(16, 185, 129, 0.5)',
-  },
-  photoGalleryAddText: {
-    fontSize: 24,
-    color: '#fff',
-    fontWeight: '600',
   },
   photoGalleryCloseText: {
     color: '#fff',
