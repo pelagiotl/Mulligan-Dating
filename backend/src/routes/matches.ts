@@ -968,6 +968,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             otherUserName: targetDisplayName?.display_name || 'Someone',
             message: `😍 New match! You and ${targetDisplayName?.display_name || 'someone'} matched — say hi in chat.`,
             stage: 'stage1',
+            connectedVia,
           });
           io.to(`user:${targetUserId}`).emit('new_match', {
             matchId,
@@ -975,6 +976,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             otherUserName: userDisplayName?.display_name || 'Someone',
             message: `😍 New match! ${userDisplayName?.display_name || 'Someone'} matched with you. Say hi!`,
             stage: 'stage1',
+            connectedVia,
           });
           console.log(`✅ Sent match notifications to both users: ${userId} and ${targetUserId}`);
         } else {
@@ -1003,7 +1005,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
             return;
           }
           if (token && token.trim() && isExpoPushToken(token)) {
-            const sent = await sendMatchPushNotification(token, matchName, matchId);
+            const sent = await sendMatchPushNotification(token, matchName, matchId, connectedVia);
             if (sent) {
               console.log(`✅ Sent match push (Expo) to ${recipientId} (${label})`);
             } else {
@@ -1018,7 +1020,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
               body: `${matchName} matched with you. Say hi!`,
               tag: `match-${matchId}`,
               url: "/matches",
-              data: { type: "new_match", matchId, matchName },
+              data: { type: "new_match", matchId, matchName, connectedVia },
             });
             if (n > 0) console.log(`✅ Sent match Web Push to ${recipientId} (${label}, ${n} sub(s))`);
           }

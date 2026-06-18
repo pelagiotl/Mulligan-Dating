@@ -145,7 +145,8 @@ export async function sendPushNotification(
 export async function sendMatchPushNotification(
   pushToken: string,
   matchName: string,
-  matchId: string
+  matchId: string,
+  connectedVia?: string,
 ): Promise<boolean> {
   if (!expo) {
     console.warn('⚠️  Expo Push Notification service not initialized. Skipping push notification.');
@@ -167,6 +168,7 @@ export async function sendMatchPushNotification(
         type: 'new_match',
         matchId,
         matchName,
+        ...(connectedVia ? { connectedVia } : {}),
       },
       badge: 1,
       priority: 'high', // High priority ensures sound plays

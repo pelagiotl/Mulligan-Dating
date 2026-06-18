@@ -22,7 +22,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useNavigation, useRoute, useFocusEffect, useIsFocused, CommonActions } from '@react-navigation/native';
 import { setPendingOpenMatchId, clearPendingOpenMatchId } from '../utils/pendingMatchOpen';
-import { initiatorMatchIdRef, connectInitiatorAtRef } from '../utils/currentMatchView';
+import { initiatorMatchIdRef, connectInitiatorAtRef, isConnectInitiatorMatch } from '../utils/currentMatchView';
+import { attemptNavigateToNewMatchCelebration, parseMatchCelebrationPool } from '../utils/matchCelebrationNavigation';
 import { navigationRef } from '../navigation/navigationRef';
 import { playMatchSound } from '../utils/sounds';
 import { io, Socket } from 'socket.io-client';
@@ -1286,14 +1287,14 @@ export default function BrowseScreen() {
         otherUserName: string;
         message: string;
         stage: string;
+        connectedVia?: string;
       }) => {
         if (matchIdFromConnectRef.current === data.matchId) return;
-        if (data.matchId && navigationRef.current?.isReady()) {
-          navigationRef.current.navigate('MainTabs' as never, {
-            screen: 'Matches',
-            params: { matchId: data.matchId, showMatchCelebration: true, matchName: data.otherUserName || 'Someone' },
-          } as never);
-        }
+        if (isConnectInitiatorMatch(data.matchId)) return;
+        attemptNavigateToNewMatchCelebration(data.matchId, {
+          matchName: data.otherUserName || 'Someone',
+          connectedVia: parseMatchCelebrationPool(data.connectedVia),
+        });
       });
 
       // In-app message notification (Alert + sound) is handled by AuthContext's dedicated socket

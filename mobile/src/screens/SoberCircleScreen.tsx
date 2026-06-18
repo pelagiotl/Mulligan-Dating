@@ -32,6 +32,11 @@ import ConnectButtonShimmerEffect, { CONNECT_SHIMMER_DURATION_MS } from '../comp
 import SmoothPulsingEmoji from '../components/SmoothPulsingEmoji';
 import type { SoberCircleStackParamList } from '../navigation/SoberCircleNavigator';
 import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
+import {
+  clearConnectInitiatorRefs,
+  connectInitiatorAtRef,
+  initiatorMatchIdRef,
+} from '../utils/currentMatchView';
 
 type BrowseProfile = {
   id: string;
@@ -358,11 +363,13 @@ export default function SoberCircleScreen() {
     }>('/matches/connect', { targetUserId: profileToConnect.userId, source: 'sober_circle' });
 
     if (result.existingMatch) {
+      clearConnectInitiatorRefs();
       openSoberChat(result.matchId);
       void refreshPoolTotal();
       return;
     }
 
+    initiatorMatchIdRef.current = result.matchId;
     setMatchId(result.matchId);
     setMatchedProfile(profileToConnect);
     setMatchedIntroVideoUrl(result.partnerIntroVideoUrl ?? null);
@@ -375,6 +382,7 @@ export default function SoberCircleScreen() {
   const handleMainAction = async () => {
     if (connecting || loadingPoolTotal) return;
 
+    connectInitiatorAtRef.current = Date.now();
     setConnecting(true);
     try {
       try {
@@ -391,12 +399,14 @@ export default function SoberCircleScreen() {
       setPoolTotal(total);
 
       if (!data.profile) {
+        clearConnectInitiatorRefs();
         setNoMatchModal({ visible: true, poolHasPeople: total > 0 });
         return;
       }
 
       await connectWithProfile(data.profile);
     } catch (err: unknown) {
+      clearConnectInitiatorRefs();
       Alert.alert('Sober Circle', err instanceof Error ? err.message : 'Could not connect');
     } finally {
       setConnecting(false);
@@ -616,6 +626,7 @@ export default function SoberCircleScreen() {
             setDatePlannerOpen(true);
           }}
           onClose={() => {
+            clearConnectInitiatorRefs();
             setShowCelebration(false);
             setMatchId(null);
             setMatchedProfile(null);

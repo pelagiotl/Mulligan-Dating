@@ -1,3 +1,5 @@
+import { requireOptionalNativeModule } from 'expo-modules-core';
+
 const MAX_EDGE = 1920;
 const JPEG_QUALITY = 0.85;
 
@@ -45,6 +47,18 @@ async function estimateUriBytes(uri: string): Promise<number | null> {
 
 let manipulatorUnavailable = false;
 
+function imageManipulatorNativeAvailable(): boolean {
+  return requireOptionalNativeModule('ExpoImageManipulator') != null;
+}
+
+function warnManipulatorUnavailable(): void {
+  if (__DEV__) {
+    console.warn(
+      'Photo compression unavailable in this build — uploading original. Rebuild the app to enable expo-image-manipulator.',
+    );
+  }
+}
+
 /**
  * Resize and compress a local image URI before upload (matches web profile photo pipeline).
  * Falls back to the original URI when the native module is not in the current build yet.
@@ -58,7 +72,11 @@ export async function compressPhotoUriForUpload(
     return passthrough(uri);
   }
 
-  if (manipulatorUnavailable) {
+  if (manipulatorUnavailable || !imageManipulatorNativeAvailable()) {
+    if (!manipulatorUnavailable) {
+      manipulatorUnavailable = true;
+      warnManipulatorUnavailable();
+    }
     return passthrough(uri);
   }
 

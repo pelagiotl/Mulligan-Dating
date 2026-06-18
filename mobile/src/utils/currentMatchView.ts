@@ -17,3 +17,19 @@ export const initiatorMatchIdRef: { current: string | null } = { current: null }
  * if it arrives before we have matchId. Cleared after celebration or after 15s.
  */
 export const connectInitiatorAtRef: { current: number | null } = { current: null };
+
+const INITIATOR_SUPPRESS_MS = 15000;
+
+/** True when this device just initiated the connect (Connect or Sober Circle). */
+export function isConnectInitiatorMatch(matchId: string): boolean {
+  return (
+    initiatorMatchIdRef.current === matchId ||
+    (connectInitiatorAtRef.current != null &&
+      Date.now() - connectInitiatorAtRef.current < INITIATOR_SUPPRESS_MS)
+  );
+}
+
+export function clearConnectInitiatorRefs(): void {
+  initiatorMatchIdRef.current = null;
+  connectInitiatorAtRef.current = null;
+}

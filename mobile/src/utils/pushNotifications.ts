@@ -9,7 +9,7 @@ import Constants from 'expo-constants';
 import { api, ApiError } from './api';
 import { safeNativeModuleCall } from './nativeModuleGuard';
 import { setStoredPushToken } from './pushTokenStore';
-import { initiatorMatchIdRef, connectInitiatorAtRef } from './currentMatchView';
+import { isConnectInitiatorMatch } from './currentMatchView';
 
 // Flag to track if notification handler has been initialized
 let notificationHandlerInitialized = false;
@@ -32,10 +32,7 @@ function initializeNotificationHandler() {
         try {
           const data = notification?.request?.content?.data as { type?: string; matchId?: string } | undefined;
           // Don't show the "matched with you" banner for User A (initiator) — they only see the celebration card
-          const isInitiatorMatch = data?.type === 'new_match' && data?.matchId && (
-            initiatorMatchIdRef.current === data.matchId ||
-            (connectInitiatorAtRef.current && Date.now() - connectInitiatorAtRef.current < 15000)
-          );
+          const isInitiatorMatch = data?.type === 'new_match' && data?.matchId && isConnectInitiatorMatch(data.matchId);
           if (isInitiatorMatch) {
             return { shouldShowAlert: false, shouldPlaySound: false, shouldSetBadge: false };
           }

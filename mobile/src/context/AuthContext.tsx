@@ -27,7 +27,11 @@ import {
   hasMobileCreateProfileDraft,
 } from '../utils/createProfileProgress';
 import { playMessageSound, playMatchSound } from '../utils/sounds';
-import { initiatorMatchIdRef, connectInitiatorAtRef } from '../utils/currentMatchView';
+import { isConnectInitiatorMatch } from '../utils/currentMatchView';
+import {
+  attemptNavigateToNewMatchCelebration,
+  parseMatchCelebrationPool,
+} from '../utils/matchCelebrationNavigation';
 import { setPendingGameRequest } from '../utils/pendingGameRequest';
 import { currentMatchIdRef } from '../utils/currentMatchView';
 import Purchases from 'react-native-purchases';
@@ -484,35 +488,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           matchName: data.matchName,
         });
         const isInitiatorMatch =
-          !!data?.matchId &&
-          (initiatorMatchIdRef.current === data.matchId ||
-            (connectInitiatorAtRef.current != null &&
-              Date.now() - connectInitiatorAtRef.current < 15000));
+          !!data?.matchId && isConnectInitiatorMatch(data.matchId);
         if (!isInitiatorMatch) {
           playMatchSound().catch(() => {});
         }
-        if (data?.matchId) {
-          const attemptNavigation = (attemptNumber: number = 0) => {
-            const maxAttempts = 10;
-            if (navigationRef.current?.isReady()) {
-              try {
-                navigationRef.current.navigate('MainTabs', {
-                  screen: 'Matches',
-                  params: {
-                    matchId: data.matchId,
-                    showMatchCelebration: true,
-                    matchName: data.matchName || 'Someone',
-                  },
-                });
-                console.log('✅ Navigated to match celebration');
-              } catch (error) {
-                console.error('❌ Error navigating to match:', error);
-              }
-            } else if (attemptNumber < maxAttempts) {
-              setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
-            }
-          };
-          attemptNavigation();
+        if (data?.matchId && !isInitiatorMatch) {
+          attemptNavigateToNewMatchCelebration(data.matchId, {
+            matchName: data.matchName || 'Someone',
+            connectedVia: parseMatchCelebrationPool(data.connectedVia),
+          });
         }
       }
     });
@@ -556,27 +540,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // If it's a new match, navigate to that match and show MatchCelebration for User B
       if (data?.type === 'new_match' && data?.matchId) {
         console.log('🎉 Navigating to match from notification tap:', data.matchId);
-        const attemptNavigation = (attemptNumber: number = 0) => {
-          const maxAttempts = 10;
-          if (navigationRef.current?.isReady()) {
-            try {
-              navigationRef.current.navigate('MainTabs', {
-                screen: 'Matches',
-                params: {
-                  matchId: data.matchId,
-                  showMatchCelebration: true,
-                  matchName: data.matchName || 'Someone',
-                },
-              });
-              console.log('✅ Navigated to match from notification tap');
-            } catch (error) {
-              console.error('❌ Error navigating to match:', error);
-            }
-          } else if (attemptNumber < maxAttempts) {
-            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
-          }
-        };
-        attemptNavigation();
+        attemptNavigateToNewMatchCelebration(data.matchId, {
+          matchName: data.matchName || 'Someone',
+          connectedVia: parseMatchCelebrationPool(data.connectedVia),
+        });
       }
 
       // If it's a message liked notification, navigate to that match
@@ -732,14 +699,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
               params: { matchId: data.matchId },
             } as never);
           } else if (data?.type === 'new_match' && data?.matchId) {
-            navigationRef.current.navigate('MainTabs' as never, {
-              screen: 'Matches',
-              params: {
-                matchId: data.matchId,
-                showMatchCelebration: true,
-                matchName: data.matchName || 'Someone',
-              },
-            } as never);
+            attemptNavigateToNewMatchCelebration(data.matchId, {
+              matchName: data.matchName || 'Someone',
+              connectedVia: parseMatchCelebrationPool(data.connectedVia),
+            });
           } else if (data?.type === 'game_request' && data?.matchId && data?.requestId) {
             setPendingGameRequest({
               requestId: data.requestId,

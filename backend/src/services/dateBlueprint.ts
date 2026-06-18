@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { Client } from '@googlemaps/google-maps-services-js';
 import { geocodeLocation } from '../utils/geocoding.js';
 import { getCuratedSouthernOregonVenues } from '../data/southernOregonCuratedVenues.js';
+import { lookupSouthernOregonCityCoordinates } from '../config/regions.js';
 
 export interface DatePlan {
   id: string;
@@ -684,6 +685,7 @@ const KNOWN_VENUE_CITY_SUFFIX: Array<{ pattern: RegExp; citySuffix: string }> = 
   { pattern: /\brogue creamery\b/i, citySuffix: 'Central Point, OR' },
   { pattern: /\bbear creek park\b/i, citySuffix: 'Medford, OR' },
   { pattern: /\bbear creek golf\b/i, citySuffix: 'Medford, OR' },
+  { pattern: /\bwilliams\s+(grange\s+)?farmers?\s*market\b/i, citySuffix: 'Williams, OR' },
 ];
 
 const ROGUE_VALLEY_CITY_SUFFIXES: Array<{ pattern: RegExp; citySuffix: string }> = [
@@ -698,20 +700,34 @@ const ROGUE_VALLEY_CITY_SUFFIXES: Array<{ pattern: RegExp; citySuffix: string }>
   { pattern: /\brogue river\b/i, citySuffix: 'Rogue River, OR' },
   { pattern: /\bgold hill\b/i, citySuffix: 'Gold Hill, OR' },
   { pattern: /\bklamath falls\b/i, citySuffix: 'Klamath Falls, OR' },
+  { pattern: /\bwilliams\b/i, citySuffix: 'Williams, OR' },
+  { pattern: /\bwimer\b/i, citySuffix: 'Wimer, OR' },
+  { pattern: /\bapplegate\b/i, citySuffix: 'Applegate, OR' },
+  { pattern: /\beagle point\b/i, citySuffix: 'Eagle Point, OR' },
 ];
 
-function resolveVenueCitySuffix(venue: VenueSearchResult, meetingLocation: string): string {
-  const haystack = `${venue.name} ${venue.address}`.toLowerCase();
+function titleCaseCityToken(city: string): string {
+  return city
+    .split(/\s+/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
 
+function resolveCitySuffixFromBareCityToken(token: string): string | null {
+  const trimmed = token.trim();
+  if (!trimmed || trimmed.includes(',')) return null;
+  if (!lookupSouthernOregonCityCoordinates(`${trimmed}, OR`)) return null;
+  return `${titleCaseCityToken(trimmed)}, OR`;
+}
+
+function resolveVenueCitySuffix(venue: VenueSearchResult, meetingLocation: string): string {
   for (const entry of KNOWN_VENUE_CITY_SUFFIX) {
     if (entry.pattern.test(venue.name)) return entry.citySuffix;
   }
 
-  for (const entry of ROGUE_VALLEY_CITY_SUFFIXES) {
-    if (entry.pattern.test(haystack)) return entry.citySuffix;
-  }
-
   const address = venue.address?.trim() ?? '';
+  // Parse structured addresses before loose haystack matching so "Williams Ave, Medford, OR"
+  // resolves to Medford rather than the town of Williams.
   if (address.includes(',')) {
     const parts = address.split(',').map((part) => part.trim()).filter(Boolean);
     if (parts.length >= 3) {
@@ -722,6 +738,14 @@ function resolveVenueCitySuffix(venue: VenueSearchResult, meetingLocation: strin
     if (parts.length === 2 && /^(or|oregon)$/i.test(parts[1])) {
       return `${parts[0]}, OR`;
     }
+  } else if (address) {
+    const bareCity = resolveCitySuffixFromBareCityToken(address);
+    if (bareCity) return bareCity;
+  }
+
+  const haystack = `${venue.name} ${venue.address}`.toLowerCase();
+  for (const entry of ROGUE_VALLEY_CITY_SUFFIXES) {
+    if (entry.pattern.test(haystack)) return entry.citySuffix;
   }
 
   return formatVenueCitySuffix(meetingLocation);
@@ -738,6 +762,9 @@ export function formatVenueDisplayAddress(
   const haystack = address.toLowerCase();
   const cityToken = citySuffix.split(',')[0]?.trim().toLowerCase() ?? '';
   if (cityToken && haystack.includes(cityToken)) {
+    if (haystack === cityToken && citySuffix.includes(',')) {
+      return citySuffix;
+    }
     return address || citySuffix;
   }
   if (regionIncludesState(haystack, citySuffix)) {

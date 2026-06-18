@@ -92,7 +92,7 @@ if (typeof ErrorUtils !== 'undefined') {
       error.message?.includes('Audio');
     
     // For native module errors that are non-critical, log but don't crash
-    if (isNativeModuleError && (isNonCriticalError || !isFatal)) {
+    if (isNativeModuleError && (isNonCriticalError || !isFatal || /ExpoImageManipulator/i.test(msg))) {
       console.warn('⚠️ Native module error caught (non-critical), preventing crash:', {
         message: error.message,
         name: error.name,
