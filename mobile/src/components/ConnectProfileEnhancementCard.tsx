@@ -61,7 +61,7 @@ export function ConnectProfileEnhancementRestoreLink({
         end={{ x: 1, y: 0 }}
         style={styles.accent}
       />
-      <SmoothPulsingEmoji emoji="✨" fontSize={16} />
+      <SmoothPulsingEmoji emoji="✨" fontSize={16} variant="prominent" />
       <View style={styles.restoreCopy}>
         <Text style={[styles.restoreTitle, { color: palette.eyebrow }]}>Show Better matches tips</Text>
         <Text style={[styles.restoreMeta, { color: palette.lead }]}>

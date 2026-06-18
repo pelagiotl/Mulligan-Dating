@@ -16,6 +16,7 @@ type Props = {
   delay?: number;
   peakScale?: number;
   cycleMs?: number;
+  variant?: 'default' | 'emoji' | 'prominent';
   containerStyle?: StyleProp<ViewStyle>;
   style?: StyleProp<TextStyle>;
 };
@@ -30,11 +31,12 @@ export default function SmoothPulsingEmoji({
   delay = 0,
   peakScale,
   cycleMs,
+  variant = 'emoji',
   containerStyle,
   style,
 }: Props) {
-  const { scale, motionEnabled } = useSmoothBreathePulse({
-    variant: 'emoji',
+  const { scale, opacity, motionEnabled } = useSmoothBreathePulse({
+    variant,
     delay,
     peakScale,
     cycleMs,
@@ -50,10 +52,11 @@ export default function SmoothPulsingEmoji({
     style,
   ];
 
+  const TextComponent = opacity ? Animated.Text : Text;
   const content = (
-    <Text style={textStyle} allowFontScaling={false}>
+    <TextComponent style={[textStyle, opacity ? { opacity } : null]} allowFontScaling={false}>
       {emoji}
-    </Text>
+    </TextComponent>
   );
 
   if (!motionEnabled) {

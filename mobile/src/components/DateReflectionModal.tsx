@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Modal,
   View,
@@ -10,6 +10,8 @@ import {
   ActivityIndicator,
   Alert,
   Platform,
+  Animated,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -31,6 +33,150 @@ const CHOICES: { id: SecondDateChoice; label: string; emoji: string }[] = [
   { id: 'no', label: 'No', emoji: '🙏' },
 ];
 
+type ModalPhase = 'form' | 'saved' | 'mutual_match';
+
+function ReflectionSavedCard({
+  partnerName,
+  wantsAnotherDate,
+  onDone,
+}: {
+  partnerName: string;
+  wantsAnotherDate: boolean;
+  onDone: () => void;
+}) {
+  const cardScale = useRef(new Animated.Value(0.94)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const partnerFirst = partnerName.split(' ')[0] || partnerName;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(cardScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [cardOpacity, cardScale]);
+
+  return (
+    <View style={successStyles.wrap}>
+      <LinearGradient
+        colors={['#eef2ff', '#f5f3ff', '#fdf2f8']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Animated.View style={[successStyles.card, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}>
+        <LinearGradient
+          colors={['#667eea', '#a855f7', '#f093fb']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={successStyles.accent}
+        />
+        <View style={successStyles.iconRing}>
+          <LinearGradient colors={['#667eea', '#764ba2', '#f093fb']} style={successStyles.iconGrad}>
+            <Text style={successStyles.iconEmoji}>🔒</Text>
+          </LinearGradient>
+        </View>
+        <Text style={successStyles.title}>Reflection saved</Text>
+        <Text style={successStyles.lead}>
+          Your notes are private — only you can see them right now.
+        </Text>
+        {wantsAnotherDate ? (
+          <View style={successStyles.noteCard}>
+            <Text style={successStyles.noteEmoji}>💫</Text>
+            <Text style={successStyles.noteText}>
+              If {partnerFirst} also wants another date, you'll each be able to see what the other shared.
+            </Text>
+          </View>
+        ) : (
+          <View style={successStyles.noteCard}>
+            <Text style={successStyles.noteEmoji}>🤍</Text>
+            <Text style={successStyles.noteText}>
+              Your reflection stays with you — {partnerFirst} won't see your notes.
+            </Text>
+          </View>
+        )}
+        <TouchableOpacity style={successStyles.doneBtn} onPress={onDone} activeOpacity={0.88}>
+          <LinearGradient colors={['#667eea', '#764ba2', '#a855f7']} style={successStyles.doneGrad}>
+            <Text style={successStyles.doneText}>Done</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+}
+
+function MutualSecondDateCard({
+  partnerName,
+  onDone,
+}: {
+  partnerName: string;
+  onDone: () => void;
+}) {
+  const cardScale = useRef(new Animated.Value(0.94)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const partnerFirst = partnerName.split(' ')[0] || partnerName;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.spring(cardScale, {
+        toValue: 1,
+        friction: 7,
+        tension: 90,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardOpacity, {
+        toValue: 1,
+        duration: 360,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [cardOpacity, cardScale]);
+
+  return (
+    <View style={successStyles.wrap}>
+      <LinearGradient
+        colors={['#fff1f2', '#fdf2f8', '#ede9fe']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
+      <Animated.View style={[successStyles.card, successStyles.cardMutual, { opacity: cardOpacity, transform: [{ scale: cardScale }] }]}>
+        <LinearGradient
+          colors={['#f5576c', '#f093fb', '#667eea']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={successStyles.accent}
+        />
+        <View style={successStyles.iconRing}>
+          <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} style={successStyles.iconGrad}>
+            <Text style={successStyles.iconEmoji}>❤️</Text>
+          </LinearGradient>
+        </View>
+        <Text style={successStyles.title}>Great news!</Text>
+        <Text style={successStyles.lead}>
+          {partnerFirst} also wants a second date. You can each see what the other shared in their reflection.
+        </Text>
+        <Text style={successStyles.subLead}>Ready to plan the next one?</Text>
+        <TouchableOpacity style={successStyles.doneBtn} onPress={onDone} activeOpacity={0.88}>
+          <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} style={successStyles.doneGrad}>
+            <Text style={successStyles.doneText}>Let's go</Text>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
+    </View>
+  );
+}
+
 export default function DateReflectionModal({
   visible,
   matchId,
@@ -44,9 +190,14 @@ export default function DateReflectionModal({
   const [extraNotes, setExtraNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [phase, setPhase] = useState<ModalPhase>('form');
 
   useEffect(() => {
-    if (!visible || !matchId) return;
+    if (!visible) {
+      setPhase('form');
+      return;
+    }
+    if (!matchId) return;
     setLoading(true);
     api
       .get<{ mine: { wentWell: string; secondDateInterest: SecondDateChoice; extraNotes?: string } | null }>(
@@ -83,24 +234,37 @@ export default function DateReflectionModal({
       });
       onSubmitted?.(!!result.mutualSecondDate);
       if (result.mutualSecondDate) {
-        Alert.alert(
-          'Great news! ❤️',
-          `${partnerName} also wants a second date. Ready to plan the next one?`,
-        );
+        setPhase('mutual_match');
       } else {
-        Alert.alert('Saved', 'Your reflection is private — only you can see it.');
+        setPhase('saved');
       }
-      onClose();
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not save reflection');
     } finally {
       setSubmitting(false);
     }
-  }, [wentWell, secondDate, extraNotes, matchId, partnerName, onClose, onSubmitted]);
+  }, [wentWell, secondDate, extraNotes, matchId, onSubmitted]);
+
+  const handleDone = useCallback(() => {
+    setPhase('form');
+    onClose();
+  }, [onClose]);
+
+  const wantsAnotherDate = secondDate === 'yes' || secondDate === 'maybe';
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={phase === 'form' ? onClose : handleDone}>
       <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+        {phase === 'saved' ? (
+          <ReflectionSavedCard
+            partnerName={partnerName}
+            wantsAnotherDate={wantsAnotherDate}
+            onDone={handleDone}
+          />
+        ) : phase === 'mutual_match' ? (
+          <MutualSecondDateCard partnerName={partnerName} onDone={handleDone} />
+        ) : (
+          <>
         <LinearGradient colors={['#667eea', '#764ba2', '#a855f7']} style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
             <Text style={styles.closeText}>✕</Text>
@@ -156,8 +320,8 @@ export default function DateReflectionModal({
             />
 
             <Text style={styles.privacy}>
-              Only you see your answers. If you both pick Yes or Maybe, we'll let you both know — nothing
-              else is shared.
+              Only you see your answers for now. If you both pick Yes or Maybe for another date, you'll each
+              be able to read what the other shared.
             </Text>
 
             <TouchableOpacity style={styles.submitBtn} onPress={submit} disabled={submitting}>
@@ -170,6 +334,8 @@ export default function DateReflectionModal({
               </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
+        )}
+          </>
         )}
       </View>
     </Modal>
@@ -243,4 +409,132 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   submitText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+});
+
+const successStyles = StyleSheet.create({
+  wrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: 'rgba(255, 255, 255, 0.96)',
+    borderRadius: 24,
+    paddingHorizontal: 24,
+    paddingTop: 28,
+    paddingBottom: 24,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.18)',
+    overflow: 'hidden',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#667eea',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.18,
+        shadowRadius: 24,
+      },
+      android: { elevation: 8 },
+      default: {},
+    }),
+  },
+  cardMutual: {
+    borderColor: 'rgba(245, 87, 108, 0.22)',
+    ...Platform.select({
+      ios: { shadowColor: '#f5576c' },
+      default: {},
+    }),
+  },
+  accent: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 4,
+  },
+  iconRing: {
+    marginBottom: 16,
+    borderRadius: 999,
+    padding: 3,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    ...Platform.select({
+      ios: {
+        shadowColor: '#764ba2',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
+      },
+      android: { elevation: 4 },
+      default: {},
+    }),
+  },
+  iconGrad: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconEmoji: { fontSize: 34 },
+  title: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: '#1e1b4b',
+    textAlign: 'center',
+    marginBottom: 10,
+    letterSpacing: -0.3,
+  },
+  lead: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: '#475569',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  subLead: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+    fontWeight: '600',
+  },
+  noteCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 10,
+    width: '100%',
+    backgroundColor: 'rgba(102, 126, 234, 0.08)',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 22,
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.14)',
+  },
+  noteEmoji: { fontSize: 18, marginTop: 1 },
+  noteText: {
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 19,
+    color: '#5b21b6',
+    fontWeight: '600',
+  },
+  doneBtn: {
+    width: '100%',
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  doneGrad: {
+    paddingVertical: Platform.OS === 'ios' ? 15 : 13,
+    alignItems: 'center',
+  },
+  doneText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
 });

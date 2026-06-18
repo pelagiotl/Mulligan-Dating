@@ -45,8 +45,6 @@ const SO = (n: number) => (Platform.OS === 'android' ? 0 : n);
 const USE_SETTINGS_ENTRANCE_FADE = false;
 const SettingsSectionShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
   USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
-const SettingsStatCardShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
-  USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
 const SettingsHeaderShell: React.ComponentType<{ style?: object; children: React.ReactNode }> =
   USE_SETTINGS_ENTRANCE_FADE ? Animated.View : View;
 
@@ -67,20 +65,6 @@ function settingsSectionEntranceStyle(
         }),
       },
     ],
-  };
-}
-
-function settingsStatCardShellStyle(
-  index: number,
-  statCardAnimations: Animated.Value[],
-  statCardFallbackAnim: Animated.Value
-) {
-  if (!USE_SETTINGS_ENTRANCE_FADE) {
-    return styles.statCardShellAndroid;
-  }
-  return {
-    flex: 1,
-    transform: [{ scale: statCardAnimations[index] ?? statCardFallbackAnim }],
   };
 }
 
@@ -315,9 +299,7 @@ export default function SettingsScreen() {
   const headerOpacity = useRef(new Animated.Value(USE_SETTINGS_ENTRANCE_FADE ? 0 : 1)).current;
   const headerIconRotate = useRef(new Animated.Value(0)).current;
   const sectionAnimations = useRef<Animated.Value[]>([]).current;
-  const statCardAnimations = useRef<Animated.Value[]>([]).current;
   const sectionFallbackAnim = useRef(new Animated.Value(1)).current;
-  const statCardFallbackAnim = useRef(new Animated.Value(1)).current;
   const gradientPos = useRef(new Animated.Value(0)).current;
   const settingsFetchGen = useRef(0);
   const headerIconLoopRef = useRef<Animated.CompositeAnimation | null>(null);
@@ -382,18 +364,6 @@ export default function SettingsScreen() {
       }
     }
 
-    for (let i = 0; i < 2; i++) {
-      statCardAnimations[i] = new Animated.Value(USE_SETTINGS_ENTRANCE_FADE ? 0 : 1);
-      if (USE_SETTINGS_ENTRANCE_FADE) {
-        Animated.spring(statCardAnimations[i], {
-          toValue: 1,
-          tension: 50,
-          friction: 7,
-          delay: 200 + i * 100,
-          useNativeDriver: true,
-        }).start();
-      }
-    }
   }, [user]);
 
   // Re-assert full opacity when returning to Settings (guards against stuck entrance values).
@@ -404,10 +374,7 @@ export default function SettingsScreen() {
     for (let i = 0; i < 10; i++) {
       if (sectionAnimations[i]) sectionAnimations[i].setValue(1);
     }
-    for (let i = 0; i < 2; i++) {
-      if (statCardAnimations[i]) statCardAnimations[i].setValue(1);
-    }
-  }, [isFocused, user, headerOpacity, headerScale, sectionAnimations, statCardAnimations]);
+  }, [isFocused, user, headerOpacity, headerScale, sectionAnimations]);
 
   // Continuous header loops — pause when Settings tab is in background (gradient uses JS driver)
   useEffect(() => {
@@ -997,69 +964,6 @@ export default function SettingsScreen() {
           <Text style={styles.sectionTitle}>Account</Text>
         </View>
 
-        {/* Account Stats Cards */}
-        <View style={styles.statsRow}>
-          <SettingsStatCardShell style={settingsStatCardShellStyle(0, statCardAnimations, statCardFallbackAnim)}>
-            <LinearGradient
-              colors={
-                Platform.OS === 'android'
-                  ? ['#fb7185', '#f472b6', '#a78bfa']
-                  : ['#667eea', '#764ba2']
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.statCard, Platform.OS === 'android' && styles.statCardAndroid]}
-            >
-              <ProfileCardAnimatedEmoji
-                emoji="🎉"
-                variant="celebrate"
-                fontSize={32}
-                delay={0}
-                containerStyle={styles.statEmojiWrap}
-              />
-              <Text style={styles.statLabel}>Member Since</Text>
-              <Text style={styles.statValue}>
-                {settings?.createdAt
-                  ? new Date(settings.createdAt).toLocaleDateString('en-US', {
-                      month: 'short',
-                      year: 'numeric',
-                    })
-                  : 'N/A'}
-              </Text>
-            </LinearGradient>
-          </SettingsStatCardShell>
-
-          <SettingsStatCardShell style={settingsStatCardShellStyle(1, statCardAnimations, statCardFallbackAnim)}>
-            <LinearGradient
-              colors={
-                Platform.OS === 'android'
-                  ? ['#f472b6', '#fb7185', '#ef4444']
-                  : ['#f093fb', '#f5576c']
-              }
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[styles.statCard, Platform.OS === 'android' && styles.statCardAndroid]}
-            >
-              <ProfileCardAnimatedEmoji
-                emoji="🟢"
-                variant="pulse"
-                fontSize={32}
-                delay={200}
-                containerStyle={styles.statEmojiWrap}
-              />
-              <Text style={styles.statLabel}>Last Active</Text>
-              <Text style={styles.statValue}>
-                {settings?.lastActiveAt
-                  ? new Date(settings.lastActiveAt).toLocaleDateString('en-US', {
-                      month: 'short',
-                      day: 'numeric',
-                    })
-                  : 'Just now'}
-              </Text>
-            </LinearGradient>
-          </SettingsStatCardShell>
-        </View>
-
         <View style={styles.pushNotificationsRowWrap}>
           <TouchableOpacity
             style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
@@ -1187,40 +1091,6 @@ export default function SettingsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.pushNotificationsRowWrap}>
-          <TouchableOpacity
-            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
-            onPress={() => (navigation as any).navigate('MyProfile')}
-            activeOpacity={0.8}
-          >
-            <ProfileCardAnimatedEmoji
-              emoji="📍"
-              variant="bob"
-              fontSize={22}
-              delay={200}
-              containerStyle={styles.pushNotificationsRowIconWrap}
-            />
-            <Text style={styles.pushNotificationsRowText}>Location, bio & preferences (Profile tab)</Text>
-            <Text style={styles.pushNotificationsRowChevron}>›</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.pushNotificationsRowWrap}>
-          <TouchableOpacity
-            style={[styles.pushNotificationsRow, settingsInnerPanelStyle]}
-            onPress={() => (navigation as any).navigate('MyProfile', { scrollToPhotos: true })}
-            activeOpacity={0.8}
-          >
-            <ProfileCardAnimatedEmoji
-              emoji="📷"
-              variant="peek"
-              fontSize={22}
-              delay={300}
-              containerStyle={styles.pushNotificationsRowIconWrap}
-            />
-            <Text style={styles.pushNotificationsRowText}>Photos (need 3 to Connect)</Text>
-            <Text style={styles.pushNotificationsRowChevron}>›</Text>
-          </TouchableOpacity>
-        </View>
         </AndroidSettingsBrightCard>
       </SettingsSectionOuter>
 
@@ -1870,10 +1740,6 @@ const styles = StyleSheet.create({
   sectionEmojiWrap: {
     marginRight: 12,
   },
-  statEmojiWrap: {
-    marginBottom: 8,
-    alignItems: 'center',
-  },
   bannerTextRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1941,52 +1807,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-  },
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    alignItems: 'stretch',
-  },
-  statCardShellAndroid: {
-    flex: 1,
-    minWidth: 0,
-    alignSelf: 'stretch',
-  },
-  statCard: {
-    flex: 1,
-    borderRadius: 24,
-    padding: 24,
-    alignItems: 'center',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: SO(0.4),
-    shadowRadius: 20,
-    elevation: E(12),
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-  },
-  statCardAndroid: {
-    width: '100%',
-    minHeight: 148,
-    flex: undefined,
-  },
-  statEmoji: {
-    fontSize: 32,
-    marginBottom: 8,
-  },
-  statLabel: {
-    fontSize: 11,
-    color: 'rgba(255, 255, 255, 0.9)',
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-    marginBottom: 6,
-  },
-  statValue: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: '#fff',
-    textAlign: 'center',
   },
   tokensCard: {
     borderRadius: 24,
@@ -2632,35 +2452,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     fontSize: 16,
     color: '#666',
-  },
-  preferencesCard: {
-    borderRadius: 24,
-    padding: 24,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
-    shadowColor: '#667eea',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: SO(0.2),
-    shadowRadius: 20,
-    elevation: E(10),
-    overflow: 'hidden',
-  },
-  preferencesCardTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#fff',
-    marginBottom: 8,
-    letterSpacing: -0.3,
-  },
-  preferencesCardDescriptionWrap: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  preferencesCardDescription: {
-    fontSize: 15,
-    color: 'rgba(255, 255, 255, 0.9)',
-    lineHeight: 22,
-    fontWeight: '500',
   },
   sliderContainer: {
     marginTop: 8,

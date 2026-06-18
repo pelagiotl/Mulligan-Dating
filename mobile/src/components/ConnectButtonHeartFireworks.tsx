@@ -16,15 +16,14 @@ type HeartSpec = {
   endRotation: string;
 };
 
+/** Arcing particles (💝 ✨ 🎯) that fall onto the Connect CTA from above — two of each, evenly spaced. */
 const SHOOTING_HEARTS: HeartSpec[] = [
-  { emoji: '💕', left: '6%', delay: 0, duration: 2200, startY: -36, endY: 34, driftX: 14, size: 15, startRotation: '-18deg', endRotation: '8deg' },
-  { emoji: '💖', left: '22%', delay: 280, duration: 2400, startY: -42, endY: 30, driftX: -10, size: 17, startRotation: '12deg', endRotation: '-6deg' },
-  { emoji: '✨', left: '38%', delay: 520, duration: 2000, startY: -38, endY: 36, driftX: 6, size: 14, startRotation: '0deg', endRotation: '0deg' },
-  { emoji: '💝', left: '54%', delay: 120, duration: 2600, startY: -44, endY: 32, driftX: -14, size: 16, startRotation: '-8deg', endRotation: '14deg' },
-  { emoji: '💗', left: '70%', delay: 640, duration: 2300, startY: -40, endY: 35, driftX: 10, size: 15, startRotation: '16deg', endRotation: '-10deg' },
-  { emoji: '💕', left: '86%', delay: 400, duration: 2100, startY: -34, endY: 38, driftX: -8, size: 14, startRotation: '-12deg', endRotation: '6deg' },
-  { emoji: '✨', left: '48%', delay: 900, duration: 1800, startY: -48, endY: 28, driftX: 0, size: 13, startRotation: '0deg', endRotation: '0deg' },
-  { emoji: '💖', left: '14%', delay: 1100, duration: 2500, startY: -46, endY: 40, driftX: 18, size: 16, startRotation: '20deg', endRotation: '-12deg' },
+  { emoji: '💝', left: '10%', delay: 0, duration: 2200, startY: -36, endY: 34, driftX: 12, size: 15, startRotation: '-12deg', endRotation: '8deg' },
+  { emoji: '🎯', left: '26%', delay: 320, duration: 2350, startY: -42, endY: 32, driftX: -8, size: 16, startRotation: '10deg', endRotation: '-6deg' },
+  { emoji: '✨', left: '42%', delay: 640, duration: 2100, startY: -40, endY: 36, driftX: 5, size: 14, startRotation: '0deg', endRotation: '0deg' },
+  { emoji: '💝', left: '58%', delay: 180, duration: 2500, startY: -44, endY: 30, driftX: -12, size: 15, startRotation: '-8deg', endRotation: '12deg' },
+  { emoji: '🎯', left: '74%', delay: 480, duration: 2200, startY: -38, endY: 35, driftX: 10, size: 16, startRotation: '14deg', endRotation: '-8deg' },
+  { emoji: '✨', left: '90%', delay: 800, duration: 2000, startY: -46, endY: 28, driftX: -6, size: 13, startRotation: '0deg', endRotation: '0deg' },
 ];
 
 type BurstSpec = {
@@ -36,13 +35,11 @@ type BurstSpec = {
   size: number;
 };
 
-/** Small hearts that pop outward from the button surface like tiny fireworks. */
+/** Mini bursts from the button surface — one of each emoji type. */
 const BURST_HEARTS: BurstSpec[] = [
-  { emoji: '💕', delay: 0, duration: 1400, offsetX: -42, offsetY: -8, size: 12 },
-  { emoji: '💖', delay: 450, duration: 1500, offsetX: 38, offsetY: -12, size: 13 },
-  { emoji: '✨', delay: 900, duration: 1200, offsetX: -28, offsetY: 14, size: 11 },
-  { emoji: '💗', delay: 1350, duration: 1400, offsetX: 44, offsetY: 10, size: 12 },
-  { emoji: '💝', delay: 1800, duration: 1300, offsetX: 0, offsetY: -16, size: 13 },
+  { emoji: '💝', delay: 0, duration: 1400, offsetX: -38, offsetY: -10, size: 12 },
+  { emoji: '🎯', delay: 500, duration: 1500, offsetX: 36, offsetY: -8, size: 13 },
+  { emoji: '✨', delay: 1000, duration: 1300, offsetX: 0, offsetY: 12, size: 11 },
 ];
 
 function ShootingHeart({ spec }: { spec: HeartSpec }) {
@@ -204,7 +201,7 @@ type ConnectButtonHeartFireworksProps = {
   active?: boolean;
 };
 
-/** Shooting-star hearts that arc onto the Connect CTA from above. */
+/** Arcing particles (💝 ✨ 🎯) that fall onto the Connect CTA from above. */
 export default function ConnectButtonHeartFireworks({ active = true }: ConnectButtonHeartFireworksProps) {
   if (!active) return null;
 

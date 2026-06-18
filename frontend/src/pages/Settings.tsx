@@ -524,39 +524,11 @@ export default function Settings() {
           </div>
         </SettingsSectionCard>
 
-        {/* Account — layout aligned with mobile Settings (stats + profile shortcuts) */}
+        {/* Account — layout aligned with mobile Settings */}
         <SettingsSectionCard variant="account" delay={280}>
           <h2 className="settings-section-title">
             <span>👤</span> Account
           </h2>
-          {settings && (
-            <div className="settings-stats-row">
-              <div className="settings-stat-card settings-stat-card--member">
-                <span className="settings-stat-emoji">🎉</span>
-                <span className="settings-stat-label">Member Since</span>
-                <span className="settings-stat-value">
-                  {settings.createdAt
-                    ? new Date(settings.createdAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        year: "numeric",
-                      })
-                    : "—"}
-                </span>
-              </div>
-              <div className="settings-stat-card settings-stat-card--active">
-                <span className="settings-stat-emoji">🟢</span>
-                <span className="settings-stat-label">Last Active</span>
-                <span className="settings-stat-value">
-                  {settings.lastActiveAt
-                    ? new Date(settings.lastActiveAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })
-                    : "Just now"}
-                </span>
-              </div>
-            </div>
-          )}
 
           <div className="settings-active-toggle-row">
             <div>

@@ -6,7 +6,7 @@ export type SmoothBreatheOptions = {
   peakScale?: number;
   delay?: number;
   /** Landing emojis: slower cycle + slightly softer cosine curve. */
-  variant?: 'default' | 'emoji';
+  variant?: 'default' | 'emoji' | 'prominent';
 };
 
 /** Go to Profile CTA — full inhale + exhale. */
@@ -16,6 +16,10 @@ export const SMOOTH_BREATHE_PEAK_SCALE = 1.035;
 /** Connect landing ✨🎯💝 — slower reads calmer on Android. */
 export const EMOJI_BREATHE_CYCLE_MS = 6600;
 export const EMOJI_BREATHE_PEAK_SCALE = 1.04;
+
+/** Better matches restore sparkle — matches web connectEnhancementIconPulse. */
+export const PROMINENT_EMOJI_BREATHE_CYCLE_MS = 2800;
+export const PROMINENT_EMOJI_BREATHE_PEAK_SCALE = 1.14;
 
 const COSINE_STEPS = 16;
 
@@ -43,9 +47,19 @@ export function useSmoothBreathePulse({
   variant = 'default',
 }: SmoothBreatheOptions = {}) {
   const resolvedCycle =
-    cycleMs ?? (variant === 'emoji' ? EMOJI_BREATHE_CYCLE_MS : SMOOTH_BREATHE_CYCLE_MS);
+    cycleMs ??
+    (variant === 'prominent'
+      ? PROMINENT_EMOJI_BREATHE_CYCLE_MS
+      : variant === 'emoji'
+        ? EMOJI_BREATHE_CYCLE_MS
+        : SMOOTH_BREATHE_CYCLE_MS);
   const resolvedPeak =
-    peakScale ?? (variant === 'emoji' ? EMOJI_BREATHE_PEAK_SCALE : SMOOTH_BREATHE_PEAK_SCALE);
+    peakScale ??
+    (variant === 'prominent'
+      ? PROMINENT_EMOJI_BREATHE_PEAK_SCALE
+      : variant === 'emoji'
+        ? EMOJI_BREATHE_PEAK_SCALE
+        : SMOOTH_BREATHE_PEAK_SCALE);
 
   const phase = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
@@ -89,5 +103,14 @@ export function useSmoothBreathePulse({
     extrapolate: 'clamp',
   });
 
-  return { scale, reduceMotion, motionEnabled: !reduceMotion };
+  const opacity =
+    variant === 'prominent'
+      ? phase.interpolate({
+          inputRange: [0, 0.35, 0.65, 1],
+          outputRange: [0.92, 1, 0.96, 0.92],
+          extrapolate: 'clamp',
+        })
+      : undefined;
+
+  return { scale, opacity, reduceMotion, motionEnabled: !reduceMotion };
 }
