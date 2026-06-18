@@ -519,6 +519,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Start navigation attempt
         attemptNavigation();
       }
+
+      if (data?.type === 'date_reflection_nudge' && data?.matchId) {
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady() && userRef.current) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId },
+              });
+            } catch (error) {
+              console.error('❌ Error navigating to match from reflection nudge:', error);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+      }
     });
 
     return () => {
@@ -575,6 +594,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             navigationRef.current.navigate('MainTabs' as never, {
               screen: 'Matches',
               params: { matchId: data.matchId, showGameRequest: true },
+            } as never);
+          } else if (data?.type === 'date_reflection_nudge' && data?.matchId) {
+            navigationRef.current.navigate('MainTabs' as never, {
+              screen: 'Matches',
+              params: { matchId: data.matchId },
             } as never);
           }
         } catch (_) {}

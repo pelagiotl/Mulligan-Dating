@@ -1222,6 +1222,7 @@ export async function initDatabase() {
       extra_notes ${usePostgres ? 'TEXT' : 'TEXT'},
       voice_note_url ${usePostgres ? 'TEXT' : 'TEXT'},
       mutual_notified_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      partner_nudge_sent_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
       created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE,
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -1229,6 +1230,13 @@ export async function initDatabase() {
     )
   `);
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_date_reflections_match_id ON date_reflections(match_id)`);
+  try {
+    await execSQL(
+      `ALTER TABLE date_reflections ADD COLUMN partner_nudge_sent_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`,
+    );
+  } catch (e) {
+    // Column already exists, ignore
+  }
 
   // Live in-person dating events
   await execSQL(`

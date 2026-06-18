@@ -73,8 +73,12 @@ export async function saveDateReflection(
   }
 
   const existing = await (db
-    .prepare('SELECT id FROM date_reflections WHERE match_id = ? AND user_id = ?')
-    .get([input.matchId, userId]) as Promise<{ id: string } | undefined>);
+    .prepare(
+      'SELECT id, second_date_interest, partner_nudge_sent_at FROM date_reflections WHERE match_id = ? AND user_id = ?',
+    )
+    .get([input.matchId, userId]) as Promise<
+    { id: string; second_date_interest: string; partner_nudge_sent_at: string | null } | undefined
+  >);
 
   const reflectionId = existing?.id ?? uuidv4();
 
@@ -122,7 +126,60 @@ export async function saveDateReflection(
   };
 
   const mutualSecondDate = await maybeNotifyMutualSecondDate(input.matchId, participants);
+  if (!mutualSecondDate && interestIsPositive(input.secondDateInterest)) {
+    await maybeNotifyPartnerReflectionNudge(input.matchId, userId, reflectionId, participants);
+  }
   return { reflection, mutualSecondDate };
+}
+
+async function maybeNotifyPartnerReflectionNudge(
+  matchId: string,
+  submitterId: string,
+  reflectionId: string,
+  participants: { user1Id: string; user2Id: string; user1Name: string; user2Name: string },
+): Promise<void> {
+  const nudgeRow = await (db
+    .prepare('SELECT partner_nudge_sent_at FROM date_reflections WHERE id = ?')
+    .get([reflectionId]) as Promise<{ partner_nudge_sent_at: string | null } | undefined>);
+  if (nudgeRow?.partner_nudge_sent_at) return;
+
+  const allRows = await (db
+    .prepare('SELECT user_id FROM date_reflections WHERE match_id = ?')
+    .all([matchId]) as Promise<Array<{ user_id: string }>>);
+  if (allRows.length >= 2) return;
+
+  const partnerId = submitterId === participants.user1Id ? participants.user2Id : participants.user1Id;
+  const submitterName =
+    submitterId === participants.user1Id ? participants.user1Name : participants.user2Name;
+
+  const title = 'Post-date reflection';
+  const body = `${submitterName} shared a private reflection — add yours when you're ready.`;
+
+  await db
+    .prepare('UPDATE date_reflections SET partner_nudge_sent_at = CURRENT_TIMESTAMP WHERE id = ?')
+    .run([reflectionId]);
+
+  const io = getIO();
+  if (io) {
+    io.to(`user:${partnerId}`).emit('date_reflection_nudge', {
+      matchId,
+      submitterName,
+      title,
+      body,
+    });
+  }
+
+  const tokenRow = await (db
+    .prepare('SELECT push_token FROM users WHERE id = ?')
+    .get([partnerId]) as Promise<{ push_token: string | null } | undefined>);
+  const token = tokenRow?.push_token;
+  if (token && isExpoPushToken(token)) {
+    await sendPushNotification(token, title, body, {
+      type: 'date_reflection_nudge',
+      matchId,
+      submitterName,
+    });
+  }
 }
 
 async function maybeNotifyMutualSecondDate(
