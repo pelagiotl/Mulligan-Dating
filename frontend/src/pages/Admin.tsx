@@ -1736,7 +1736,8 @@ export default function Admin() {
       )
         : null}
 
-      {statDrill ? (
+      {statDrill
+        ? createPortal(
         <div className="admin-stat-drill-overlay" role="presentation">
           <div
             className="admin-stat-drill-backdrop"
@@ -1749,6 +1750,14 @@ export default function Admin() {
             aria-modal="true"
             aria-labelledby="admin-stat-drill-title"
           >
+            <button
+              type="button"
+              className="admin-stat-drill-close"
+              onClick={() => closeStatDrill()}
+              aria-label="Close"
+            >
+              ×
+            </button>
             <div className="admin-stat-drill-head">
               <div>
                 <h2 id="admin-stat-drill-title" className="admin-stat-drill-title">
@@ -1848,16 +1857,9 @@ export default function Admin() {
                   </div>
                 ) : null}
               </div>
-              <button
-                type="button"
-                className="admin-stat-drill-close"
-                onClick={() => closeStatDrill()}
-                aria-label="Close"
-              >
-                ×
-              </button>
             </div>
 
+            <div className="admin-stat-drill-body">
             {statDrillError ? (
               <p className="admin-stat-drill-error">{statDrillError}</p>
             ) : null}
@@ -2068,9 +2070,12 @@ export default function Admin() {
                 ) : null}
               </>
             )}
+            </div>
           </div>
-        </div>
-      ) : null}
+        </div>,
+        document.body,
+      )
+        : null}
     </div>
   );
 }
