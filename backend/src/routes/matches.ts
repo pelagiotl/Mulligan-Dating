@@ -1627,7 +1627,7 @@ matchesRouter.post("/:matchId/messages/upload-video", authenticateToken, rateLim
       if (handleModerationRouteError(modError, res)) return;
       throw modError;
     }
-    const videoUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-videos', 'video');
+    const videoUrl = (await uploadToCloudinaryMedia(file.buffer, 'chat-videos', 'video')).secureUrl;
     res.json({ videoUrl });
   } catch (error) {
     console.error("Chat video upload error:", error);
@@ -1672,7 +1672,7 @@ matchesRouter.post("/:matchId/messages/upload-audio", authenticateToken, rateLim
     };
     const ext = extFromMime[mime] || "m4a";
     const publicId = `${uuidv4()}.${ext}`;
-    const audioUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw', publicId);
+    const audioUrl = (await uploadToCloudinaryMedia(file.buffer, 'chat-audio', 'raw', publicId)).secureUrl;
     res.json({ audioUrl });
   } catch (error) {
     console.error("Chat audio upload error:", error);

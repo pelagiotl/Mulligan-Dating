@@ -12,11 +12,15 @@ import { activateUserAccount } from '../utils/accountStatus.js';
 import { normalizeMaxDistanceMiles, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { validateLocationForActiveRegion } from '../utils/locationRegionValidation.js';
 import { uploadChatVideo } from '../middleware/upload.js';
-import { uploadToCloudinaryMedia, isCloudinaryConfigured, deleteFromCloudinary } from '../services/cloudinary.js';
+import { uploadToCloudinaryMedia, isCloudinaryConfigured, deleteFromCloudinary, createIntroVideoDirectUploadParams, isAllowedIntroVideoCloudinaryUrl } from '../services/cloudinary.js';
 import {
   moderateIntroVideoAtUrl,
   handleModerationRouteError,
 } from '../services/contentModeration.js';
+import {
+  introVideoDurationError,
+  isIntroVideoDurationValid,
+} from '../constants/introVideo.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -856,7 +860,75 @@ profileRouter.delete('/', authenticateToken, rateLimitAPI, async (req: AuthReque
   }
 });
 
-/** Finalize signup after Create Profile wizard — marks account active (tokens claimed separately on Connect). */
+/** Signed Cloudinary upload params — mobile uploads directly to Cloudinary (faster than proxying through Render). */
+profileRouter.post('/intro-video/upload-params', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    if (!isCloudinaryConfigured()) {
+      return res.status(503).json({ error: 'Direct video upload is not configured on this server.' });
+    }
+    const userId = req.userId!;
+    const profileResult = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([userId]);
+    const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+      | { id: string }
+      | undefined;
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found. Complete name and location first.' });
+    }
+    res.json(createIntroVideoDirectUploadParams());
+  } catch (error) {
+    console.error('Intro video upload-params error:', error);
+    res.status(500).json({ error: 'Failed to prepare video upload' });
+  }
+});
+
+/** After direct Cloudinary upload — validate duration, moderate, save profile URL. */
+profileRouter.post('/intro-video/confirm', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const secureUrl = typeof req.body?.secureUrl === 'string' ? req.body.secureUrl.trim() : '';
+    const durationSec =
+      typeof req.body?.durationSec === 'number' && Number.isFinite(req.body.durationSec)
+        ? req.body.durationSec
+        : undefined;
+
+    if (!secureUrl || !isAllowedIntroVideoCloudinaryUrl(secureUrl)) {
+      return res.status(400).json({ error: 'Invalid intro video URL.' });
+    }
+
+    const profileResult = db.prepare('SELECT id, intro_video_url FROM profiles WHERE user_id = ?').get([userId]);
+    const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+      | { id: string; intro_video_url: string | null }
+      | undefined;
+    if (!profile) {
+      return res.status(404).json({ error: 'Profile not found. Complete name and location first.' });
+    }
+
+    if (durationSec != null && !isIntroVideoDurationValid(durationSec)) {
+      await deleteFromCloudinary(secureUrl, 'video');
+      return res.status(400).json({ error: introVideoDurationError(durationSec) });
+    }
+
+    try {
+      await moderateIntroVideoAtUrl(secureUrl);
+    } catch (modError) {
+      await deleteFromCloudinary(secureUrl, 'video');
+      if (handleModerationRouteError(modError, res)) return;
+      throw modError;
+    }
+
+    await (db
+      .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+      .run([secureUrl, userId]) as Promise<unknown>);
+
+    notifyPartnersProfileChanged(userId);
+    res.json({ introVideoUrl: secureUrl, message: 'Intro video saved' });
+  } catch (error) {
+    console.error('Intro video confirm error:', error);
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to save intro video' });
+  }
+});
+
+/** Legacy path: multipart upload through the API (local dev / fallback). */
 profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRequest, res, next) => {
   uploadChatVideo(req, res, (err) => {
     if (err) {
@@ -878,7 +950,15 @@ profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRe
 
     let introVideoUrl: string;
     if (isCloudinaryConfigured() && file.buffer) {
-      introVideoUrl = await uploadToCloudinaryMedia(file.buffer, 'profile-intro-videos', 'video');
+      const uploaded = await uploadToCloudinaryMedia(file.buffer, 'profile-intro-videos', 'video');
+      introVideoUrl = uploaded.secureUrl;
+      if (
+        uploaded.durationSec != null &&
+        !isIntroVideoDurationValid(uploaded.durationSec)
+      ) {
+        await deleteFromCloudinary(introVideoUrl, 'video');
+        return res.status(400).json({ error: introVideoDurationError(uploaded.durationSec) });
+      }
     } else if (file.path) {
       const filename = path.basename(file.path);
       introVideoUrl = `/uploads/${filename}`;

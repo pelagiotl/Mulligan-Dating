@@ -337,6 +337,11 @@ export default function CreateProfileScreen() {
   const genderOpacity = useRef(new Animated.Value(0)).current;
   const genderGlow = useRef(new Animated.Value(0)).current;
   const locationScale = useRef(new Animated.Value(0.95)).current;
+  const introSavedScale = useRef(new Animated.Value(0.92)).current;
+  const introSavedOpacity = useRef(new Animated.Value(0)).current;
+  const completeProfileScale = useRef(new Animated.Value(1)).current;
+  const completeProfileGlow = useRef(new Animated.Value(0)).current;
+  const completeProfilePulseRef = useRef<Animated.CompositeAnimation | null>(null);
   const locationOpacity = useRef(new Animated.Value(0)).current;
   const locationGlow = useRef(new Animated.Value(0)).current;
   const bioScale = useRef(new Animated.Value(0.95)).current;
@@ -569,6 +574,94 @@ export default function CreateProfileScreen() {
       [firstNameGlow, locationGlow, ageGlow, genderGlow].forEach(g => g.setValue(0));
     }
   }, [step]);
+
+  useEffect(() => {
+    if (!introVideoUrl || !hasIntroVideo({ intro_video_url: introVideoUrl })) {
+      introSavedScale.setValue(0.92);
+      introSavedOpacity.setValue(0);
+      return;
+    }
+    introSavedScale.setValue(0.9);
+    introSavedOpacity.setValue(0);
+    Animated.parallel([
+      Animated.spring(introSavedScale, {
+        toValue: 1,
+        tension: 62,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(introSavedOpacity, {
+        toValue: 1,
+        duration: 380,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [introVideoUrl, introSavedOpacity, introSavedScale]);
+
+  useEffect(() => {
+    const nameOk = displayName.trim().length >= 2;
+    const locationOk = hasCityAndState(location) && !locationRegionError && !validatingLocation;
+    const introOk = hasIntroVideo({ intro_video_url: introVideoUrl });
+    const profileReady =
+      !loading &&
+      !savingProgress &&
+      !detectingLocation &&
+      !validatingLocation &&
+      nameOk &&
+      locationOk &&
+      introOk;
+
+    completeProfilePulseRef.current?.stop();
+    if (!profileReady) {
+      completeProfileScale.setValue(1);
+      completeProfileGlow.setValue(0);
+      return;
+    }
+
+    Animated.sequence([
+      Animated.spring(completeProfileScale, {
+        toValue: 1.04,
+        tension: 70,
+        friction: 6,
+        useNativeDriver: true,
+      }),
+      Animated.spring(completeProfileScale, {
+        toValue: 1,
+        tension: 80,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    completeProfilePulseRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(completeProfileGlow, {
+          toValue: 1,
+          duration: 1200,
+          useNativeDriver: false,
+        }),
+        Animated.timing(completeProfileGlow, {
+          toValue: 0,
+          duration: 1200,
+          useNativeDriver: false,
+        }),
+      ]),
+    );
+    completeProfilePulseRef.current.start();
+
+    return () => completeProfilePulseRef.current?.stop();
+  }, [
+    loading,
+    savingProgress,
+    detectingLocation,
+    validatingLocation,
+    displayName,
+    location,
+    locationRegionError,
+    introVideoUrl,
+    completeProfileGlow,
+    completeProfileScale,
+  ]);
 
   // Helper function to animate a field
   const animateField = (
@@ -1880,12 +1973,15 @@ export default function CreateProfileScreen() {
               : INTRO_VIDEO_PROMPT}
           </Text>
 
-          <IntroVideoExamplePlayer
-            compact
-            showCaption={false}
-            hideBadge={rs.onboardingVeryTight}
-            maxPlayerHeight={rs.onboardingIntroPlayerMaxHeight}
-          />
+          <View style={styles.onboardingIntroExampleWrap}>
+            <IntroVideoExamplePlayer
+              compact
+              showCaption={false}
+              hideBadge={rs.onboardingVeryTight}
+              maxPlayerHeight={rs.onboardingIntroPlayerMaxHeight}
+              centerBadge
+            />
+          </View>
 
           {!rs.onboardingTight ? (
             <View style={styles.onboardingIntroEncourage}>
@@ -1899,9 +1995,21 @@ export default function CreateProfileScreen() {
             activeOpacity={0.88}
           >
             {introVideoValid ? (
-              <View style={styles.onboardingIntroRecordDoneInner}>
-                <Text style={styles.onboardingIntroRecordDoneText}>✓ Re-record intro</Text>
-              </View>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.18)', 'rgba(167,139,250,0.45)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.onboardingIntroRerecordBorder}
+              >
+                <View style={styles.onboardingIntroRerecordInner}>
+                  <View style={styles.onboardingIntroRecordRow}>
+                    <View style={styles.onboardingIntroRerecordIconWrap}>
+                      <Text style={styles.onboardingIntroRerecordIcon}>↻</Text>
+                    </View>
+                    <Text style={styles.onboardingIntroRecordDoneText}>Re-record intro</Text>
+                  </View>
+                </View>
+              </LinearGradient>
             ) : (
               <LinearGradient
                 colors={['#ff6b8a', '#f093fb', '#7c6cf0']}
@@ -1922,14 +2030,49 @@ export default function CreateProfileScreen() {
             <TouchableOpacity
               style={styles.onboardingIntroLibraryBtn}
               onPress={() => setShowIntroVideoModal(true)}
-              activeOpacity={0.85}
+              activeOpacity={0.88}
             >
-              <Text style={styles.onboardingIntroLibraryText}>Upload from camera roll</Text>
+              <LinearGradient
+                colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.08)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.onboardingIntroLibraryGrad}
+              >
+                <View style={styles.onboardingIntroLibraryInner}>
+                  <View style={styles.onboardingIntroLibraryIconWrap}>
+                    <Text style={styles.onboardingIntroLibraryIcon}>🎞</Text>
+                  </View>
+                  <Text style={styles.onboardingIntroLibraryText}>Upload from camera roll</Text>
+                </View>
+              </LinearGradient>
             </TouchableOpacity>
           ) : null}
           {introVideoValid ? (
-            <Animated.View style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: genderOpacity }]}>
-              <Text style={styles.successText}>✓ Intro video saved!</Text>
+            <Animated.View
+              style={[
+                styles.onboardingIntroSavedWrap,
+                {
+                  opacity: introSavedOpacity,
+                  transform: [{ scale: introSavedScale }],
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={['#6ee7b7', '#34d399', '#10b981']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.onboardingIntroSavedBanner}
+              >
+                <View style={styles.onboardingIntroSavedRow}>
+                  <View style={styles.onboardingIntroSavedCheck}>
+                    <Text style={styles.onboardingIntroSavedCheckText}>✓</Text>
+                  </View>
+                  <View style={styles.onboardingIntroSavedCopy}>
+                    <Text style={styles.onboardingIntroSavedText}>Intro video saved!</Text>
+                    <Text style={styles.onboardingIntroSavedSubtext}>Looking good — you're almost done</Text>
+                  </View>
+                </View>
+              </LinearGradient>
             </Animated.View>
           ) : null}
         </LinearGradient>
@@ -2762,6 +2905,15 @@ export default function CreateProfileScreen() {
     !locationValid ||
     !introVideoValid;
 
+  const completeProfileShadowRadius = completeProfileGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [6, 16],
+  });
+  const completeProfileShadowOpacity = completeProfileGlow.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.25, 0.55],
+  });
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -2903,8 +3055,18 @@ export default function CreateProfileScreen() {
           </Text>
         ) : null}
         <View style={styles.actions}>
+            <Animated.View
+              style={[
+                styles.modernNextButton,
+                {
+                  transform: [{ scale: completeProfileScale }],
+                  shadowRadius: completeProfileShadowRadius,
+                  shadowOpacity: completeProfileShadowOpacity,
+                },
+              ]}
+            >
             <TouchableOpacity
-              style={styles.modernNextButton}
+              style={styles.modernNextButtonTouchable}
               onPress={handleSubmit}
               disabled={completeProfileDisabled}
               activeOpacity={completeProfileDisabled ? 1 : 0.8}
@@ -2925,6 +3087,7 @@ export default function CreateProfileScreen() {
                 )}
               </LinearGradient>
             </TouchableOpacity>
+            </Animated.View>
         </View>
       </View>
       </>
@@ -4665,6 +4828,11 @@ const styles = StyleSheet.create({
   onboardingIntroCard: {
     overflow: 'hidden',
   },
+  onboardingIntroExampleWrap: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
   headerOnboardingCompact: {
     paddingTop: 4,
     paddingBottom: 8,
@@ -4790,22 +4958,38 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3,
   },
-  onboardingIntroRecordDoneInner: {
-    paddingVertical: 11,
-    paddingHorizontal: 16,
+  onboardingIntroRerecordBorder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 46,
-    borderRadius: 16,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.55)',
-    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  onboardingIntroRerecordIcon: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    marginTop: -1,
   },
   onboardingIntroRecordDoneText: {
     color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 0.2,
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.25,
+  },
+  onboardingIntroRerecordBorder: {
+    borderRadius: 16,
+    padding: 1.5,
+  },
+  onboardingIntroRerecordInner: {
+    borderRadius: 14.5,
+    backgroundColor: 'rgba(45, 27, 78, 0.55)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    minHeight: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   onboardingIntroEncourage: {
     backgroundColor: 'rgba(255,255,255,0.14)',
@@ -4824,15 +5008,93 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   onboardingIntroLibraryBtn: {
-    alignSelf: 'center',
-    paddingVertical: 2,
-    marginBottom: 0,
+    alignSelf: 'stretch',
+    marginTop: 6,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  onboardingIntroLibraryGrad: {
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  onboardingIntroLibraryInner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  onboardingIntroLibraryIconWrap: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingIntroLibraryIcon: {
+    fontSize: 13,
   },
   onboardingIntroLibraryText: {
-    color: 'rgba(255,255,255,0.78)',
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  onboardingIntroSavedWrap: {
+    marginTop: 10,
+    alignSelf: 'stretch',
+  },
+  onboardingIntroSavedBanner: {
+    borderRadius: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+    ...(Platform.OS === 'android'
+      ? { elevation: 3 }
+      : {
+          shadowColor: '#10b981',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.35,
+          shadowRadius: 10,
+        }),
+  },
+  onboardingIntroSavedRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  onboardingIntroSavedCheck: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingIntroSavedCheckText: {
+    color: '#059669',
+    fontSize: 16,
+    fontWeight: '900',
+  },
+  onboardingIntroSavedCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  onboardingIntroSavedText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.2,
+  },
+  onboardingIntroSavedSubtext: {
+    color: 'rgba(255, 255, 255, 0.9)',
     fontSize: 12,
     fontWeight: '600',
-    textDecorationLine: 'underline',
+    marginTop: 2,
   },
   onboardingGenderCardTight: {
     marginTop: 0,
@@ -4986,9 +5248,10 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 6,
     elevation: 4,
+  },
+  modernNextButtonTouchable: {
+    width: '100%',
   },
   modernNextButtonGradient: {
     paddingVertical: 12,

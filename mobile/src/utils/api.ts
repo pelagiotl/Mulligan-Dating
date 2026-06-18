@@ -619,7 +619,7 @@ export const api = {
     if (endpoint.includes('never-have-i-ever') || endpoint.includes('truth-or-dare')) {
       apiCache.clear();
     }
-    if (endpoint === '/profile') {
+    if (endpoint === '/profile' || endpoint.includes('/intro-video')) {
       apiCache.clear(APICache.getCacheKey('/profile'));
     }
     // Message send: 35s timeout (safety unstick at 40s on client); avoid 2min hang on cold server/weak network

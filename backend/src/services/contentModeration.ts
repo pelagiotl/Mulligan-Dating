@@ -264,19 +264,20 @@ export async function moderateIntroVideoAtUrl(
 ): Promise<void> {
   if (!isContentModerationEnabled()) return;
 
-  const frameOffsetsSec = [0, 4, 8];
+  const frameOffsetsSec = [0, 7];
 
   try {
     if (videoUrl.includes('res.cloudinary.com')) {
       // Cloudinary may need a moment to serve frame derivatives right after upload.
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      for (const offsetSec of frameOffsetsSec) {
-        const frameUrl = buildCloudinaryVideoFrameUrl(videoUrl, offsetSec);
-        if (!frameUrl) continue;
-        const result = await checkSightengineImageUrlWithRetry(frameUrl);
-        if (evaluateImageResult(result)) {
-          throw new ContentModerationError();
-        }
+      await new Promise((resolve) => setTimeout(resolve, 400));
+      const frameUrls = frameOffsetsSec
+        .map((offsetSec) => buildCloudinaryVideoFrameUrl(videoUrl, offsetSec))
+        .filter((url): url is string => Boolean(url));
+      const results = await Promise.all(
+        frameUrls.map((frameUrl) => checkSightengineImageUrlWithRetry(frameUrl)),
+      );
+      if (results.some((result) => evaluateImageResult(result))) {
+        throw new ContentModerationError();
       }
       return;
     }

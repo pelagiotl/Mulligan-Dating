@@ -1,5 +1,8 @@
 import { v2 as cloudinary } from 'cloudinary';
 import { Readable } from 'stream';
+import { v4 as uuidv4 } from 'uuid';
+
+const INTRO_VIDEO_CLOUDINARY_FOLDER = 'profile-intro-videos';
 
 // Configure Cloudinary
 cloudinary.config({
@@ -129,6 +132,11 @@ export async function uploadToCloudinary(
   });
 }
 
+export type CloudinaryMediaUploadResult = {
+  secureUrl: string;
+  durationSec?: number;
+};
+
 /**
  * Upload a non-image file (video or raw/audio) to Cloudinary
  */
@@ -137,7 +145,7 @@ export async function uploadToCloudinaryMedia(
   folder: string,
   resourceType: 'video' | 'raw' = 'video',
   publicId?: string
-): Promise<string> {
+): Promise<CloudinaryMediaUploadResult> {
   if (!isCloudinaryConfigured()) {
     throw new Error('Cloudinary is not properly configured.');
   }
@@ -154,9 +162,6 @@ export async function uploadToCloudinaryMedia(
       resource_type: resourceType,
       timeout: 300000,
     };
-    if (folder === 'profile-intro-videos' && resourceType === 'video') {
-      uploadOptions.quality = 'auto:good';
-    }
     if (publicId) uploadOptions.public_id = publicId.replace(/^\//, ''); // Cloudinary expects no leading slash
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
@@ -165,8 +170,12 @@ export async function uploadToCloudinaryMedia(
           reject(new Error(error.message || 'Upload failed'));
           return;
         }
-        if (result?.secure_url) resolve(result.secure_url);
-        else reject(new Error('No URL returned'));
+        if (result?.secure_url) {
+          resolve({
+            secureUrl: result.secure_url,
+            durationSec: typeof result.duration === 'number' ? result.duration : undefined,
+          });
+        } else reject(new Error('No URL returned'));
       }
     );
     const readableStream = new Readable();
@@ -234,6 +243,49 @@ export function buildCloudinaryVideoFrameUrl(videoUrl: string, offsetSec: number
   if (!match) return null;
   const pathWithoutExt = match[2].replace(/\.[a-z0-9]+$/i, '');
   return `${match[1]}so_${offsetSec}/${pathWithoutExt}.jpg`;
+}
+
+export type IntroVideoDirectUploadParams = {
+  cloudName: string;
+  apiKey: string;
+  timestamp: number;
+  signature: string;
+  folder: string;
+  publicId: string;
+  uploadUrl: string;
+};
+
+/** Signed params so the app uploads intro clips directly to Cloudinary (skips proxying through Render). */
+export function createIntroVideoDirectUploadParams(): IntroVideoDirectUploadParams {
+  if (!isCloudinaryConfigured()) {
+    throw new Error('Cloudinary is not configured');
+  }
+  const cloudName = process.env.CLOUDINARY_CLOUD_NAME!;
+  const publicId = uuidv4();
+  const timestamp = Math.round(Date.now() / 1000);
+  const folder = INTRO_VIDEO_CLOUDINARY_FOLDER;
+  const signature = cloudinary.utils.api_sign_request(
+    { timestamp, folder, public_id: publicId },
+    process.env.CLOUDINARY_API_SECRET!,
+  );
+  return {
+    cloudName,
+    apiKey: process.env.CLOUDINARY_API_KEY!,
+    timestamp,
+    signature,
+    folder,
+    publicId,
+    uploadUrl: `https://api.cloudinary.com/v1_1/${cloudName}/video/upload`,
+  };
+}
+
+export function isAllowedIntroVideoCloudinaryUrl(url: string): boolean {
+  const cloud = process.env.CLOUDINARY_CLOUD_NAME;
+  if (!cloud) return false;
+  return (
+    url.startsWith(`https://res.cloudinary.com/${cloud}/video/upload/`) &&
+    url.includes(`/${INTRO_VIDEO_CLOUDINARY_FOLDER}/`)
+  );
 }
 
 /**

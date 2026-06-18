@@ -18,10 +18,19 @@ import {
   INTRO_VIDEO_ENCOURAGEMENT,
   INTRO_VIDEO_PROMPT,
   INTRO_VIDEO_TIPS,
+  INTRO_VIDEO_MAX_DURATION_MS,
+  INTRO_VIDEO_MAX_DURATION_SEC,
+  introVideoDurationError,
 } from '../constants/introVideoCopy';
 import IntroVideoExamplePlayer from './IntroVideoExamplePlayer';
 import IntroVideoPreview from './IntroVideoPreview';
-import { resolveIntroVideoUrl, uploadProfileIntroVideo } from '../utils/introVideo';
+import { resolveIntroVideoUrl, uploadProfileIntroVideo, type IntroVideoUploadStage } from '../utils/introVideo';
+
+const UPLOAD_STAGE_LABEL: Record<IntroVideoUploadStage, string> = {
+  preparing: 'Preparing video…',
+  uploading: 'Uploading video…',
+  finishing: 'Almost done…',
+};
 
 type Props = {
   visible: boolean;
@@ -30,7 +39,13 @@ type Props = {
   existingVideoUrl?: string | null;
 };
 
-const MAX_DURATION_SEC = 15;
+function acceptPickedVideo(asset: { uri: string; duration?: number | null }): string | null {
+  if (asset.duration != null && asset.duration > INTRO_VIDEO_MAX_DURATION_MS + 500) {
+    Alert.alert('Video too long', introVideoDurationError(asset.duration));
+    return null;
+  }
+  return asset.uri;
+}
 
 export default function IntroVideoRecordModal({
   visible,
@@ -40,14 +55,25 @@ export default function IntroVideoRecordModal({
 }: Props) {
   const insets = useSafeAreaInsets();
   const [localUri, setLocalUri] = useState<string | null>(null);
+  const [localDurationMs, setLocalDurationMs] = useState<number | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadStage, setUploadStage] = useState<IntroVideoUploadStage | null>(null);
 
   useEffect(() => {
     if (!visible) {
       setLocalUri(null);
+      setLocalDurationMs(null);
       setUploading(false);
+      setUploadStage(null);
     }
   }, [visible]);
+
+  const setPickedVideo = useCallback((asset: { uri: string; duration?: number | null }) => {
+    const uri = acceptPickedVideo(asset);
+    if (!uri) return;
+    setLocalUri(uri);
+    setLocalDurationMs(asset.duration ?? null);
+  }, []);
 
   const recordVideo = useCallback(async () => {
     try {
@@ -62,7 +88,7 @@ export default function IntroVideoRecordModal({
       }
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        videoMaxDuration: MAX_DURATION_SEC,
+        videoMaxDuration: INTRO_VIDEO_MAX_DURATION_SEC,
         quality: 0.7,
         cameraType: ImagePicker.CameraType.front,
         ...(Platform.OS === 'ios'
@@ -70,7 +96,7 @@ export default function IntroVideoRecordModal({
           : {}),
       });
       if (!result.canceled && result.assets[0]?.uri) {
-        setLocalUri(result.assets[0].uri);
+        setPickedVideo(result.assets[0]);
       }
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not open camera');
@@ -86,14 +112,14 @@ export default function IntroVideoRecordModal({
       }
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
-        videoMaxDuration: MAX_DURATION_SEC,
+        videoMaxDuration: INTRO_VIDEO_MAX_DURATION_SEC,
         quality: 0.7,
         ...(Platform.OS === 'ios'
           ? { videoExportPreset: ImagePicker.VideoExportPreset.Medium }
           : {}),
       });
       if (!result.canceled && result.assets[0]?.uri) {
-        setLocalUri(result.assets[0].uri);
+        setPickedVideo(result.assets[0]);
       }
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not pick video');
@@ -103,16 +129,21 @@ export default function IntroVideoRecordModal({
   const saveVideo = useCallback(async () => {
     if (!localUri) return;
     setUploading(true);
+    setUploadStage('preparing');
     try {
-      const introVideoUrl = await uploadProfileIntroVideo(localUri);
+      const introVideoUrl = await uploadProfileIntroVideo(localUri, {
+        knownDurationMs: localDurationMs,
+        onStage: setUploadStage,
+      });
       onSaved(introVideoUrl, localUri);
       onClose();
     } catch (err: unknown) {
       Alert.alert('Upload failed', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setUploading(false);
+      setUploadStage(null);
     }
-  }, [localUri, onClose, onSaved]);
+  }, [localUri, localDurationMs, onClose, onSaved]);
 
   const previewSource = localUri
     ? { uri: localUri }
@@ -184,7 +215,12 @@ export default function IntroVideoRecordModal({
               disabled={uploading}
             >
               {uploading ? (
-                <ActivityIndicator color="#fff" />
+                <View style={styles.saveUploading}>
+                  <ActivityIndicator color="#fff" />
+                  <Text style={styles.saveUploadingText}>
+                    {uploadStage ? UPLOAD_STAGE_LABEL[uploadStage] : 'Saving video…'}
+                  </Text>
+                </View>
               ) : (
                 <Text style={styles.saveText}>Use this video</Text>
               )}
@@ -268,5 +304,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   saveBtnDisabled: { opacity: 0.7 },
+  saveUploading: { alignItems: 'center', gap: 8 },
+  saveUploadingText: { color: '#fff', fontSize: 14, fontWeight: '600' },
   saveText: { color: '#fff', fontSize: 16, fontWeight: '800' },
 });

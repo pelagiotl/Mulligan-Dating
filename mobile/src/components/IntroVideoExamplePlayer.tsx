@@ -9,6 +9,8 @@ type Props = {
   compact?: boolean;
   showCaption?: boolean;
   hideBadge?: boolean;
+  /** Center the "Example from Luke" label above the player (onboarding card). */
+  centerBadge?: boolean;
   /** When set (onboarding card), caps example player height to fit the viewport stack. */
   maxPlayerHeight?: number;
 };
@@ -28,6 +30,7 @@ export default function IntroVideoExamplePlayer({
   compact = false,
   showCaption = true,
   hideBadge = false,
+  centerBadge = false,
   maxPlayerHeight,
 }: Props) {
   const videoRef = useRef<Video>(null);
@@ -63,9 +66,11 @@ export default function IntroVideoExamplePlayer({
   }, [isPlaying]);
 
   return (
-    <View style={[styles.wrap, compact && styles.wrapCompact]}>
+    <View style={[styles.wrap, compact && styles.wrapCompact, centerBadge && styles.wrapCentered]}>
       {!hideBadge ? (
-        <Text style={[styles.badge, compact && styles.badgeCompact]}>Example from Luke</Text>
+        <View style={[styles.badgePill, centerBadge && styles.badgePillCentered, compact && styles.badgePillCompact]}>
+          <Text style={[styles.badge, compact && styles.badgeCompact]}>Example from Luke</Text>
+        </View>
       ) : null}
       <Pressable
         onPress={onWatch}
@@ -124,18 +129,37 @@ const styles = StyleSheet.create({
   wrapCompact: {
     marginBottom: 2,
   },
+  wrapCentered: {
+    alignItems: 'center',
+  },
+  badgePill: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  badgePillCentered: {
+    alignSelf: 'center',
+  },
+  badgePillCompact: {
+    marginBottom: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+  },
   badge: {
-    color: 'rgba(255,255,255,0.9)',
+    color: 'rgba(255,255,255,0.95)',
     fontSize: 11,
     fontWeight: '700',
-    letterSpacing: 0.4,
+    letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: 6,
-    alignSelf: 'flex-start',
+    textAlign: 'center',
   },
   badgeCompact: {
     fontSize: 9,
-    marginBottom: 3,
   },
   playerShell: {
     width: '100%',
