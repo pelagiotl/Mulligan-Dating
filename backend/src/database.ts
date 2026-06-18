@@ -242,6 +242,17 @@ export async function initDatabase() {
     // Column already exists, ignore
   }
   try {
+    await execSQL(
+      `ALTER TABLE users ADD COLUMN photo_verified_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`,
+    );
+    console.log('✅ Added users.photo_verified_at');
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add users.photo_verified_at:', msg);
+    }
+  }
+  try {
     await execSQL(`ALTER TABLE users ADD COLUMN tos_accepted_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`);
   } catch (e) {
     // Column already exists, ignore

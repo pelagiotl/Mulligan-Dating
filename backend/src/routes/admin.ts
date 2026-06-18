@@ -137,6 +137,7 @@ function mapAdminListUser(
     is_admin?: number | boolean;
     is_restricted?: number | boolean;
     hidden_from_browse?: number | boolean;
+    photo_verified_at?: string | null;
     created_at: string;
     last_active_at?: string | null;
     account_status?: string | null;
@@ -159,6 +160,8 @@ function mapAdminListUser(
     is_restricted:
       overrides?.is_restricted ?? (u.is_restricted === 1 || u.is_restricted === true),
     hiddenFromBrowse: u.hidden_from_browse === 1 || u.hidden_from_browse === true,
+    photoVerified: !!(u.photo_verified_at && String(u.photo_verified_at).trim()),
+    photo_verified_at: u.photo_verified_at ?? null,
     created_at: u.created_at,
     last_active_at: u.last_active_at,
     tokenCount: tokenCounts[u.id] || 0,
@@ -532,6 +535,24 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
       .get([]) as Promise<{ count: number | string }>);
     const onboardingUsers = parseAdminCount(onboardingUsersResult);
 
+    const verifiedUsersResult = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM users u
+         INNER JOIN profiles p ON p.user_id = u.id
+         WHERE u.photo_verified_at IS NOT NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`,
+      )
+      .get([]) as Promise<{ count: number | string }>);
+    const verifiedUsers = parseAdminCount(verifiedUsersResult);
+
+    const notVerifiedUsersResult = await (db
+      .prepare(
+        `SELECT COUNT(*) as count FROM users u
+         INNER JOIN profiles p ON p.user_id = u.id
+         WHERE u.photo_verified_at IS NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`,
+      )
+      .get([]) as Promise<{ count: number | string }>);
+    const notVerifiedUsers = parseAdminCount(notVerifiedUsersResult);
+
     res.json({
       totalUsers,
       totalProfiles,
@@ -540,6 +561,8 @@ adminRouter.get('/stats', authenticateToken, requireAdmin, async (req: AuthReque
       restrictedUsers,
       activeUsers,
       onboardingUsers,
+      verifiedUsers,
+      notVerifiedUsers,
     });
   } catch (error: any) {
     console.error('Error fetching admin stats:', error);
@@ -592,7 +615,7 @@ adminRouter.get('/export/report', authenticateToken, requireAdmin, async (req: A
 
     const usersResult = await (db.prepare(`
       SELECT 
-        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, 
+        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at, 
         u.created_at, u.last_active_at, u.account_status,
         p.display_name, p.age, p.gender, p.location
       FROM users u
@@ -767,7 +790,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at,
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
@@ -808,6 +831,98 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
       return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
     }
 
+    if (filter === 'verified') {
+      const baseWhere = `u.photo_verified_at IS NOT NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`;
+      const searchWhere = search
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
+        : '';
+      const searchTerm = `%${search}%`;
+      const query = `
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at,
+          u.created_at, u.last_active_at,
+          p.display_name, p.age, p.gender, p.location
+        FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE ${baseWhere}${tayaHide}${searchWhere}
+        ORDER BY u.photo_verified_at DESC, u.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      const params = search ? [searchTerm, searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
+
+      const countQuery = `
+        SELECT COUNT(DISTINCT u.id) as count FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE ${baseWhere}${tayaHide}${searchWhere}
+      `;
+      const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
+      const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
+      const total = totalResult?.count || 0;
+
+      const userIds = usersResult.map((u: any) => u.id);
+      let tokenCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const tokensResult = await (db.prepare(`
+          SELECT user_id, COUNT(*) as count FROM mulligan_tokens
+          WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL
+          GROUP BY user_id
+        `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+        tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
+      }
+
+      const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+      const users = usersResult.map((u: any) => mapAdminListUser(u, tokenCounts, platformSignals));
+
+      return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+
+    if (filter === 'not_verified') {
+      const baseWhere = `u.photo_verified_at IS NULL AND COALESCE(u.is_admin, 0) = 0${activeOnly}`;
+      const searchWhere = search
+        ? ` AND (u.email LIKE ? OR p.display_name LIKE ? OR u.phone_number LIKE ? OR u.id LIKE ?)`
+        : '';
+      const searchTerm = `%${search}%`;
+      const query = `
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at,
+          u.created_at, u.last_active_at,
+          p.display_name, p.age, p.gender, p.location
+        FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE ${baseWhere}${tayaHide}${searchWhere}
+        ORDER BY u.created_at DESC
+        LIMIT ? OFFSET ?
+      `;
+      const params = search ? [searchTerm, searchTerm, searchTerm, searchTerm, limit, offset] : [limit, offset];
+      const usersResult = await (db.prepare(query).all(params) as Promise<any[]>);
+
+      const countQuery = `
+        SELECT COUNT(DISTINCT u.id) as count FROM users u
+        INNER JOIN profiles p ON p.user_id = u.id
+        WHERE ${baseWhere}${tayaHide}${searchWhere}
+      `;
+      const countParams = search ? [searchTerm, searchTerm, searchTerm, searchTerm] : [];
+      const totalResult = await (db.prepare(countQuery).get(countParams) as Promise<{ count: number }>);
+      const total = totalResult?.count || 0;
+
+      const userIds = usersResult.map((u: any) => u.id);
+      let tokenCounts: Record<string, number> = {};
+      if (userIds.length > 0) {
+        const placeholders = userIds.map(() => '?').join(',');
+        const tokensResult = await (db.prepare(`
+          SELECT user_id, COUNT(*) as count FROM mulligan_tokens
+          WHERE user_id IN (${placeholders}) AND used_at IS NULL AND returned_at IS NULL
+          GROUP BY user_id
+        `).all(userIds) as Promise<{ user_id: string; count: number }[]>);
+        tokensResult.forEach((row: any) => { tokenCounts[row.user_id] = parseInt(row.count) || 0; });
+      }
+
+      const platformSignals = await loadClientPlatformSignalsByUserId(userIds);
+      const users = usersResult.map((u: any) => mapAdminListUser(u, tokenCounts, platformSignals));
+
+      return res.json({ users, pagination: { page, limit, total, totalPages: Math.ceil(total / limit) } });
+    }
+
     // Users who have a profile row (aligns with Profiles count on /admin/stats)
     if (filter === 'with_profile' || filter === 'profiles') {
       const searchWhere = search
@@ -815,7 +930,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at,
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location
         FROM users u
@@ -864,7 +979,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at,
           u.created_at, u.last_active_at,
           p.display_name, p.age, p.gender, p.location,
           (SELECT COUNT(*) FROM photos ph WHERE ph.profile_id = p.id) as photo_count
@@ -911,7 +1026,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
         : '';
       const searchTerm = `%${search}%`;
       const query = `
-        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse,
+        SELECT DISTINCT u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at,
           u.created_at, u.last_active_at, u.account_status,
           p.id as profile_id, p.display_name, p.age, p.gender, p.location,
           (SELECT COUNT(*) FROM photos ph WHERE ph.profile_id = p.id) as photo_count
@@ -969,7 +1084,7 @@ adminRouter.get('/users', authenticateToken, requireAdmin, async (req: AuthReque
     // Build base query for default list (all users) and 7-day active filter
     let query = `
       SELECT DISTINCT
-        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, 
+        u.id, u.email, u.phone_number, u.is_admin, u.is_restricted, u.hidden_from_browse, u.photo_verified_at, 
         u.created_at, u.last_active_at, u.account_status,
         p.display_name, p.age, p.gender, p.location
       FROM users u
@@ -1148,6 +1263,8 @@ adminRouter.get('/users/:id', authenticateToken, requireAdmin, async (req: AuthR
       is_admin: userResult.is_admin === 1,
       is_restricted: userResult.is_restricted === 1,
       hiddenFromBrowse: userResult.hidden_from_browse === 1,
+      photoVerified: !!(userResult.photo_verified_at && String(userResult.photo_verified_at).trim()),
+      photo_verified_at: userResult.photo_verified_at ?? null,
       created_at: userResult.created_at,
       last_active_at: userResult.last_active_at,
       clientPlatform,
@@ -1292,6 +1409,34 @@ adminRouter.post('/users/:id/restrict', authenticateToken, requireAdmin, async (
   } catch (error: any) {
     console.error('Error restricting user:', error);
     res.status(500).json({ error: 'Failed to update user restriction', details: error.message });
+  }
+});
+
+// Grant or revoke Mulligan verification badge (admin-granted trust signal)
+adminRouter.post('/users/:id/photo-verify', authenticateToken, requireAdmin, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.params.id;
+    if (!(await assertCanModerateUser(req, res, userId))) return;
+    const { verified } = req.body;
+
+    if (typeof verified !== 'boolean') {
+      return res.status(400).json({ error: 'verified must be a boolean' });
+    }
+
+    const now = new Date().toISOString();
+    await (db
+      .prepare('UPDATE users SET photo_verified_at = ? WHERE id = ?')
+      .run([verified ? now : null, userId]) as Promise<any>);
+
+    res.json({
+      message: verified ? 'Verification badge granted' : 'Verification badge removed',
+      userId,
+      verified,
+      photo_verified_at: verified ? now : null,
+    });
+  } catch (error: any) {
+    console.error('Error updating photo verification:', error);
+    res.status(500).json({ error: 'Failed to update verification', details: error.message });
   }
 });
 

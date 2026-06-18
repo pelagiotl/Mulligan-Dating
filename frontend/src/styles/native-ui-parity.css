@@ -1497,6 +1497,36 @@
   line-height: 1;
   margin-bottom: 0.45rem;
   filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+  transform-origin: center center;
+  animation: connect-landing-feature-emoji-breathe 6.6s ease-in-out infinite;
+}
+
+.connect-landing__feature:nth-child(1) .connect-landing__feature-emoji {
+  animation-delay: 0s;
+}
+
+.connect-landing__feature:nth-child(2) .connect-landing__feature-emoji {
+  animation-delay: 0.22s;
+}
+
+.connect-landing__feature:nth-child(3) .connect-landing__feature-emoji {
+  animation-delay: 0.44s;
+}
+
+@keyframes connect-landing-feature-emoji-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.04);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connect-landing__feature-emoji {
+    animation: none;
+  }
 }
 
 .connect-landing__feature-text {

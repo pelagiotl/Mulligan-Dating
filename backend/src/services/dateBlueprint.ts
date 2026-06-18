@@ -367,6 +367,23 @@ function venueNameLooksLikeSocialClub(name: string): boolean {
   return true;
 }
 
+/** Bars, nightclubs, and social clubs — excluded from Sober Circle date plans. */
+export function venueIsBarOrNightclub(venue: VenueSearchResult): boolean {
+  const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
+  if (BAR_NIGHTLIFE_SIGNAL_RE.test(haystack)) return true;
+  if (venueNameLooksLikeSocialClub(venue.name)) return true;
+  if ((venue.types ?? []).some((type) => BAR_NIGHTLIFE_TYPES.has(type))) return true;
+  return false;
+}
+
+export function textMentionsBarOrClub(text: string): boolean {
+  const haystack = text.toLowerCase();
+  if (BAR_NIGHTLIFE_SIGNAL_RE.test(haystack)) return true;
+  if (venueNameLooksLikeSocialClub(text)) return true;
+  if (/\bcomedy\s*club\b/.test(haystack)) return true;
+  return false;
+}
+
 function venueLooksLikeMarket(venue: VenueSearchResult): boolean {
   const haystack = `${venue.name} ${venue.address} ${(venue.types ?? []).join(' ')}`.toLowerCase();
   const types = venue.types ?? [];
@@ -968,6 +985,7 @@ export async function gatherDatePlanVenues(
   lane: DatePlanLane,
   sessionExcludeVenueNames: string[] = [],
   quickSearch = false,
+  soberFriendly = false,
 ): Promise<VenueSearchResult[]> {
   const existingPlansResult = db
     .prepare('SELECT title, venue_name FROM date_plans WHERE match_id = ? ORDER BY created_at DESC LIMIT 10')
@@ -1042,6 +1060,10 @@ export async function gatherDatePlanVenues(
     if (venues.length > 0) {
       console.log(`ℹ️  Using curated Southern Oregon venues for lane "${lane.id}" (${venues.length} options)`);
     }
+  }
+
+  if (soberFriendly) {
+    venues = venues.filter((venue) => !venueIsBarOrNightclub(venue));
   }
 
   return venues;

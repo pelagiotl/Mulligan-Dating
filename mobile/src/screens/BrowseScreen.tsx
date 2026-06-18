@@ -77,6 +77,7 @@ import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import LegalFooter from '../components/LegalFooter';
 import NoTokensModal from '../components/NoTokensModal';
 import OptimizedImage from '../components/OptimizedImage';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { DEFAULT_MATCH_SLOT_LIMIT } from '../constants/matchSlots';
 import { fetchMatchSlotStatus } from '../utils/matchSlotStatus';
 import MatchCapacityBanner from '../components/MatchCapacityBanner';
@@ -146,6 +147,7 @@ interface Profile {
   interests: string[];
   lookingFor?: string;
   distance?: number | null;
+  photoVerified?: boolean;
 }
 
 /**
@@ -2552,6 +2554,7 @@ export default function BrowseScreen() {
           <View style={styles.profileInfo}>
             <View style={styles.nameRow}>
               <Text style={styles.name}>{currentProfile.displayName}</Text>
+              <VerifiedBadge verified={currentProfile.photoVerified} size={20} />
               <Text style={styles.age}>{currentProfile.age}</Text>
             </View>
 
@@ -3915,7 +3918,7 @@ const styles = StyleSheet.create({
   },
   nameRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'center',
     marginBottom: 8,
   },
   name: {

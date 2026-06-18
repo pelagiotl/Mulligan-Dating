@@ -24,9 +24,11 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { connectShellGradientStops, soberCircleButtonShimmerColors } from '../lib/connectShellTheme';
 import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
 import OptimizedImage from '../components/OptimizedImage';
+import VerifiedBadge from '../components/VerifiedBadge';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { SOBER_CIRCLE_LEVELS, soberCircleLevelLabel } from '../constants/soberCircle';
 import MatchCelebration from '../components/MatchCelebration';
+import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import ConnectButtonShimmerEffect, { CONNECT_SHIMMER_DURATION_MS } from '../components/ConnectButtonShimmerEffect';
 import SmoothPulsingEmoji from '../components/SmoothPulsingEmoji';
 import type { SoberCircleStackParamList } from '../navigation/SoberCircleNavigator';
@@ -42,6 +44,7 @@ type BrowseProfile = {
   bio?: string;
   photoUrl?: string;
   soberCircleLevel?: string;
+  photoVerified?: boolean;
 };
 
 type SoberMatch = {
@@ -54,6 +57,7 @@ type SoberMatch = {
     age: number;
     photoUrl?: string | null;
     soberCircleLevel?: string | null;
+    photoVerified?: boolean;
   };
 };
 
@@ -173,7 +177,7 @@ export default function SoberCircleScreen() {
   const { width: windowWidth } = useWindowDimensions();
   const isFocused = useIsFocused();
   const navigation = useNavigation<StackNavigationProp<SoberCircleStackParamList, 'SoberCircleHome'>>();
-  const { profile, refreshProfile, registerMatchListRefresh } = useAuth();
+  const { user, profile, refreshProfile, registerMatchListRefresh } = useAuth();
   const { mode: shellMode } = useConnectShellTheme();
   const midnight = shellMode === 'midnight';
   const bottomPad = iosFloatingTabBarInset(insets.bottom) + 88;
@@ -253,6 +257,7 @@ export default function SoberCircleScreen() {
   const [loadingBrowse, setLoadingBrowse] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [datePlannerOpen, setDatePlannerOpen] = useState(false);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [matchedProfile, setMatchedProfile] = useState<BrowseProfile | null>(null);
   const [matchedIntroVideoUrl, setMatchedIntroVideoUrl] = useState<string | null>(null);
@@ -529,9 +534,12 @@ export default function SoberCircleScreen() {
                 </Text>
               </View>
             )}
-            <Text style={[styles.name, midnight && styles.textLight]}>
-              {currentProfile.displayName}, {currentProfile.age}
-            </Text>
+            <View style={styles.nameRow}>
+              <Text style={[styles.name, midnight && styles.textLight]}>
+                {currentProfile.displayName}, {currentProfile.age}
+              </Text>
+              <VerifiedBadge verified={currentProfile.photoVerified} size={20} />
+            </View>
             <Text style={[styles.meta, midnight && styles.leadMidnight]}>
               💚 {soberCircleLevelLabel(currentProfile.soberCircleLevel ?? level)}
               {currentProfile.location ? ` · 📍 ${currentProfile.location}` : ''}
@@ -647,6 +655,7 @@ export default function SoberCircleScreen() {
           viewerName={viewerDisplayName.split(' ')[0] || 'You'}
           skipLoadingReveal={false}
           revealWhenMatchIdReady
+          onSeeDateIdeas={() => setDatePlannerOpen(true)}
           onClose={() => {
             setShowCelebration(false);
             setMatchId(null);
@@ -654,6 +663,28 @@ export default function SoberCircleScreen() {
             setMatchedIntroVideoUrl(null);
             setMatchExplanation(null);
             void loadSoberMatches();
+          }}
+        />
+      ) : null}
+
+      {datePlannerOpen && matchId && user?.id && matchedProfile ? (
+        <IntentionalDatePlanner
+          visible={datePlannerOpen}
+          onClose={() => setDatePlannerOpen(false)}
+          matchId={matchId}
+          partnerName={matchedProfile.displayName || 'your match'}
+          currentUserId={user.id}
+          isCurrentUserMatchUser1
+          onProposalSent={() => {
+            const chatMatchId = matchId;
+            setDatePlannerOpen(false);
+            setShowCelebration(false);
+            setMatchId(null);
+            setMatchedProfile(null);
+            setMatchedIntroVideoUrl(null);
+            setMatchExplanation(null);
+            void loadSoberMatches();
+            if (chatMatchId) openSoberChat(chatMatchId);
           }}
         />
       ) : null}
@@ -807,6 +838,7 @@ const styles = StyleSheet.create({
   },
   photoPlaceholderText: { fontSize: 40, color: '#fff', fontWeight: '800' },
   name: { fontSize: 22, fontWeight: '800', color: '#1e1b4b' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 },
   meta: { fontSize: 13, color: '#64748b', marginTop: 4, textAlign: 'center' },
   bio: { fontSize: 14, lineHeight: 20, color: '#334155', marginTop: 10, textAlign: 'center' },
   refreshLink: { marginTop: 14 },

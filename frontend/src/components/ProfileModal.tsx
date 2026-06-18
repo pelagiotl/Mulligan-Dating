@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { api } from "../utils/api";
 import { getPhotoUrl } from "../utils/photoUrl";
+import VerifiedBadge from "./VerifiedBadge";
 import MatchCelebration from "./MatchCelebration";
 import { unlockMatchAudio } from "../utils/matchSound";
 
@@ -23,6 +24,7 @@ interface Profile {
   photos?: Photo[];
   interests: string[];
   lookingFor?: string;
+  photoVerified?: boolean;
 }
 
 interface ProfileModalProps {
@@ -196,7 +198,10 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
               <div className="blur-overlay-small">🔒</div>
             </div>
             <div className="profile-modal-info">
-              <h2 className="profile-modal-name">{profile.displayName}</h2>
+              <h2 className="profile-modal-name-row">
+                <span className="profile-modal-name">{profile.displayName}</span>
+                <VerifiedBadge verified={profile.photoVerified} />
+              </h2>
               <p className="profile-modal-meta">
                 {profile.age} years old · {profile.gender}
               </p>

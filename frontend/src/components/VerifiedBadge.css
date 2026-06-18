@@ -1,0 +1,27 @@
+.mulligan-verified-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-left: 6px;
+  border-radius: 999px;
+  background: #3b82f6;
+  color: #fff;
+  font-weight: 800;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.profile-modal-name-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.verified-name-row {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  max-width: 100%;
+}

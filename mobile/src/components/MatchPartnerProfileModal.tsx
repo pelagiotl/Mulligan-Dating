@@ -16,6 +16,7 @@ import { useAuth } from '../context/AuthContext';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { resolveIntroVideoUrl } from '../utils/introVideo';
 import OptimizedImage from './OptimizedImage';
+import VerifiedBadge from './VerifiedBadge';
 import { profilePreviewSheetStyles as styles } from './MyProfilePreviewModal';
 import {
   DEALBREAKER_EMOJI,
@@ -52,6 +53,7 @@ export type MatchPartnerUser = {
   dealbreakers?: string[];
   preferredGenders?: string[] | null;
   lastActiveLabel?: string | null;
+  photoVerified?: boolean;
 };
 
 export type MatchPartnerProfileMatch = {
@@ -313,10 +315,13 @@ export default function MatchPartnerProfileModal({
               </LinearGradient>
             </TouchableOpacity>
 
-            <Text style={[styles.name, androidCompactHero.name]}>
-              {otherUser.displayName}
-              {otherUser.age ? `, ${otherUser.age}` : ''}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap' }}>
+              <Text style={[styles.name, androidCompactHero.name]}>
+                {otherUser.displayName}
+                {otherUser.age ? `, ${otherUser.age}` : ''}
+              </Text>
+              <VerifiedBadge verified={otherUser.photoVerified} size={20} />
+            </View>
 
             <View style={[styles.metaChips, androidCompactHero.metaChips]}>
               {otherUser.gender ? (

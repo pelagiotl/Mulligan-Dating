@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, Text, StyleSheet, Platform, type TextStyle } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import ConnectLandingTagline from './ConnectLandingTagline';
+import SmoothPulsingEmoji from './SmoothPulsingEmoji';
 
 const INK = '#1a1a2e';
 const BURGUNDY = '#8B1538';
@@ -62,7 +63,13 @@ const landingFeatureEmojiWrap = {
   justifyContent: 'center' as const,
 };
 
-/** Static emoji for Connect landing feature row (BrowseScreen + value props card). */
+const LANDING_FEATURE_PULSE_DELAYS: Record<(typeof LANDING_FEATURE_TILES)[number], number> = {
+  '✨': 0,
+  '🎯': 220,
+  '💝': 440,
+};
+
+/** Gentle pulsing emoji for Connect landing feature row (BrowseScreen + value props card). */
 export function ConnectLandingFeatureEmoji({
   emoji,
   fontSize = 28,
@@ -70,12 +77,19 @@ export function ConnectLandingFeatureEmoji({
   emoji: string;
   fontSize?: number;
 }) {
+  const delay =
+    emoji in LANDING_FEATURE_PULSE_DELAYS
+      ? LANDING_FEATURE_PULSE_DELAYS[emoji as (typeof LANDING_FEATURE_TILES)[number]]
+      : 0;
+
   return (
-    <View style={landingFeatureEmojiWrap}>
-      <Text style={{ fontSize, textAlign: 'center' }} allowFontScaling={false}>
-        {emoji}
-      </Text>
-    </View>
+    <SmoothPulsingEmoji
+      emoji={emoji}
+      fontSize={fontSize}
+      delay={delay}
+      variant="emoji"
+      containerStyle={landingFeatureEmojiWrap}
+    />
   );
 }
 

@@ -9,6 +9,7 @@ import {
   type ConnectSetupGap,
 } from "../utils/connectProfileEligibility";
 import { getPhotoUrl } from "../utils/photoUrl";
+import VerifiedBadge from "../components/VerifiedBadge";
 import MatchCelebration, { type CelebrationPartnerProfile } from "../components/MatchCelebration";
 import IntentionalDatePlanner from "../components/IntentionalDatePlanner";
 import TokenDisplay from "../components/TokenDisplay";
@@ -89,6 +90,7 @@ interface Profile {
   interests: string[];
   lookingFor?: string;
   distance?: number | null;
+  photoVerified?: boolean;
 }
 
 /** Subset of GET /matches list `otherUser` used to hydrate the match celebration drawer. */
@@ -1363,6 +1365,7 @@ export default function Browse() {
                     <span className="browse-native-name">
                       {currentProfile.displayName}
                     </span>
+                    <VerifiedBadge verified={currentProfile.photoVerified} size={20} />
                     <span className="browse-native-age">{currentProfile.age}</span>
                   </div>
                   <BrowseLocation location={currentProfile.location} />

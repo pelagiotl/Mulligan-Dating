@@ -13,7 +13,9 @@ import {
   gatherDatePlanVenues,
   pickVenueAwareTitle,
   scrubDateTerminology,
+  textMentionsBarOrClub,
   venueFitsLane,
+  venueIsBarOrNightclub,
   venueNearMeetingLocation,
   type VenueSearchResult,
 } from './dateBlueprint.js';
@@ -60,6 +62,40 @@ export function serializeDatePlanForMessage(plan: DatePlan): DatePlanMessageSnap
 const HANGOUT_SAFETY_NOTE =
   'Meet in a busy public place and share your plans with a friend.';
 
+function soberDatePlanLane(lane: DatePlanLane): DatePlanLane {
+  if (lane.id === 'culture') {
+    return {
+      ...lane,
+      keywords: ['art gallery', 'museum', 'indie cinema', 'performing arts theater', 'independent bookstore'],
+      promptHint:
+        'Make this a culture plan: gallery, museum, indie cinema, or bookstore — no bars, comedy clubs, or nightlife.',
+    };
+  }
+  if (lane.id === 'games') {
+    return {
+      ...lane,
+      keywords: [
+        'board game cafe',
+        'mini golf',
+        'golf center',
+        'driving range',
+        'bowling alley',
+        'escape room',
+        'billiards hall',
+        'trivia night restaurant',
+      ],
+      promptHint:
+        'Make this a playful sober-friendly activity: board game cafe, mini golf, bowling, escape room, billiards, or trivia with food — no bars.',
+    };
+  }
+  return lane;
+}
+
+function ideaLooksSoberFriendly(idea: DatePlanIdea): boolean {
+  const blob = [idea.title, idea.description, idea.venueName ?? ''].join(' ');
+  return !textMentionsBarOrClub(blob);
+}
+
 function pickLanesForIdeas(count: number, excludeLaneIds: string[] = []): DatePlanLane[] {
   const exclude = new Set(excludeLaneIds);
   let fresh = DATE_PLAN_LANES.filter((lane) => !exclude.has(lane.id));
@@ -87,13 +123,15 @@ function pickVenueForIdea(
   meetingLocation: string,
   meetingLat: number | null,
   meetingLng: number | null,
+  soberFriendly = false,
 ): VenueSearchResult | null {
   if (venues.length === 0) return null;
   const fitting = venues.filter(
     (venue) =>
       venue.name &&
       venueFitsLane(venue, lane) &&
-      venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng),
+      venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng) &&
+      (!soberFriendly || !venueIsBarOrNightclub(venue)),
   );
   const fresh = fitting.filter((venue) => !excludeVenueNames.has(venue.name.toLowerCase()));
   const pool = fresh.length > 0 ? fresh : fitting;
@@ -113,8 +151,10 @@ function venueIsUsable(
   meetingLocation: string,
   meetingLat: number | null,
   meetingLng: number | null,
+  soberFriendly = false,
 ): boolean {
   if (!venue.name) return false;
+  if (soberFriendly && venueIsBarOrNightclub(venue)) return false;
   if (!venueFitsLane(venue, lane)) return false;
   if (!venueNearMeetingLocation(venue, meetingLocation, meetingLat, meetingLng)) return false;
   if (venue.businessStatus && venue.businessStatus !== 'OPERATIONAL') return false;
@@ -147,15 +187,24 @@ function finalizeDatePlanIdea(
   meetingLocation: string,
   meetingLat: number | null,
   meetingLng: number | null,
+  soberFriendly = false,
 ): DatePlanIdea {
   let venue = resolvePickedVenue(idea, pickedVenue, venues);
-  if (venue && !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng)) {
+  if (venue && !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng, soberFriendly)) {
     venue = null;
   }
   if (!venue) {
-    venue = pickVenueForIdea(venues, new Set(), lane, meetingLocation, meetingLat, meetingLng);
+    venue = pickVenueForIdea(
+      venues,
+      new Set(),
+      lane,
+      meetingLocation,
+      meetingLat,
+      meetingLng,
+      soberFriendly,
+    );
   }
-  if (!venue || !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng)) {
+  if (!venue || !venueIsUsable(venue, lane, meetingLocation, meetingLat, meetingLng, soberFriendly)) {
     return {
       ...idea,
       laneId: lane.id,
@@ -189,9 +238,10 @@ function finalizeDatePlanIdeas(
   meetingLocation: string,
   meetingLat: number | null,
   meetingLng: number | null,
+  soberFriendly = false,
 ): DatePlanIdea[] {
   return drafts.map(({ idea, lane, pickedVenue, venues }) =>
-    finalizeDatePlanIdea(idea, lane, pickedVenue, venues, meetingLocation, meetingLat, meetingLng),
+    finalizeDatePlanIdea(idea, lane, pickedVenue, venues, meetingLocation, meetingLat, meetingLng, soberFriendly),
   );
 }
 
@@ -369,11 +419,15 @@ export async function generateDatePlanIdeas(
   const excludeTitles = options.excludeTitles ?? [];
   const excludeVenueNames = options.excludeVenueNames ?? [];
   const excludeVenueSet = new Set(excludeVenueNames.map((name) => name.toLowerCase()));
-  const matchResult = db.prepare('SELECT user1_id, user2_id FROM matches WHERE id = ?').get([matchId]);
+  const matchResult = db
+    .prepare('SELECT user1_id, user2_id, connected_via FROM matches WHERE id = ?')
+    .get([matchId]);
   const match = (matchResult instanceof Promise ? await matchResult : matchResult) as
-    | { user1_id: string; user2_id: string }
+    | { user1_id: string; user2_id: string; connected_via?: string | null }
     | undefined;
   if (!match) throw new Error('Match not found');
+
+  const soberFriendly = match.connected_via === 'sober_circle';
 
   const { getSharedInterests } = await import('./mulliganMoments.js');
   const sharedInterests = await getSharedInterests(matchId, match.user1_id, match.user2_id);
@@ -394,7 +448,9 @@ export async function generateDatePlanIdeas(
   })();
 
   const ideaCount = Math.min(5, Math.max(3, count));
-  const lanes = pickLanesForIdeas(ideaCount, excludeLaneIds);
+  const lanes = pickLanesForIdeas(ideaCount, excludeLaneIds).map((lane) =>
+    soberFriendly ? soberDatePlanLane(lane) : lane,
+  );
 
   let meetingLat: number | null = null;
   let meetingLng: number | null = null;
@@ -418,6 +474,7 @@ export async function generateDatePlanIdeas(
         lane,
         excludeVenueNames,
         true,
+        soberFriendly,
       ),
     })),
   );
@@ -431,6 +488,7 @@ export async function generateDatePlanIdeas(
         meetingLocation,
         meetingLat,
         meetingLng,
+        soberFriendly,
       );
       return {
         idea: ideaFromLane(lane, sharedInterests, meetingLocation, pickedVenue, excludeTitles),
@@ -442,9 +500,12 @@ export async function generateDatePlanIdeas(
     meetingLocation,
     meetingLat,
     meetingLng,
+    soberFriendly,
   );
 
-  return { ideas, meetingLocation, sharedInterests };
+  const filteredIdeas = soberFriendly ? ideas.filter(ideaLooksSoberFriendly) : ideas;
+
+  return { ideas: filteredIdeas, meetingLocation, sharedInterests };
 }
 
 async function geocodeProfileLocation(

@@ -108,6 +108,7 @@ export async function resolveBrowseCandidatePool(
 
   let query = `
       SELECT p.*, 
+             u.photo_verified_at,
              ${interestsAgg} as interests_list,
              pref.min_age as candidate_min_age,
              pref.max_age as candidate_max_age,

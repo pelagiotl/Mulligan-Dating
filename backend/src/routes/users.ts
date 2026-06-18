@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { db } from '../database.js';
 import { authenticateToken, AuthRequest } from '../middleware/auth.js';
+import { isPhotoVerifiedAt } from '../utils/photoVerification.js';
 import { geocodeLocation, calculateDistanceMiles } from '../utils/geocoding.js';
 import { getCompletenessBoost } from '../utils/profileCompleteness.js';
 import { expireOldMatches } from '../utils/expireMatches.js';
@@ -183,6 +184,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
         interests: p.interests_list ? p.interests_list.split(',') : [],
         distance: null as number | null,
         soberCircleLevel: (p as { sober_circle_level?: string | null }).sober_circle_level ?? null,
+        photoVerified: isPhotoVerifiedAt((p as { photo_verified_at?: string | null }).photo_verified_at),
       };
       console.log('✅ Browse fast path: returning first profile', p.display_name);
       return res.json({
@@ -300,6 +302,9 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
       lookingFor: selectedProfile.looking_for,
       interests: selectedProfile.interests_list ? selectedProfile.interests_list.split(',') : [],
       distance: distance !== null && distance !== undefined ? Math.round(distance * 10) / 10 : null, // Round to 1 decimal
+      photoVerified: isPhotoVerifiedAt(
+        (selectedProfile as { photo_verified_at?: string | null }).photo_verified_at,
+      ),
     };
 
     res.json({
@@ -434,20 +439,32 @@ usersRouter.get('/diagnose/:targetUserId', authenticateToken, async (req: AuthRe
 });
 
 // Get single profile by ID
-usersRouter.get('/:profileId', authenticateToken, (req: AuthRequest, res) => {
+usersRouter.get('/:profileId', authenticateToken, async (req: AuthRequest, res) => {
   const { profileId } = req.params;
 
-  const profile = db.prepare('SELECT * FROM profiles WHERE id = ?').get(profileId) as ProfileRow | undefined;
+  const profileResult = db.prepare('SELECT * FROM profiles WHERE id = ?').get([profileId]);
+  const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
+    | ProfileRow
+    | undefined;
   
   if (!profile) {
     return res.status(404).json({ error: 'Profile not found' });
   }
 
+  const userResult = db.prepare('SELECT photo_verified_at FROM users WHERE id = ?').get([profile.user_id]);
+  const userRow = (userResult instanceof Promise ? await userResult : userResult) as
+    | { photo_verified_at?: string | null }
+    | undefined;
+
   // Get interests
-  const interests = db.prepare('SELECT name, category FROM interests WHERE profile_id = ?').all(profileId);
+  const interestsResult = db.prepare('SELECT name, category FROM interests WHERE profile_id = ?').all([profileId]);
+  const interests = interestsResult instanceof Promise ? await interestsResult : interestsResult;
   
   // Get partner qualities
-  const qualities = db.prepare('SELECT quality, importance FROM partner_qualities WHERE profile_id = ?').all(profileId);
+  const qualitiesResult = db
+    .prepare('SELECT quality, importance FROM partner_qualities WHERE profile_id = ?')
+    .all([profileId]);
+  const qualities = qualitiesResult instanceof Promise ? await qualitiesResult : qualitiesResult;
 
   res.json({
     id: profile.id,
@@ -458,6 +475,7 @@ usersRouter.get('/:profileId', authenticateToken, (req: AuthRequest, res) => {
     bio: profile.bio,
     photoUrl: profile.photo_url,
     lookingFor: profile.looking_for,
+    photoVerified: isPhotoVerifiedAt(userRow?.photo_verified_at),
     interests,
     partnerQualities: qualities
   });

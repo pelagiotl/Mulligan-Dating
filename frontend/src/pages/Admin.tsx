@@ -31,6 +31,8 @@ interface User {
   is_admin: boolean;
   is_restricted: boolean;
   hiddenFromBrowse?: boolean;
+  photoVerified?: boolean;
+  photo_verified_at?: string | null;
   created_at: string;
   last_active_at?: string;
   tokenCount: number;
@@ -169,10 +171,12 @@ interface Stats {
   restrictedUsers: number;
   activeUsers: number;
   onboardingUsers?: number;
+  verifiedUsers?: number;
+  notVerifiedUsers?: number;
 }
 
 /** Drill-down from dashboard stat cards */
-type StatDrillKey = 'totalUsers' | 'profiles' | 'matches' | 'restricted' | 'active7d' | 'onboarding';
+type StatDrillKey = 'totalUsers' | 'profiles' | 'matches' | 'restricted' | 'active7d' | 'onboarding' | 'verified' | 'not_verified';
 
 interface AdminPairMatchRow {
   id: string;
@@ -285,6 +289,8 @@ export default function Admin() {
           else if (statDrill === 'active7d') params.set('filter', 'active');
           else if (statDrill === 'onboarding') params.set('filter', 'onboarding');
           else if (statDrill === 'totalUsers') params.set('filter', 'complete');
+          else if (statDrill === 'verified') params.set('filter', 'verified');
+          else if (statDrill === 'not_verified') params.set('filter', 'not_verified');
           const data = await api.get<{ users: User[]; pagination: { total: number; totalPages: number } }>(
             `/admin/users?${params}`
           );
@@ -346,6 +352,16 @@ export default function Admin() {
         title: 'Onboarding',
         subtitle:
           'Accounts still setting up — signed up but have not finished account setup (Complete Profile). Often they saved part of the wizard but still need name, city/state, 3+ photos, then tap Complete Profile. Incomplete profiles can be moved back here automatically.',
+      },
+      verified: {
+        title: 'Verified users',
+        subtitle:
+          'Profiles granted the Mulligan verification badge. Click a row to review or revoke verification.',
+      },
+      not_verified: {
+        title: 'Not verified',
+        subtitle:
+          'Active users with profiles who do not have the verification badge yet. Grant verification from the user detail panel.',
       },
     };
     return map[key];
@@ -622,6 +638,37 @@ export default function Admin() {
     }
   };
 
+  const setPhotoVerified = async (userId: string, verified: boolean) => {
+    setActionLoading(userId);
+    try {
+      const response = await api.post<{ message: string; verified: boolean }>(
+        `/admin/users/${userId}/photo-verify`,
+        { verified },
+      );
+      setMessage({
+        type: 'success',
+        text: response.message || (verified ? 'Verification granted' : 'Verification removed'),
+      });
+      fetchUsers();
+      fetchStats();
+      if (selectedUser?.id === userId) {
+        fetchUserDetails(userId);
+      }
+      if (statDrill === 'verified' || statDrill === 'not_verified') {
+        setStatDrillPage(1);
+        setStatDrill(statDrill);
+      }
+    } catch (error: any) {
+      console.error('Photo verify error:', error);
+      setMessage({
+        type: 'error',
+        text: error.message || error.response?.data?.error || 'Failed to update verification',
+      });
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
   const setBrowseHidden = async (userId: string, hidden: boolean) => {
     setActionLoading(userId);
     try {
@@ -835,6 +882,28 @@ export default function Admin() {
             <div className="stat-icon" aria-hidden>📝</div>
             <div className="stat-value">{stats.onboardingUsers ?? 0}</div>
             <div className="stat-label">Onboarding</div>
+            <span className="stat-card-hint">View list</span>
+          </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'verified' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('verified')}
+            aria-haspopup="dialog"
+          >
+            <div className="stat-icon" aria-hidden>✓</div>
+            <div className="stat-value">{stats.verifiedUsers ?? 0}</div>
+            <div className="stat-label">Verified</div>
+            <span className="stat-card-hint">View list</span>
+          </button>
+          <button
+            type="button"
+            className={`stat-card stat-card--interactive${statDrill === 'not_verified' ? ' stat-card--active' : ''}`}
+            onClick={() => openStatDrill('not_verified')}
+            aria-haspopup="dialog"
+          >
+            <div className="stat-icon" aria-hidden>○</div>
+            <div className="stat-value">{stats.notVerifiedUsers ?? 0}</div>
+            <div className="stat-label">Not verified</div>
             <span className="stat-card-hint">View list</span>
           </button>
         </div>
@@ -1121,9 +1190,13 @@ export default function Admin() {
                             const isAdmin = Boolean(user.is_admin);
                             const isRestricted = Boolean(user.is_restricted);
                             const isHiddenFromBrowse = Boolean(user.hiddenFromBrowse);
+                            const isVerified = Boolean(user.photoVerified);
 
                             if (isAdmin) {
                               return <span className="badge badge-admin">Admin</span>;
+                            }
+                            if (isVerified) {
+                              return <span className="badge badge-verified">Verified</span>;
                             }
                             if (isHiddenFromBrowse) {
                               return <span className="badge badge-hidden-browse">Hidden</span>;
@@ -1181,6 +1254,24 @@ export default function Admin() {
                             >
                               {Boolean(user.is_restricted) ? 'Unrestrict' : 'Restrict'}
                             </button>
+                            {!isAdmin ? (
+                              <button
+                                type="button"
+                                className={`btn btn-sm admin-action-verify ${Boolean(user.photoVerified) ? 'btn-success' : 'btn-secondary'}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPhotoVerified(user.id, !Boolean(user.photoVerified));
+                                }}
+                                disabled={actionLoading === user.id}
+                                title={
+                                  Boolean(user.photoVerified)
+                                    ? 'Remove Mulligan verification badge'
+                                    : 'Grant Mulligan verification badge'
+                                }
+                              >
+                                {Boolean(user.photoVerified) ? 'Unverify' : 'Verify'}
+                              </button>
+                            ) : null}
                             <button
                               type="button"
                               className="btn btn-sm btn-danger admin-action-delete"
@@ -1595,6 +1686,17 @@ export default function Admin() {
                   >
                     {Boolean(selectedUser.is_restricted) ? 'Unrestrict User' : 'Restrict User'}
                   </button>
+                  {!selectedUser.is_admin ? (
+                    <button
+                      className={`btn ${Boolean(selectedUser.photoVerified) ? 'btn-success' : 'btn-primary'}`}
+                      onClick={() => setPhotoVerified(selectedUser.id, !Boolean(selectedUser.photoVerified))}
+                      disabled={actionLoading === selectedUser.id}
+                    >
+                      {Boolean(selectedUser.photoVerified)
+                        ? 'Remove verification badge'
+                        : 'Grant verification badge'}
+                    </button>
+                  ) : null}
                   {isSuperAdmin && !selectedUser.is_admin && (
                     <button
                       className="btn btn-secondary"
@@ -1920,6 +2022,8 @@ export default function Admin() {
                             <td>
                               {u.is_admin ? (
                                 <span className="badge badge-admin">Admin</span>
+                              ) : u.photoVerified ? (
+                                <span className="badge badge-verified">Verified</span>
                               ) : u.is_restricted ? (
                                 <span className="badge badge-restricted">Restricted</span>
                               ) : (

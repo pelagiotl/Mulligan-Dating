@@ -62,6 +62,7 @@ import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
 import SoberCircleBadge from '../components/SoberCircleBadge';
+import VerifiedBadge from '../components/VerifiedBadge';
 import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import DatePlanProposalMessageCard, {
   type DatePlanMessageSnapshot,
@@ -144,6 +145,7 @@ interface Match {
     values: string[];
     partnerQualities: Array<{ quality: string; importance: number }>;
     lastActiveAt?: string | null;
+    photoVerified?: boolean;
   };
 }
 
@@ -921,6 +923,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               >
                 {item.otherUser.displayName ?? ''}
               </Text>
+              <VerifiedBadge verified={item.otherUser.photoVerified} size={16} />
               <Text style={[styles.matchAge, { color: cardColors.age }]}>
                 , {item.otherUser.age != null ? String(item.otherUser.age) : ''}
               </Text>
@@ -3492,7 +3495,10 @@ export default function MatchesScreen() {
               activeOpacity={0.8}
               style={styles.chatHeaderTitleTouch}
             >
-              <Text style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+              <View style={styles.chatHeaderTitleRow}>
+                <Text style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
+                <VerifiedBadge verified={selectedMatch.otherUser.photoVerified} size={16} />
+              </View>
             </TouchableOpacity>
           </View>
           {/* Bottom row: age, photo visibility, compatibility + game icons */}
@@ -5099,6 +5105,12 @@ const styles = StyleSheet.create({
     minWidth: 0,
     justifyContent: 'center',
   },
+  chatHeaderTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    minWidth: 0,
+    flex: 1,
+  },
   chatHeaderTitle: {
     fontSize: 18,
     fontWeight: '700',
@@ -5106,7 +5118,7 @@ const styles = StyleSheet.create({
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
   },
   chatHeaderCompatibilityBadgeWrap: {

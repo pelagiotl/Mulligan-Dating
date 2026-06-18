@@ -15,7 +15,7 @@ import PhotoUnlockExplainerModalWeb from "../components/PhotoUnlockExplainerModa
 import TruthOrDareWeb from "../components/TruthOrDareWeb";
 import NeverHaveIEverWeb from "../components/NeverHaveIEverWeb";
 import HangoutPlanHeaderButton from "../components/HangoutPlanHeaderButton";
-import IntentionalDatePlanner from "../components/IntentionalDatePlanner";
+import VerifiedBadge from "../components/VerifiedBadge";
 import DatePlanProposalMessageCard, {
   type DatePlanMessageSnapshot,
 } from "../components/DatePlanProposalMessageCard";
@@ -76,6 +76,7 @@ interface Match {
     preferredGenders?: string[] | null;
     /** Present only when the other user has show_active_status enabled. */
     lastActiveAt?: string | null;
+    photoVerified?: boolean;
   };
 }
 
@@ -2303,7 +2304,10 @@ export default function Matches() {
                   <div className="match-item-primary">
                     <div className="match-item-title-row">
                       <h4 className="match-item-name">
-                        {match.otherUser.displayName}
+                        <span className="verified-name-row">
+                          {match.otherUser.displayName}
+                          <VerifiedBadge verified={match.otherUser.photoVerified} size={16} />
+                        </span>
                         {(match.unreadCount || 0) > 0 ? (
                           <span className="match-unread-dot" aria-hidden />
                         ) : null}
@@ -2461,7 +2465,10 @@ export default function Matches() {
                     </span>
                   </button>
                   <div className="chat-user-meta-block">
-                    <h3>{selectedMatch.otherUser.displayName}</h3>
+                    <h3 className="verified-name-row">
+                      {selectedMatch.otherUser.displayName}
+                      <VerifiedBadge verified={selectedMatch.otherUser.photoVerified} size={18} />
+                    </h3>
                     <p>
                       {selectedMatch.otherUser.age} · {selectedMatch.otherUser.gender}
                       {selectedMatch.otherUser.location && ` · ${selectedMatch.otherUser.location}`}

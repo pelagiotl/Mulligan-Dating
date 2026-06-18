@@ -162,7 +162,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
                 p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location, p2.looking_for as user2_looking_for,
                 p2.intro_video_url as user2_intro_video, p2.sober_circle_level as user2_sober_circle_level,
                 u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active,
-                u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active
+                u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active,
+                u1.photo_verified_at as user1_photo_verified_at, u2.photo_verified_at as user2_photo_verified_at
          FROM matches m
          LEFT JOIN profiles p1 ON p1.user_id = m.user1_id
          LEFT JOIN profiles p2 ON p2.user_id = m.user2_id
@@ -462,6 +463,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
       const otherLastActive = isUser1 ? m.user2_last_active : m.user1_last_active;
       const otherShowActive = isUser1 ? (m.user2_show_active !== 0 && m.user2_show_active !== false) : (m.user1_show_active !== 0 && m.user1_show_active !== false);
       const otherSoberLevel = isUser1 ? m.user2_sober_circle_level : m.user1_sober_circle_level;
+      const otherPhotoVerifiedAt = isUser1 ? m.user2_photo_verified_at : m.user1_photo_verified_at;
       const otherUser = {
         userId: otherUserId,
         displayName: isUser1 ? m.user2_name : m.user1_name,
@@ -475,6 +477,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
           ? (isUser1 ? m.user2_intro_video : m.user1_intro_video) ?? null
           : null,
         soberCircleLevel: otherSoberLevel && String(otherSoberLevel).trim() ? otherSoberLevel : null,
+        photoVerified: !!(otherPhotoVerifiedAt && String(otherPhotoVerifiedAt).trim()),
         last_active_at: otherLastActive,
         show_active_status: otherShowActive,
       };
