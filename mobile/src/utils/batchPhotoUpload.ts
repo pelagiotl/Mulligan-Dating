@@ -1,20 +1,7 @@
 import { api, getToken } from './api';
+import { compressPhotoUrisForUpload } from './photoImageCompress';
 
 export type UploadedPhotoResult = { id: string; url: string };
-
-function mimeForFilename(filename: string): string {
-  const match = /\.(\w+)$/.exec(filename.toLowerCase());
-  if (!match) return 'image/jpeg';
-  const ext = match[1].toLowerCase();
-  const mimeTypes: Record<string, string> = {
-    jpg: 'image/jpeg',
-    jpeg: 'image/jpeg',
-    png: 'image/png',
-    gif: 'image/gif',
-    webp: 'image/webp',
-  };
-  return mimeTypes[ext] || 'image/jpeg';
-}
 
 const UPLOAD_TIMEOUT_MS = 120_000;
 
@@ -37,15 +24,16 @@ export async function uploadPhotoUris(uris: string[]): Promise<UploadedPhotoResu
     throw new Error('No authentication token found. Please log in again.');
   }
 
+  const prepared = await compressPhotoUrisForUpload(uris);
+
   const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
   const formData = new FormData();
 
-  for (const uri of uris) {
-    const filename = uri.split('/').pop() || 'photo.jpg';
+  for (const item of prepared) {
     formData.append('photos', {
-      uri,
-      type: mimeForFilename(filename),
-      name: filename,
+      uri: item.uri,
+      type: item.mimeType,
+      name: item.name,
     } as unknown as Blob);
   }
 

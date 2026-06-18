@@ -3,12 +3,13 @@ import { v4 as uuidv4 } from "uuid";
 import { db } from "../database.js";
 import { authenticateToken, AuthRequest } from "../middleware/auth.js";
 import { uploadMultiple, uploadSingle } from "../middleware/upload.js";
-import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
-import { compressImageForCloudinary } from "../services/imageCompression.js";
+import { deleteFromCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
 import { notifyPartnersProfileChanged } from "../services/partnerProfileBroadcast.js";
 import {
-  moderateImageUpload,
-  readUploadBuffer,
+  uploadProfilePhotoToCloudinary,
+  moderateLocalPhotoFile,
+} from "../services/profilePhotoUpload.js";
+import {
   handleModerationRouteError,
 } from "../services/contentModeration.js";
 import fs from "fs";
@@ -214,293 +215,100 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
 
     let nextOrder = lastPhoto ? lastPhoto.display_order + 1 : 0;
 
-    // Insert photos
-    const uploadedPhotos = [];
-    let isFirst = photoCount === 0; // First photo becomes primary if no photos exist
+    // Upload + moderate in parallel, then insert rows
+    const uploadedPhotos: Array<{
+      id: string;
+      url: string;
+      displayOrder: number;
+      isPrimary: boolean;
+    }> = [];
     let primaryPhotoUrl: string | null = null;
     const useCloudinary = isCloudinaryConfigured();
 
-    for (const file of files) {
-      const photoId = uuidv4();
-      let photoUrl: string;
+    type StagedPhoto = {
+      photoId: string;
+      photoUrl: string;
+      displayOrder: number;
+      isPrimary: boolean;
+    };
 
-      // Validate file
-      if (!file) {
-        console.error('Photo upload: File is undefined');
-        return res.status(400).json({ error: 'Invalid file upload' });
-      }
-
-      console.log('📸 Processing file:', {
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        hasBuffer: !!file.buffer,
-        bufferLength: file.buffer?.length,
-        filename: file.filename
-      });
-
-      if (useCloudinary) {
-        // Upload to Cloudinary
-        if (!file.buffer) {
-          console.error('Photo upload: No buffer available for Cloudinary upload');
-          return res.status(500).json({ 
-            error: 'File buffer not available. This may be a server configuration issue.',
-            suggestion: 'Please try uploading the photo again.'
-          });
-        }
-
-        // Validate buffer
-        if (file.buffer.length === 0) {
-          console.error('Photo upload: Buffer is empty');
-          return res.status(400).json({ error: 'File is empty' });
-        }
-
-        try {
-          const moderationBuffer = file.buffer ?? (await readUploadBuffer(file));
-          await moderateImageUpload(moderationBuffer, file.mimetype);
-        } catch (modError) {
-          if (handleModerationRouteError(modError, res)) return;
-          throw modError;
-        }
-
-        try {
-          const originalSize = file.buffer.length;
-          const originalSizeMB = (originalSize / (1024 * 1024)).toFixed(2);
-          
-          console.log('☁️  Preparing image for Cloudinary:', { 
-            photoId, 
-            size: originalSize, 
-            sizeMB: originalSizeMB,
-            mimetype: file.mimetype,
-            originalname: file.originalname
-          });
-
-          // Compress image if needed (Cloudinary free tier has 10MB limit)
-          let imageBuffer = file.buffer;
-          if (originalSize > 10 * 1024 * 1024) {
-            console.log('📦 Image exceeds 10MB, compressing...');
-            imageBuffer = await compressImageForCloudinary(file.buffer, 10 * 1024 * 1024);
-            const compressedSizeMB = (imageBuffer.length / (1024 * 1024)).toFixed(2);
-            console.log(`✅ Compression complete: ${originalSizeMB} MB → ${compressedSizeMB} MB`);
+    let staged: StagedPhoto[];
+    try {
+      staged = await Promise.all(
+        files.map(async (file, index): Promise<StagedPhoto> => {
+          if (!file) {
+            throw new Error('Invalid file upload');
           }
 
-          console.log('☁️  Uploading to Cloudinary...');
-          photoUrl = await uploadToCloudinary(imageBuffer, 'mulligan-photos', photoId);
-          console.log('✅ Cloudinary upload successful:', photoUrl);
-        } catch (error: any) {
-            // Log the raw error first
-            console.error('❌ Cloudinary upload failed - RAW ERROR:', error);
-            console.error('❌ Error type:', typeof error);
-            console.error('❌ Error constructor:', error?.constructor?.name);
-            console.error('❌ Error keys:', Object.keys(error || {}));
-            
-            // Try to extract all possible error information
-            const errorInfo: any = {
-              message: error?.message,
-              http_code: error?.http_code,
-              name: error?.name,
-              code: error?.code,
-              request_id: error?.request_id,
-              rate_limit_allowed: error?.rate_limit_allowed,
-              rate_limit_reset_at: error?.rate_limit_reset_at,
-            };
-            
-            // Log all properties
-            if (error) {
-              for (const key in error) {
-                if (error.hasOwnProperty(key)) {
-                  const value = error[key];
-                  errorInfo[key] = typeof value === 'object' ? JSON.stringify(value) : value;
-                }
-              }
-            }
-            
-            console.error('❌ Cloudinary error details:', JSON.stringify(errorInfo, null, 2));
-            
-            // Extract error message properly (handle nested objects and Error instances)
-            let errorMessage = 'Unknown error';
-            let httpCode = null;
-            
-            try {
-              // First, try to get http_code
-              httpCode = error?.http_code || null;
-              
-              // Extract message - try multiple strategies
-              if (typeof error === 'string') {
-                errorMessage = error;
-              } else if (error instanceof Error) {
-                errorMessage = error.message || 'Unknown error';
-                // If message is still an object somehow, try to extract more
-                if (errorMessage === '[object Object]') {
-                  errorMessage = 'Cloudinary upload failed - check server logs';
-                }
-              } else if (error?.message) {
-                // Handle case where error.message might be an object
-                if (typeof error.message === 'string') {
-                  errorMessage = error.message;
-                } else if (error.message instanceof Error) {
-                  errorMessage = error.message.message || 'Unknown error';
-                } else {
-                  // Try to extract useful info from the message object
-                  try {
-                    // If message has a message property
-                    if (error.message.message && typeof error.message.message === 'string') {
-                      errorMessage = error.message.message;
-                    } else {
-                      // Try to stringify with replacer to avoid circular refs
-                      errorMessage = JSON.stringify(error.message, (key, value) => {
-                        if (key === 'stack' || key === 'originalError') return undefined;
-                        if (typeof value === 'object' && value !== null) {
-                          // For objects, try to get string properties
-                          const stringProps: any = {};
-                          for (const k in value) {
-                            if (typeof value[k] === 'string') {
-                              stringProps[k] = value[k];
-                            }
-                          }
-                          return Object.keys(stringProps).length > 0 ? stringProps : value;
-                        }
-                        return value;
-                      }, 2);
-                    }
-                  } catch {
-                    // If stringify fails, try to get any string property
-                    const msgKeys = Object.keys(error.message || {});
-                    const stringVals = msgKeys
-                      .filter(k => typeof error.message[k] === 'string')
-                      .map(k => `${k}: ${error.message[k]}`)
-                      .join(', ');
-                    errorMessage = stringVals || 'Cloudinary upload failed';
-                  }
-                }
-              } else {
-                // Last resort - try to extract any useful string information
-                const errorKeys = Object.keys(error || {});
-                const stringProps = errorKeys
-                  .filter(key => {
-                    const val = error[key];
-                    return typeof val === 'string' && val.length > 0 && val !== '[object Object]';
-                  })
-                  .map(key => `${key}: ${error[key]}`)
-                  .join(', ');
-                
-                if (stringProps) {
-                  errorMessage = stringProps;
-                } else {
-                  // Try to stringify with safe replacer
-                  try {
-                    errorMessage = JSON.stringify(error, (key, value) => {
-                      if (key === 'stack' || key === 'originalError') return undefined;
-                      if (typeof value === 'function') return '[Function]';
-                      return value;
-                    }, 2);
-                  } catch {
-                    errorMessage = 'Cloudinary upload failed - check server logs for details';
-                  }
-                }
-              }
-              
-              // Final check - if we still have "[object Object]", use a generic message
-              if (errorMessage === '[object Object]' || errorMessage.includes('[object Object]')) {
-                errorMessage = httpCode 
-                  ? `Cloudinary upload failed (HTTP ${httpCode}) - check server logs for details`
-                  : 'Cloudinary upload failed - check server logs for details';
-              }
-            } catch (stringifyError) {
-              // If even stringifying fails, use a fallback
-              console.error('Error extracting error message:', stringifyError);
-              errorMessage = httpCode 
-                ? `Cloudinary upload failed (HTTP ${httpCode})`
-                : 'Cloudinary upload failed';
-            }
-            
-            // Check if this is a Render-specific issue (no local storage on Render)
-            const isRender = process.env.RENDER || process.env.NODE_ENV === 'production';
-            
-            if (isRender) {
-              // On Render, we can't use local storage fallback
-              // Return detailed error to help debug
-              return res.status(500).json({ 
-                error: 'Failed to upload photo to cloud storage',
-                details: errorMessage,
-                http_code: httpCode,
-                suggestion: 'Please check Cloudinary configuration and network connectivity. If the file is very large, try compressing it first.'
-              });
-            } else {
-              // Fallback to local storage if Cloudinary fails (only in development)
-              console.log('⚠️  Cloudinary upload failed, falling back to local storage');
-              try {
-                // Save file to local storage as fallback
-                const uploadsDir = path.join(process.cwd(), 'uploads');
-                if (!fs.existsSync(uploadsDir)) {
-                  fs.mkdirSync(uploadsDir, { recursive: true });
-                }
-                
-                const localFilename = `${photoId}${path.extname(file.originalname || '.jpg')}`;
-                const localPath = path.join(uploadsDir, localFilename);
-                
-                // Write buffer to file
-                fs.writeFileSync(localPath, file.buffer);
-                photoUrl = `/uploads/${localFilename}`;
-                console.log('✅ Fallback to local storage successful:', photoUrl);
-              } catch (fallbackError) {
-                console.error('❌ Fallback to local storage also failed:', fallbackError);
-                return res.status(500).json({ 
-                  error: 'Failed to upload photo. Please try again.',
-                  details: error?.message || String(error),
-                  http_code: error?.http_code
-                });
-              }
-            }
-        }
-      } else {
-        // Use local filesystem
-        try {
-          const moderationBuffer = await readUploadBuffer(file);
-          await moderateImageUpload(moderationBuffer, file.mimetype);
-        } catch (modError) {
-          if (handleModerationRouteError(modError, res)) return;
-          throw modError;
-        }
+          const photoId = uuidv4();
+          const displayOrder = nextOrder + index;
+          const isPrimary = photoCount === 0 && index === 0;
 
-        photoUrl = `/uploads/${file.filename}`;
-        
-        // Verify file exists after insert (only for local storage)
-        const filePath = path.join(process.cwd(), photoUrl);
-        const fileExists = fs.existsSync(filePath);
-        console.log('Photo upload: File verification - Path:', filePath, 'Exists:', fileExists);
-        
-        if (!fileExists) {
-          console.error('Photo upload: WARNING - File does not exist after upload! This indicates an upload failure.');
-        }
+          console.log('📸 Processing file:', {
+            originalname: file.originalname,
+            mimetype: file.mimetype,
+            size: file.size,
+            hasBuffer: !!file.buffer,
+            bufferLength: file.buffer?.length,
+            filename: file.filename,
+          });
+
+          let photoUrl: string;
+          if (useCloudinary) {
+            if (!file.buffer?.length) {
+              throw new Error('File buffer not available. Please try uploading the photo again.');
+            }
+            photoUrl = await uploadProfilePhotoToCloudinary(file, photoId);
+          } else {
+            await moderateLocalPhotoFile(file);
+            photoUrl = `/uploads/${file.filename}`;
+            const filePath = path.join(process.cwd(), photoUrl);
+            if (!fs.existsSync(filePath)) {
+              console.error('Photo upload: WARNING - File does not exist after upload:', filePath);
+            }
+          }
+
+          return { photoId, photoUrl, displayOrder, isPrimary };
+        }),
+      );
+    } catch (modError) {
+      if (handleModerationRouteError(modError, res)) return;
+      const message = modError instanceof Error ? modError.message : String(modError);
+      if (message.includes('buffer not available') || message.includes('File is empty')) {
+        return res.status(message.includes('empty') ? 400 : 500).json({ error: message });
       }
+      throw modError;
+    }
 
-      console.log('Photo upload: Inserting photo:', { photoId, profileId: profile.id, photoUrl, displayOrder: nextOrder, isPrimary: isFirst });
+    for (const item of staged) {
+      console.log('Photo upload: Inserting photo:', {
+        photoId: item.photoId,
+        profileId: profile.id,
+        photoUrl: item.photoUrl,
+        displayOrder: item.displayOrder,
+        isPrimary: item.isPrimary,
+      });
 
-      const insertResult = db.prepare(
-        `INSERT INTO photos (id, profile_id, url, display_order, is_primary) 
-         VALUES (?, ?, ?, ?, ?)`
-      ).run([photoId, profile.id, photoUrl, nextOrder, isFirst ? 1 : 0]);
+      const insertResult = db
+        .prepare(
+          `INSERT INTO photos (id, profile_id, url, display_order, is_primary) 
+         VALUES (?, ?, ?, ?, ?)`,
+        )
+        .run([item.photoId, profile.id, item.photoUrl, item.displayOrder, item.isPrimary ? 1 : 0]);
       if (insertResult instanceof Promise) {
         await insertResult;
       }
 
-      // If this is the primary photo, save the URL to update profile
-      if (isFirst) {
-        primaryPhotoUrl = photoUrl;
+      if (item.isPrimary) {
+        primaryPhotoUrl = item.photoUrl;
       }
 
-      console.log('Photo upload: Photo inserted successfully:', photoId);
-
       uploadedPhotos.push({
-        id: photoId,
-        url: photoUrl,
-        displayOrder: nextOrder,
-        isPrimary: isFirst,
+        id: item.photoId,
+        url: item.photoUrl,
+        displayOrder: item.displayOrder,
+        isPrimary: item.isPrimary,
       });
-
-      nextOrder++;
-      isFirst = false; // Only the first photo in this batch is primary
     }
 
     // Update profile's photo_url if we set a primary photo

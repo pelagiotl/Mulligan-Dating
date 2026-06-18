@@ -193,10 +193,10 @@ async function checkSightengineImageUrl(
 
 async function checkSightengineImageUrlWithRetry(imageUrl: string): Promise<SightengineImageResponse> {
   let lastError: unknown;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 2; attempt++) {
     try {
       if (attempt > 0) {
-        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+        await new Promise((resolve) => setTimeout(resolve, 300 * attempt));
       }
       return await checkSightengineImageUrl(imageUrl);
     } catch (err) {
@@ -252,6 +252,25 @@ export async function moderateImageUpload(buffer: Buffer, mimeType: string): Pro
   await runCheck('image', buffer, mimeType);
 }
 
+/** Scan a hosted image URL (e.g. Cloudinary) — faster than re-uploading bytes to Sightengine. */
+export async function moderateImageAtUrl(imageUrl: string): Promise<void> {
+  if (!isContentModerationEnabled()) return;
+  if (!imageUrl?.trim()) return;
+
+  try {
+    const result = await checkSightengineImageUrlWithRetry(imageUrl);
+    if (evaluateImageResult(result)) {
+      throw new ContentModerationError();
+    }
+  } catch (error) {
+    if (error instanceof ContentModerationError) throw error;
+    console.error('Content moderation URL check error (upload allowed):', error);
+    if (process.env.CONTENT_MODERATION_STRICT === 'true') {
+      throw new Error('Content moderation is temporarily unavailable. Please try again shortly.');
+    }
+  }
+}
+
 export async function moderateVideoUpload(buffer: Buffer, mimeType: string): Promise<void> {
   if (!buffer?.length) return;
   await runCheck('video', buffer, mimeType);
@@ -264,12 +283,12 @@ export async function moderateIntroVideoAtUrl(
 ): Promise<void> {
   if (!isContentModerationEnabled()) return;
 
-  const frameOffsetsSec = [0, 7];
+  const frameOffsetsSec = [0, 5];
 
   try {
     if (videoUrl.includes('res.cloudinary.com')) {
       // Cloudinary may need a moment to serve frame derivatives right after upload.
-      await new Promise((resolve) => setTimeout(resolve, 400));
+      await new Promise((resolve) => setTimeout(resolve, 150));
       const frameUrls = frameOffsetsSec
         .map((offsetSec) => buildCloudinaryVideoFrameUrl(videoUrl, offsetSec))
         .filter((url): url is string => Boolean(url));
