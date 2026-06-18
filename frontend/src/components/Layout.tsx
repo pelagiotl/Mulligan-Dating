@@ -142,7 +142,7 @@ export default function Layout() {
                   className={`navbar-link ${isActive('/browse') ? 'active' : ''}`}
                   aria-label="Connect"
                 >
-                  <span>😍</span> Connect
+                  <span>😊</span> Connect
                 </Link>
               </li>
               <li>
@@ -210,7 +210,7 @@ export default function Layout() {
             onClick={onBottomTabPress}
           >
             {isActive('/browse') && <span className="app-bottom-tabs__glow" aria-hidden />}
-            <span className="app-bottom-tabs__emoji">😍</span>
+            <span className="app-bottom-tabs__emoji">😊</span>
             <span className="app-bottom-tabs__label">Connect</span>
           </Link>
           <Link

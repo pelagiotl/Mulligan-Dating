@@ -1238,6 +1238,14 @@ export async function initDatabase() {
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_live_date_signups_user ON live_date_signups(user_id)`);
   await execSQL(`CREATE INDEX IF NOT EXISTS idx_live_date_events_at ON live_date_events(event_at)`);
 
+  try {
+    await execSQL(
+      `ALTER TABLE live_date_signups ADD COLUMN reminder_soon_sent_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`,
+    );
+  } catch {
+    // Column already exists
+  }
+
   console.log('✅ Date reflections and Live Dates tables ready');
   } catch (e) {
     console.warn("⚠️  Some indexes may already exist or failed to create:", e);

@@ -9,6 +9,7 @@ import {
   Alert,
   RefreshControl,
   Platform,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,6 +17,8 @@ import { api } from '../utils/api';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { connectShellGradientStops } from '../lib/connectShellTheme';
 import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
+
+const LIVE_DATES_HERO = require('../../assets/live-dates-hero.png');
 
 type LiveEvent = {
   id: string;
@@ -33,32 +36,127 @@ type LiveEvent = {
   isSignedUp: boolean;
 };
 
+const EVENT_TIMEZONE = 'America/Los_Angeles';
+
 function formatEventWhen(iso: string): string {
   const d = new Date(iso);
-  return d.toLocaleString('en-US', {
-    weekday: 'short',
-    month: 'short',
+  const date = d.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
     day: 'numeric',
+    year: 'numeric',
+    timeZone: EVENT_TIMEZONE,
+  });
+  const time = d.toLocaleTimeString('en-US', {
     hour: 'numeric',
     minute: '2-digit',
+    timeZone: EVENT_TIMEZONE,
   });
+  return `${date} · ${time}`;
+}
+
+function descriptionParagraphs(description: string | null): string[] {
+  if (!description?.trim()) return [];
+  return description
+    .split(/\n\s*\n/)
+    .map((p) => p.trim())
+    .filter(Boolean);
+}
+
+function toCount(value: number): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function LiveEventStats({ event, midnight }: { event: LiveEvent; midnight: boolean }) {
+  const total = toCount(event.signupCount);
+  const men = toCount(event.maleCount);
+  const women = toCount(event.femaleCount);
+  const capacity = toCount(event.capacity);
+  const spotsLeft = Math.max(0, capacity - total);
+  const fillPct = capacity > 0 ? Math.min(100, (total / capacity) * 100) : 0;
+  const almostFull = spotsLeft > 0 && spotsLeft <= 5;
+  const full = spotsLeft === 0;
+
+  const eyebrow = full ? 'Sold out' : almostFull ? '🔥 Almost full' : '✨ Filling up fast';
+
+  return (
+    <View style={[styles.statsPanel, midnight && styles.statsPanelMidnight]}>
+      <View style={styles.statsHeaderRow}>
+        <Text style={[styles.statsEyebrow, midnight && styles.statsEyebrowMidnight]}>{eyebrow}</Text>
+        <Text style={[styles.statsFraction, midnight && styles.statsFractionMidnight]}>
+          {total} / {capacity} spots
+        </Text>
+      </View>
+
+      <View style={[styles.statsTrack, midnight && styles.statsTrackMidnight]}>
+        <LinearGradient
+          colors={full ? ['#94a3b8', '#64748b'] : ['#f5576c', '#f093fb', '#667eea']}
+          start={{ x: 0, y: 0.5 }}
+          end={{ x: 1, y: 0.5 }}
+          style={[styles.statsFill, { width: `${Math.max(fillPct, total > 0 ? 8 : 0)}%` }]}
+        />
+      </View>
+
+      <View style={styles.statsGrid}>
+        <View style={[styles.statCell, midnight && styles.statCellMidnight]}>
+          <Text style={[styles.statValue, midnight && styles.textLight]}>{total}</Text>
+          <Text style={[styles.statLabel, midnight && styles.leadMidnight]}>Signed up</Text>
+        </View>
+        <View style={[styles.statDivider, midnight && styles.statDividerMidnight]} />
+        <View style={[styles.statCell, midnight && styles.statCellMidnight]}>
+          <Text style={[styles.statValue, midnight && styles.textLight]}>{men}</Text>
+          <Text style={[styles.statLabel, midnight && styles.leadMidnight]}>Men</Text>
+        </View>
+        <View style={[styles.statDivider, midnight && styles.statDividerMidnight]} />
+        <View style={[styles.statCell, midnight && styles.statCellMidnight]}>
+          <Text style={[styles.statValue, midnight && styles.textLight]}>{women}</Text>
+          <Text style={[styles.statLabel, midnight && styles.leadMidnight]}>Women</Text>
+        </View>
+      </View>
+
+      {!full ? (
+        <LinearGradient
+          colors={
+            almostFull
+              ? ['rgba(245, 87, 108, 0.18)', 'rgba(240, 147, 251, 0.22)']
+              : ['rgba(102, 126, 234, 0.12)', 'rgba(118, 75, 162, 0.14)']
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[styles.spotsLeftBanner, almostFull && styles.spotsLeftBannerHot]}
+        >
+          <Text style={[styles.spotsLeftNumber, midnight && styles.spotsLeftNumberMidnight]}>
+            {spotsLeft}
+          </Text>
+          <Text style={[styles.spotsLeftCopy, midnight && styles.leadMidnight]}>
+            {spotsLeft === 1 ? 'spot left — grab it' : 'spots left — don\'t wait'}
+          </Text>
+        </LinearGradient>
+      ) : (
+        <View style={[styles.spotsLeftBanner, styles.spotsLeftBannerFull]}>
+          <Text style={[styles.spotsLeftCopy, styles.spotsLeftCopyFull]}>This event is at capacity</Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 export default function LiveDatesScreen() {
   const insets = useSafeAreaInsets();
   const { mode: shellMode } = useConnectShellTheme();
   const midnight = shellMode === 'midnight';
-  const [events, setEvents] = useState<LiveEvent[]>([]);
+  const [event, setEvent] = useState<LiveEvent | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [signingUp, setSigningUp] = useState<string | null>(null);
+  const [signingUp, setSigningUp] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const data = await api.get<{ events: LiveEvent[] }>('/live-dates/events', false);
-      setEvents(data.events ?? []);
+      setEvent(data.events?.[0] ?? null);
     } catch (err: unknown) {
-      Alert.alert('Error', err instanceof Error ? err.message : 'Could not load events');
+      Alert.alert('Error', err instanceof Error ? err.message : 'Could not load event');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -69,89 +167,123 @@ export default function LiveDatesScreen() {
     void load();
   }, [load]);
 
-  const signup = async (eventId: string) => {
-    setSigningUp(eventId);
+  const signup = async () => {
+    if (!event) return;
+    setSigningUp(true);
     try {
-      await api.post('/live-dates/signup', { eventId });
+      const result = await api.post<{ emailSent?: boolean; pushSent?: boolean }>(
+        '/live-dates/signup',
+        { eventId: event.id },
+      );
       await load();
-      Alert.alert('You\'re in! 🎟️', 'Your ticket is saved. We\'ll send a reminder before the event.');
+      const parts = ['Your spot is saved.'];
+      if (result.emailSent) {
+        parts.push('Check your email for confirmation.');
+      }
+      if (result.pushSent) {
+        parts.push('Push reminders are on for this event.');
+      } else {
+        parts.push('Enable notifications in Settings to get reminders before the event.');
+      }
+      Alert.alert('You\'re in! 🎟️', parts.join(' '));
     } catch (err: unknown) {
       Alert.alert('Signup failed', err instanceof Error ? err.message : 'Please try again');
     } finally {
-      setSigningUp(null);
+      setSigningUp(false);
     }
   };
 
   const bottomPad = iosFloatingTabBarInset(insets.bottom) + 16;
+  const paragraphs = descriptionParagraphs(event?.description ?? null);
+  const spotsLeft = event ? Math.max(0, toCount(event.capacity) - toCount(event.signupCount)) : 0;
 
   return (
     <LinearGradient colors={connectShellGradientStops(shellMode)} style={styles.flex}>
       <ScrollView
-        contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 12, paddingBottom: bottomPad }]}
+        contentContainerStyle={[styles.scroll, { paddingBottom: bottomPad }]}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); void load(); }} />
         }
       >
-        <Text style={[styles.title, midnight && styles.titleMidnight]}>Live Dates</Text>
-        <Text style={[styles.lead, midnight && styles.leadMidnight]}>
-          In-person mixers across Southern Oregon — meet matches IRL with good food and good vibes.
-        </Text>
+        <View style={styles.heroWrap}>
+          <Image
+            source={LIVE_DATES_HERO}
+            style={styles.heroImage}
+            resizeMode="cover"
+            accessibilityLabel="Summer evening outdoor social event at Mulligan Live Dates"
+          />
+          <LinearGradient
+            colors={['transparent', 'rgba(15, 10, 28, 0.55)', 'rgba(15, 10, 28, 0.92)']}
+            locations={[0.35, 0.72, 1]}
+            style={styles.heroGradient}
+            pointerEvents="none"
+          />
+          <View style={[styles.heroCopy, { paddingTop: insets.top + 14 }]}>
+            <Text style={styles.heroTitle}>Mulligan Live Dates</Text>
+            <Text style={styles.heroTagline}>Real connections, zero swiping.</Text>
+          </View>
+        </View>
 
+        <View style={styles.body}>
         {loading ? (
           <ActivityIndicator style={{ marginTop: 40 }} color={midnight ? '#f472b6' : '#8B1538'} />
-        ) : events.length === 0 ? (
+        ) : !event ? (
           <View style={[styles.emptyCard, midnight && styles.emptyCardMidnight]}>
             <Text style={styles.emptyEmoji}>📅</Text>
-            <Text style={[styles.emptyTitle, midnight && styles.textLight]}>No upcoming events yet</Text>
-            <Text style={[styles.emptySub, midnight && styles.leadMidnight]}>Check back soon — new mixers drop regularly.</Text>
+            <Text style={[styles.emptyTitle, midnight && styles.textLight]}>No event scheduled yet</Text>
+            <Text style={[styles.emptySub, midnight && styles.leadMidnight]}>
+              Check back soon for our next Mulligan Live Dates night.
+            </Text>
           </View>
         ) : (
-          events.map((event) => (
-            <View key={event.id} style={[styles.card, midnight && styles.cardMidnight]}>
-              {event.isSignedUp ? (
-                <View style={styles.ticketBadge}>
-                  <Text style={styles.ticketBadgeText}>🎟️ Your ticket</Text>
-                </View>
-              ) : null}
-              <Text style={[styles.cardTitle, midnight && styles.textLight]}>{event.title}</Text>
-              <Text style={[styles.when, midnight && styles.leadMidnight]}>{formatEventWhen(event.eventAt)}</Text>
-              {event.venueName ? (
-                <Text style={[styles.venue, midnight && styles.leadMidnight]}>
-                  📍 {event.venueName}
-                  {event.venueAddress ? ` · ${event.venueAddress}` : ''}
-                </Text>
-              ) : null}
-              {event.description ? (
-                <Text style={[styles.desc, midnight && styles.leadMidnight]}>{event.description}</Text>
-              ) : null}
-              {event.foodTrucks.length > 0 ? (
-                <Text style={[styles.food, midnight && styles.leadMidnight]}>
-                  🚚 {event.foodTrucks.join(' · ')}
-                </Text>
-              ) : null}
-              <Text style={[styles.counter, midnight && styles.leadMidnight]}>
-                {event.signupCount} signed up ({event.maleCount} guys · {event.femaleCount} girls
-                {event.otherCount > 0 ? ` · ${event.otherCount} other` : ''}) · cap {event.capacity}
-              </Text>
-              {!event.isSignedUp ? (
-                <TouchableOpacity
-                  style={styles.signupBtn}
-                  onPress={() => signup(event.id)}
-                  disabled={signingUp === event.id}
-                  activeOpacity={0.85}
-                >
-                  <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} style={styles.signupGrad}>
-                    {signingUp === event.id ? (
-                      <ActivityIndicator color="#fff" />
-                    ) : (
-                      <Text style={styles.signupText}>Sign Up</Text>
-                    )}
-                  </LinearGradient>
-                </TouchableOpacity>
+          <View style={[styles.card, midnight && styles.cardMidnight]}>
+            {event.isSignedUp ? (
+              <View style={styles.ticketBadge}>
+                <Text style={styles.ticketBadgeText}>🎟️ You're signed up</Text>
+              </View>
+            ) : null}
+
+            <View style={[styles.whenCard, midnight && styles.whenCardMidnight]}>
+              <Text style={[styles.whenLabel, midnight && styles.leadMidnight]}>First event</Text>
+              <Text style={[styles.when, midnight && styles.whenMidnight]}>{formatEventWhen(event.eventAt)}</Text>
+              {event.venueAddress ? (
+                <Text style={[styles.venue, midnight && styles.leadMidnight]}>📍 {event.venueAddress}</Text>
               ) : null}
             </View>
-          ))
+
+            {paragraphs.map((paragraph) => (
+              <Text key={paragraph} style={[styles.desc, midnight && styles.leadMidnight]}>
+                {paragraph}
+              </Text>
+            ))}
+
+            <LiveEventStats event={event} midnight={midnight} />
+
+            {!event.isSignedUp ? (
+              <TouchableOpacity
+                style={styles.signupBtn}
+                onPress={() => { void signup(); }}
+                disabled={signingUp || spotsLeft === 0}
+                activeOpacity={0.85}
+              >
+                <LinearGradient colors={['#f5576c', '#f093fb', '#667eea']} style={styles.signupGrad}>
+                  {signingUp ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.signupText}>
+                      {spotsLeft === 0 ? 'Event full' : 'Sign up for this event'}
+                    </Text>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <Text style={[styles.signedUpNote, midnight && styles.leadMidnight]}>
+                See you there — we'll send email and push reminders before the event.
+              </Text>
+            )}
+          </View>
         )}
+        </View>
       </ScrollView>
     </LinearGradient>
   );
@@ -159,10 +291,51 @@ export default function LiveDatesScreen() {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  scroll: { paddingHorizontal: 20 },
-  title: { fontSize: 28, fontWeight: '800', color: '#1e1b4b', marginBottom: 6 },
-  titleMidnight: { color: '#f8fafc' },
-  lead: { fontSize: 14, lineHeight: 20, color: '#475569', marginBottom: 20 },
+  scroll: { flexGrow: 1 },
+  heroWrap: {
+    width: '100%',
+    height: 248,
+    marginBottom: 18,
+    backgroundColor: '#1a1028',
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    overflow: 'hidden',
+  },
+  heroImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  heroGradient: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  heroCopy: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    paddingHorizontal: 20,
+    paddingBottom: 18,
+  },
+  heroTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: -0.4,
+    marginBottom: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
+  heroTagline: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: 'rgba(255, 255, 255, 0.94)',
+    textShadowColor: 'rgba(0, 0, 0, 0.4)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  body: {
+    paddingHorizontal: 20,
+  },
   leadMidnight: { color: 'rgba(248,250,252,0.75)' },
   textLight: { color: '#f1f5f9' },
   emptyCard: {
@@ -184,7 +357,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.95)',
     borderRadius: 20,
     padding: 18,
-    marginBottom: 14,
     borderWidth: 1,
     borderColor: 'rgba(102,126,234,0.22)',
     shadowColor: '#667eea',
@@ -203,16 +375,156 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 999,
-    marginBottom: 8,
+    marginBottom: 12,
   },
   ticketBadgeText: { fontSize: 12, fontWeight: '700', color: '#15803d' },
-  cardTitle: { fontSize: 20, fontWeight: '800', color: '#1e1b4b', marginBottom: 4 },
-  when: { fontSize: 14, fontWeight: '600', color: '#5b21b6', marginBottom: 6 },
-  venue: { fontSize: 13, color: '#475569', marginBottom: 8 },
-  desc: { fontSize: 14, lineHeight: 20, color: '#334155', marginBottom: 8 },
-  food: { fontSize: 13, color: '#64748b', marginBottom: 8 },
-  counter: { fontSize: 12, fontWeight: '600', color: '#64748b', marginBottom: 12 },
+  whenCard: {
+    backgroundColor: 'rgba(102,126,234,0.08)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(102,126,234,0.16)',
+  },
+  whenCardMidnight: {
+    backgroundColor: 'rgba(167,139,250,0.12)',
+    borderColor: 'rgba(167,139,250,0.22)',
+  },
+  whenLabel: {
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    color: '#64748b',
+    marginBottom: 4,
+  },
+  when: { fontSize: 16, fontWeight: '800', color: '#5b21b6', marginBottom: 6, lineHeight: 22 },
+  whenMidnight: { color: '#e9d5ff' },
+  venue: { fontSize: 14, lineHeight: 20, color: '#475569' },
+  desc: { fontSize: 14, lineHeight: 22, color: '#334155', marginBottom: 12 },
+  statsPanel: {
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+    backgroundColor: 'rgba(102, 126, 234, 0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(102, 126, 234, 0.2)',
+  },
+  statsPanelMidnight: {
+    backgroundColor: 'rgba(167, 139, 250, 0.1)',
+    borderColor: 'rgba(167, 139, 250, 0.28)',
+  },
+  statsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  statsEyebrow: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    color: '#5b21b6',
+    textTransform: 'uppercase',
+  },
+  statsEyebrowMidnight: { color: '#f0abfc' },
+  statsFraction: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  statsFractionMidnight: { color: 'rgba(248,250,252,0.7)' },
+  statsTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(148, 163, 184, 0.28)',
+    overflow: 'hidden',
+    marginBottom: 12,
+  },
+  statsTrackMidnight: {
+    backgroundColor: 'rgba(148, 163, 184, 0.18)',
+  },
+  statsFill: {
+    height: '100%',
+    borderRadius: 999,
+    minWidth: 8,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 4,
+  },
+  statCellMidnight: {},
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: 'rgba(102, 126, 234, 0.2)',
+  },
+  statDividerMidnight: {
+    backgroundColor: 'rgba(167, 139, 250, 0.25)',
+  },
+  statValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1e1b4b',
+    lineHeight: 26,
+  },
+  statLabel: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    color: '#64748b',
+  },
+  spotsLeftBanner: {
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  spotsLeftBannerHot: {
+    borderWidth: 1,
+    borderColor: 'rgba(245, 87, 108, 0.35)',
+  },
+  spotsLeftBannerFull: {
+    backgroundColor: 'rgba(148, 163, 184, 0.2)',
+  },
+  spotsLeftNumber: {
+    fontSize: 28,
+    fontWeight: '900',
+    color: '#5b21b6',
+    letterSpacing: -0.5,
+  },
+  spotsLeftNumberMidnight: {
+    color: '#f0abfc',
+  },
+  spotsLeftCopy: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#475569',
+  },
+  spotsLeftCopyFull: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#64748b',
+  },
   signupBtn: { borderRadius: 999, overflow: 'hidden' },
   signupGrad: { paddingVertical: Platform.OS === 'ios' ? 14 : 12, alignItems: 'center' },
   signupText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  signedUpNote: {
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+    color: '#475569',
+    marginTop: 4,
+  },
 });

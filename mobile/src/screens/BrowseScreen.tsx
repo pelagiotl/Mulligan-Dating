@@ -33,14 +33,12 @@ import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { connectShellGradientStops } from '../lib/connectShellTheme';
 import TokenDisplay from '../components/TokenDisplay';
-import LaunchCountdownBubble from '../components/LaunchCountdownBubble';
 import LaunchLiveConnectBanner from '../components/LaunchLiveConnectBanner';
 import { computeLaunchRemaining } from '../constants/launchSchedule';
 import {
   isLaunchLiveConnectPromptSeen,
   markLaunchLiveConnectPromptSeen,
 } from '../utils/launchLiveConnectPrompt';
-import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
 import MatchmakingPausedModal from '../components/MatchmakingPausedModal';
 import ConnectPhotosRequiredModal from '../components/ConnectPhotosRequiredModal';
 import ConnectSetupGapModal, { type ConnectSetupGapModalGap } from '../components/ConnectSetupGapModal';
@@ -2923,21 +2921,6 @@ export default function BrowseScreen() {
       {/* Legal Footer */}
       <LegalFooter />
       </ScrollView>
-
-      {/* Launch countdown bubble — draggable dock (web + Android parity); above ScrollView */}
-      {showLandingPage && (
-        <LaunchCountdownBubble
-          bottomTabOccupancy={
-            Platform.OS === 'ios'
-              ? iosFloatingTabBarInset(insets.bottom)
-              : 42 + insets.bottom
-          }
-          topInset={insets.top}
-          leftInset={insets.left}
-          rightInset={insets.right}
-          connectShell={connectShellMode}
-        />
-      )}
 
       {/* Full-screen loading overlay - shows IMMEDIATELY on tap (Animated, no React re-render) */}
       {!showLandingPage && hasActiveProfile && (

@@ -508,10 +508,12 @@ export default function CreateProfileScreen() {
       (introVideoSaved ? sq(onboardingVeryTight ? 46 : 54) : 0) +
       sq(10);
     const layoutSafetyMargin = 28;
+    const introPlayerMinHeight = onboardingVeryTight ? 68 : 76;
+    const introPlayerMaxCap = onboardingVeryTight ? 84 : onboardingTight ? 96 : 112;
     const introPlayerMaxHeight = Math.max(
-      onboardingVeryTight ? 44 : 52,
+      introPlayerMinHeight,
       Math.min(
-        onboardingVeryTight ? 64 : onboardingTight ? 76 : 88,
+        introPlayerMaxCap,
         Math.floor(
           bodyBudget -
             nameLocStack -

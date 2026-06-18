@@ -17,28 +17,19 @@ type Props = {
 
 function buildPlayerSize(maxPlayerHeight?: number) {
   if (maxPlayerHeight == null) return null;
+  // Fill the card width — only cap height. A skinny width from aspect ratio caused the play bar to clip.
   return {
-    width: Math.round(maxPlayerHeight * INTRO_VIDEO_EXAMPLE_ASPECT),
+    width: '100%' as const,
+    maxWidth: 280,
     height: maxPlayerHeight,
     maxHeight: maxPlayerHeight,
     alignSelf: 'center' as const,
   };
 }
 
-function playControlMetrics(maxPlayerHeight?: number, compact?: boolean) {
-  if (maxPlayerHeight != null) {
-    const buttonSize = Math.round(Math.max(36, Math.min(44, maxPlayerHeight * 0.42)));
-    return {
-      barHeight: Math.max(50, buttonSize + 16),
-      buttonSize,
-      iconSize: Math.max(14, Math.round(buttonSize * 0.36)),
-      hintSize: Math.max(12, Math.round(buttonSize * 0.32)),
-      gap: 10,
-    };
-  }
-  return compact
-    ? { barHeight: 50, buttonSize: 36, iconSize: 14, hintSize: 12, gap: 10 }
-    : { barHeight: 54, buttonSize: 40, iconSize: 15, hintSize: 13, gap: 10 };
+function playControlMetrics() {
+  // Match the original bottom-bar proportions, slightly larger for easier tapping.
+  return { barHeight: 52, buttonSize: 34, iconSize: 14, hintSize: 13, gap: 10 };
 }
 
 /** Bundled Luke example clip shown during onboarding. */
@@ -52,7 +43,7 @@ export default function IntroVideoExamplePlayer({
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const sizedPlayer = buildPlayerSize(maxPlayerHeight);
-  const playControl = playControlMetrics(maxPlayerHeight, compact);
+  const playControl = playControlMetrics();
 
   const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -94,7 +85,8 @@ export default function IntroVideoExamplePlayer({
         accessibilityRole="button"
         accessibilityLabel="Play Luke's example intro video"
         style={({ pressed }) => [
-          styles.playerShell,
+          styles.playerShellCommon,
+          maxPlayerHeight != null ? styles.playerShellBudgeted : styles.playerShellAuto,
           compact && !maxPlayerHeight ? styles.playerShellCompact : null,
           sizedPlayer,
           pressed && styles.playerShellPressed,
@@ -131,7 +123,12 @@ export default function IntroVideoExamplePlayer({
                 >
                   <Text style={[styles.playIcon, { fontSize: playControl.iconSize }]}>▶</Text>
                 </View>
-                <Text style={[styles.playHint, { fontSize: playControl.hintSize }]}>Watch example</Text>
+                <Text
+                  style={[styles.playHint, { fontSize: playControl.hintSize }]}
+                  numberOfLines={1}
+                >
+                  Watch example
+                </Text>
               </View>
             </View>
           </>
@@ -187,17 +184,23 @@ const styles = StyleSheet.create({
   badgeCompact: {
     fontSize: 9,
   },
-  playerShell: {
-    width: '100%',
-    maxWidth: 280,
-    aspectRatio: INTRO_VIDEO_EXAMPLE_ASPECT,
-    maxHeight: 180,
+  playerShellCommon: {
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'rgba(255, 255, 255, 0.45)',
     backgroundColor: '#1a1028',
     alignSelf: 'center',
+  },
+  playerShellAuto: {
+    width: '100%',
+    maxWidth: 280,
+    aspectRatio: INTRO_VIDEO_EXAMPLE_ASPECT,
+    maxHeight: 180,
+  },
+  playerShellBudgeted: {
+    width: '100%',
+    maxWidth: 280,
   },
   playerShellCompact: {
     maxWidth: 220,
@@ -223,12 +226,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     justifyContent: 'center',
-    paddingHorizontal: 12,
+    alignItems: 'center',
+    paddingHorizontal: 10,
   },
   playBarRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    maxWidth: '100%',
   },
   playButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.95)',
@@ -244,6 +249,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.96)',
     fontWeight: '700',
     letterSpacing: 0.2,
+    flexShrink: 1,
   },
   caption: {
     marginTop: 8,

@@ -3,7 +3,6 @@ import { useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
-import LaunchCountdown from "../components/LaunchCountdown";
 import WebTokenPurchase from "../components/WebTokenPurchase";
 import ConnectLandingTagline from "../components/ConnectLandingTagline";
 import LandingAddToHomePrompt from "../components/LandingAddToHomePrompt";
@@ -24,7 +23,6 @@ export default function Landing() {
 
   return (
     <div className="landing-public-root native-app-screen">
-      <LaunchCountdown />
       <header className="landing-public-nav">
         <Link to="/" className="landing-public-nav__brand">
           Mulligan

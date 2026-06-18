@@ -10727,9 +10727,8 @@ button.my-profile-mini-card:focus-visible {
 .matches-title-row {
   display: flex;
   align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.65rem;
+  justify-content: flex-start;
+  gap: 0.35rem 0.4rem;
   margin-bottom: var(--space-3);
   overflow: visible;
 }
@@ -10737,6 +10736,7 @@ button.my-profile-mini-card:focus-visible {
 .matches-title {
   font-size: 1.75rem;
   font-weight: 700;
+  line-height: 1.15;
   background: linear-gradient(135deg, var(--color-rose-600), #d91a4a);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -10783,8 +10783,8 @@ button.my-profile-mini-card:focus-visible {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  margin-left: -0.35rem;
-  padding: 0.35rem 0.4rem;
+  margin-right: 0.1rem;
+  padding: 0.2rem 0.25rem;
   animation: matches-header-heart-pulse 2.4s ease-in-out infinite;
   transform-origin: center;
 }

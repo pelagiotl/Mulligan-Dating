@@ -13,7 +13,9 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import IntroVideoPreview from './IntroVideoPreview';
 import { getPhotoUrl } from '../utils/photoUrl';
+import { resolveIntroVideoUrl } from '../utils/introVideo';
 import {
   DEALBREAKER_EMOJI,
   canonicalDealbreakerLabel,
@@ -40,6 +42,7 @@ export type MyProfilePreviewData = {
   gender: string;
   location: string | null;
   bio: string | null;
+  introVideoUrl?: string | null;
   lookingFor: string | null;
   interests: string[];
   dealbreakers: string[];
@@ -307,6 +310,17 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
                   <Text style={[styles.metaChipText, iosCompactHero.metaChipText]}>📏 {data.maxDistanceLabel}</Text>
                 </View>
               </View>
+
+              {data.introVideoUrl ? (
+                <View style={previewIntroVideoStyles.wrap}>
+                  <Text style={previewIntroVideoStyles.label}>Intro video</Text>
+                  <IntroVideoPreview
+                    source={{ uri: resolveIntroVideoUrl(data.introVideoUrl) }}
+                    maxHeight={158}
+                    maxWidth={280}
+                  />
+                </View>
+              ) : null}
 
               {data.bio ? (
                 <View style={previewHeroAboutStyles.outer}>
@@ -680,6 +694,21 @@ const iosCompactHero = Platform.select({
   },
   default: {},
 }) as Record<string, object>;
+
+const previewIntroVideoStyles = StyleSheet.create({
+  wrap: {
+    width: '100%',
+    marginTop: Platform.OS === 'ios' ? 10 : 14,
+    alignItems: 'center',
+  },
+  label: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#4c1d95',
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+});
 
 const previewHeroAboutStyles = StyleSheet.create({
   outer: {

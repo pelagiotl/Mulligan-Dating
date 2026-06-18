@@ -14,7 +14,6 @@ import IntentionalDatePlanner from "../components/IntentionalDatePlanner";
 import TokenDisplay from "../components/TokenDisplay";
 import ConnectButtonEffects from "../components/ConnectButtonEffects";
 import ConnectLandingMark from "../components/ConnectLandingMark";
-import LaunchCountdown from "../components/LaunchCountdown";
 import LaunchLiveConnectBanner from "../components/LaunchLiveConnectBanner";
 import { computeLaunchRemaining } from "../constants/launchSchedule";
 import {
@@ -133,7 +132,6 @@ function BrowseConnectLandingChrome({
 
   return (
     <div className="browse-page-native native-app-screen connect-landing-page">
-      <LaunchCountdown />
       <div className="connect-landing">
         {showTokenStrip ? (
           <aside className="browse-connect-landing-token" aria-label="Mulligan tokens">

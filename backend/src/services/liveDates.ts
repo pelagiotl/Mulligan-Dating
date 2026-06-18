@@ -1,6 +1,29 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database.js';
-import { sendPushNotification, isExpoPushToken } from './pushNotifications.js';
+import { notifyLiveDateSignup } from './liveDateNotifications.js';
+
+export const MULLIGAN_LIVE_DATES_EVENT_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+
+const FEATURED_EVENT = {
+  id: MULLIGAN_LIVE_DATES_EVENT_ID,
+  title: 'Mulligan Live Dates',
+  description: `Real connections, zero swiping.
+
+Join us for relaxed speed dating nights with great people, good music, food trucks, and a chill afterparty vibe.
+
+Meet matches face-to-face in a fun, low-pressure environment at our gated venue. Talk for 5-6 minutes per round, then hang out freely afterward.
+
+These events are designed for intentional connections — no pressure, just good conversations and summer nights.
+
+First event coming soon — only 25 spots. Sign up below to secure yours.
+
+Be yourself. Meet intentionally.`,
+  venueName: 'Mulligan Live Dates',
+  venueAddress: '812 S Riverside, Medford, OR 97501',
+  eventAt: '2026-07-25T17:30:00-07:00',
+  foodTrucks: [] as string[],
+  capacity: 25,
+};
 
 export type LiveDateEvent = {
   id: string;
@@ -39,60 +62,72 @@ function parseFoodTrucks(raw: string | null): string[] {
   }
 }
 
-async function ensureSampleEvents(): Promise<void> {
-  const countRow = await (db
-    .prepare('SELECT COUNT(*) AS c FROM live_date_events WHERE is_published = 1')
-    .get([]) as Promise<{ c: number } | undefined>);
-  if ((countRow?.c ?? 0) > 0) return;
+function parseCount(value: unknown): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
 
-  const samples = [
-    {
-      title: 'Mulligan Live — Medford Mixer',
-      description:
-        'Speed-dating rounds, live DJ, and food trucks on the plaza. Come solo — we pair you with great Southern Oregon matches IRL.',
-      venueName: 'Pearson Plaza',
-      venueAddress: '415 W Main St, Medford, OR',
-      daysFromNow: 14,
-      foodTrucks: ['Taco Bus', 'River City Coffee', 'Farmstand Fry'],
-      capacity: 48,
-    },
-    {
-      title: 'Ashland Sunset Social',
-      description:
-        'Relaxed outdoor mixer with guided intros and lawn games. Perfect if you want a low-pressure first meetup.',
-      venueName: 'Lithia Park Bandshell Lawn',
-      venueAddress: 'Lithia Park, Ashland, OR',
-      daysFromNow: 28,
-      foodTrucks: ['Nomad Bowl', 'Sweet Spot Desserts'],
-      capacity: 36,
-    },
-  ];
+function parseGenderCounts(gender: string | null, count: number): {
+  male: number;
+  female: number;
+  other: number;
+} {
+  const g = (gender ?? '').trim().toLowerCase();
+  if (g === 'man' || g === 'male') return { male: count, female: 0, other: 0 };
+  if (g === 'woman' || g === 'female') return { male: 0, female: count, other: 0 };
+  return { male: 0, female: 0, other: count };
+}
 
-  for (const s of samples) {
-    const eventAt = new Date();
-    eventAt.setDate(eventAt.getDate() + s.daysFromNow);
-    eventAt.setHours(18, 30, 0, 0);
+async function ensureFeaturedEvent(): Promise<void> {
+  await db
+    .prepare('UPDATE live_date_events SET is_published = 0 WHERE id != ?')
+    .run([FEATURED_EVENT.id]);
+
+  const existing = await (db
+    .prepare('SELECT id FROM live_date_events WHERE id = ?')
+    .get([FEATURED_EVENT.id]) as Promise<{ id: string } | undefined>);
+
+  if (existing) {
     await db
       .prepare(
-        `INSERT INTO live_date_events
-         (id, title, description, venue_name, venue_address, event_at, food_trucks, capacity, is_published)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        `UPDATE live_date_events
+         SET title = ?, description = ?, venue_name = ?, venue_address = ?, event_at = ?,
+             food_trucks = ?, capacity = ?, is_published = 1
+         WHERE id = ?`,
       )
       .run([
-        uuidv4(),
-        s.title,
-        s.description,
-        s.venueName,
-        s.venueAddress,
-        eventAt.toISOString(),
-        JSON.stringify(s.foodTrucks),
-        s.capacity,
+        FEATURED_EVENT.title,
+        FEATURED_EVENT.description,
+        FEATURED_EVENT.venueName,
+        FEATURED_EVENT.venueAddress,
+        FEATURED_EVENT.eventAt,
+        JSON.stringify(FEATURED_EVENT.foodTrucks),
+        FEATURED_EVENT.capacity,
+        FEATURED_EVENT.id,
       ]);
+    return;
   }
+
+  await db
+    .prepare(
+      `INSERT INTO live_date_events
+       (id, title, description, venue_name, venue_address, event_at, food_trucks, capacity, is_published)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+    )
+    .run([
+      FEATURED_EVENT.id,
+      FEATURED_EVENT.title,
+      FEATURED_EVENT.description,
+      FEATURED_EVENT.venueName,
+      FEATURED_EVENT.venueAddress,
+      FEATURED_EVENT.eventAt,
+      JSON.stringify(FEATURED_EVENT.foodTrucks),
+      FEATURED_EVENT.capacity,
+    ]);
 }
 
 export async function listLiveDateEvents(userId: string): Promise<LiveDateEvent[]> {
-  await ensureSampleEvents();
+  await ensureFeaturedEvent();
 
   const events = await (db
     .prepare(
@@ -125,11 +160,12 @@ export async function listLiveDateEvents(userId: string): Promise<LiveDateEvent[
     let otherCount = 0;
     let signupCount = 0;
     for (const row of stats) {
-      signupCount += row.c;
-      const g = (row.gender ?? '').toLowerCase();
-      if (g === 'man') maleCount += row.c;
-      else if (g === 'woman') femaleCount += row.c;
-      else otherCount += row.c;
+      const count = parseCount(row.c);
+      signupCount += count;
+      const split = parseGenderCounts(row.gender, count);
+      maleCount += split.male;
+      femaleCount += split.female;
+      otherCount += split.other;
     }
 
     result.push({
@@ -155,7 +191,7 @@ export async function listLiveDateEvents(userId: string): Promise<LiveDateEvent[
 export async function signupForLiveDate(
   userId: string,
   eventId: string,
-): Promise<{ signupId: string; event: LiveDateEvent }> {
+): Promise<{ signupId: string; event: LiveDateEvent; emailSent: boolean; pushSent: boolean }> {
   const event = await (db
     .prepare(
       `SELECT id, title, description, venue_name, venue_address, event_at, food_trucks, capacity
@@ -171,13 +207,13 @@ export async function signupForLiveDate(
     const events = await listLiveDateEvents(userId);
     const current = events.find((x) => x.id === eventId);
     if (!current) throw new Error('Event not found');
-    return { signupId: existing.id, event: current };
+    return { signupId: existing.id, event: current, emailSent: false, pushSent: false };
   }
 
   const countRow = await (db
     .prepare('SELECT COUNT(*) AS c FROM live_date_signups WHERE event_id = ?')
     .get([eventId]) as Promise<{ c: number } | undefined>);
-  if ((countRow?.c ?? 0) >= event.capacity) {
+  if (parseCount(countRow?.c) >= event.capacity) {
     throw new Error('This event is full');
   }
 
@@ -186,31 +222,22 @@ export async function signupForLiveDate(
     .prepare('INSERT INTO live_date_signups (id, event_id, user_id) VALUES (?, ?, ?)')
     .run([signupId, eventId, userId]);
 
-  const tokenRow = await (db
-    .prepare('SELECT push_token FROM users WHERE id = ?')
-    .get([userId]) as Promise<{ push_token: string | null } | undefined>);
-  const token = tokenRow?.push_token;
-  if (token && isExpoPushToken(token)) {
-    const when = new Date(event.event_at);
-    const dateLabel = when.toLocaleDateString('en-US', {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-    await sendPushNotification(
-      token,
-      "You're signed up! 🎟️",
-      `${event.title} — ${dateLabel}. We'll remind you before the event.`,
-      { type: 'live_date_signup', eventId },
-    );
-  }
+  const notifyResult = await notifyLiveDateSignup(userId, {
+    id: event.id,
+    title: event.title,
+    venue_address: event.venue_address,
+    event_at: event.event_at,
+  });
 
   const events = await listLiveDateEvents(userId);
   const current = events.find((x) => x.id === eventId);
   if (!current) throw new Error('Event not found');
-  return { signupId, event: current };
+  return {
+    signupId,
+    event: current,
+    emailSent: notifyResult.emailSent,
+    pushSent: notifyResult.pushSent,
+  };
 }
 
 export async function listUserLiveDateTickets(userId: string): Promise<LiveDateEvent[]> {

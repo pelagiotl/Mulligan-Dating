@@ -54,6 +54,10 @@ import MyProfilePreviewModal, {
   parseProfileValues,
   type MyProfilePreviewData,
 } from '../components/MyProfilePreviewModal';
+import IntroVideoPreview from '../components/IntroVideoPreview';
+import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
+import { resolveIntroVideoUrl } from '../utils/introVideo';
+import { hasIntroVideo } from '../utils/connectSetup';
 import BetterMatchesCompleteCelebration from '../components/BetterMatchesCompleteCelebration';
 import { markProfileEnhancementCelebrationShown } from '../utils/profileEnhancementChecklist';
 import { maybeShowProfileEnhancementCelebration } from '../utils/maybeShowProfileEnhancementCelebration';
@@ -148,6 +152,7 @@ interface ProfileData {
     location: string | null;
     bio: string | null;
     photo_url: string | null;
+    intro_video_url?: string | null;
     looking_for: string | null;
   };
   interests: Array<{ name: string; category: string | null }>;
@@ -284,6 +289,7 @@ export default function MyProfileScreen() {
   const uploadingPhotos = uploadingSlotIndices.length > 0 || openingPhotoPicker;
   const [showPhotoGallery, setShowPhotoGallery] = useState(false);
   const [showProfilePreview, setShowProfilePreview] = useState(false);
+  const [showIntroVideoModal, setShowIntroVideoModal] = useState(false);
   const [currentPhotoIndex, setCurrentPhotoIndex] = useState(0);
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
   const photoGalleryProgrammaticScrollRef = useRef(false);
@@ -703,7 +709,7 @@ export default function MyProfileScreen() {
   useEffect(() => {
     if (!data) return;
     
-    const sectionCount = 5;
+    const sectionCount = 6;
     for (let i = 0; i < sectionCount; i++) {
       if (!sectionAnims[i]) {
         sectionAnims[i] = new Animated.Value(0);
@@ -794,7 +800,7 @@ export default function MyProfileScreen() {
       // Only show full-screen loading on initial load (no data yet)
       // Keeps current profile visible when refetching on tab focus
       setLoading((prev) => (data == null ? true : prev));
-      const profileData = await api.get<ProfileData>('/profile');
+      const profileData = await api.get<ProfileData>('/profile', false);
       setData(profileData);
       setError('');
     } catch (err: any) {
@@ -1092,7 +1098,7 @@ export default function MyProfileScreen() {
   }, [connectSetupComplete, photos.length]);
 
   const refreshProfileData = async () => {
-    const next = await api.get<ProfileData>('/profile');
+    const next = await api.get<ProfileData>('/profile', false);
     setData(next);
     await checkEnhancementCelebration();
   };
@@ -1499,6 +1505,7 @@ export default function MyProfileScreen() {
       maxDistanceLabel: formatMaxDistanceLabel(prefs?.max_distance),
       values: parseProfileValues(prefs?.values),
       lifestyle,
+      introVideoUrl: profile.intro_video_url ?? null,
     };
   }, [data]);
 
@@ -3413,22 +3420,99 @@ export default function MyProfileScreen() {
         </View>
       </Modal>
 
+      {/* Intro Video */}
+      <Animated.View
+        style={[
+          styles.sectionShell,
+          {
+            opacity: sectionAnims[0] ?? sectionFallbackAnim,
+            transform: [
+              {
+                translateY: (sectionAnims[0] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [40, 0],
+                }),
+              },
+              {
+                scale: (sectionAnims[0] ?? sectionFallbackAnim).interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0.92, 1],
+                }),
+              },
+            ],
+          },
+        ]}
+      >
+        <ProfileEditableCardBorder
+          delay={550}
+          borderRadius={30}
+          traceColors={[...profileColors.traceSection]}
+          style={{ marginBottom: 0 }}
+        >
+          <View style={[styles.section, profileUi.section]}>
+            <View style={styles.sectionTitleContainer}>
+              <AnimatedEmoji emoji="📹" delay={0} />
+              <Text style={[styles.sectionTitle, profileUi.sectionTitle]}> My Intro Video</Text>
+              <TouchableOpacity
+                style={styles.sectionEditTouchable}
+                onPress={() => setShowIntroVideoModal(true)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text style={[styles.sectionEditLink, profileUi.sectionEditLink]}>
+                  {hasIntroVideo(profile) ? 'Re-record' : 'Record'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+            {hasIntroVideo(profile) ? (
+              <IntroVideoPreview
+                source={{ uri: resolveIntroVideoUrl(profile.intro_video_url) }}
+                maxHeight={220}
+              />
+            ) : (
+              <TouchableOpacity
+                style={styles.introVideoEmptyButton}
+                onPress={() => setShowIntroVideoModal(true)}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['#ff6b8a', '#f093fb', '#7c6cf0']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.introVideoEmptyGradient}
+                >
+                  <Text style={styles.introVideoEmptyEmoji}>📹</Text>
+                  <Text style={styles.introVideoEmptyTitle}>Record your intro video</Text>
+                  <Text style={styles.introVideoEmptySubtext}>
+                    A short clip helps matches hear your voice before you connect.
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            )}
+            <Text style={styles.photoHint}>
+              {hasIntroVideo(profile)
+                ? 'Matches see this on your profile when you connect.'
+                : 'Required before you can connect with others.'}
+            </Text>
+          </View>
+        </ProfileEditableCardBorder>
+      </Animated.View>
+
       {/* Photos Section */}
       <Animated.View 
         onLayout={(e) => { photosSectionYRef.current = e.nativeEvent.layout.y; }}
         style={[
           styles.sectionShell,
           {
-            opacity: sectionAnims[0] ?? sectionFallbackAnim,
+            opacity: sectionAnims[1] ?? sectionFallbackAnim,
             transform: [
               { 
-                translateY: (sectionAnims[0] ?? sectionFallbackAnim).interpolate({ 
+                translateY: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({ 
                   inputRange: [0, 1], 
                   outputRange: [40, 0] 
                 }) 
               },
               { 
-                scale: (sectionAnims[0] ?? sectionFallbackAnim).interpolate({ 
+                scale: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({ 
                   inputRange: [0, 1], 
                   outputRange: [0.92, 1] 
                 }) 
@@ -3592,16 +3676,16 @@ export default function MyProfileScreen() {
         style={[
           styles.sectionShell,
           {
-            opacity: sectionAnims[1] ?? sectionFallbackAnim,
+            opacity: sectionAnims[2] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [40, 0],
                 }),
               },
               {
-                scale: (sectionAnims[1] ?? sectionFallbackAnim).interpolate({
+                scale: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.92, 1],
                 }),
@@ -3658,16 +3742,16 @@ export default function MyProfileScreen() {
         style={[
           styles.sectionShell,
           {
-            opacity: sectionAnims[2] ?? sectionFallbackAnim,
+            opacity: sectionAnims[3] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [40, 0],
                 }),
               },
               {
-                scale: (sectionAnims[2] ?? sectionFallbackAnim).interpolate({
+                scale: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.92, 1],
                 }),
@@ -3733,16 +3817,16 @@ export default function MyProfileScreen() {
         style={[
           styles.sectionShell,
           {
-            opacity: sectionAnims[3] ?? sectionFallbackAnim,
+            opacity: sectionAnims[4] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [40, 0],
                 }),
               },
               {
-                scale: (sectionAnims[3] ?? sectionFallbackAnim).interpolate({
+                scale: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.92, 1],
                 }),
@@ -3802,16 +3886,16 @@ export default function MyProfileScreen() {
         style={[
           styles.sectionShell,
           {
-            opacity: sectionAnims[4] ?? sectionFallbackAnim,
+            opacity: sectionAnims[5] ?? sectionFallbackAnim,
             transform: [
               {
-                translateY: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({
+                translateY: (sectionAnims[5] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [40, 0],
                 }),
               },
               {
-                scale: (sectionAnims[4] ?? sectionFallbackAnim).interpolate({
+                scale: (sectionAnims[5] ?? sectionFallbackAnim).interpolate({
                   inputRange: [0, 1],
                   outputRange: [0.92, 1],
                 }),
@@ -3923,6 +4007,19 @@ export default function MyProfileScreen() {
           photos={photos}
         />
       ) : null}
+
+      <IntroVideoRecordModal
+        visible={showIntroVideoModal}
+        onClose={() => setShowIntroVideoModal(false)}
+        existingVideoUrl={profile.intro_video_url ?? null}
+        onSaved={(url) => {
+          setShowIntroVideoModal(false);
+          setData((prev) =>
+            prev ? { ...prev, profile: { ...prev.profile, intro_video_url: url } } : null,
+          );
+          void fetchProfile();
+        }}
+      />
 
       <BetterMatchesCompleteCelebration
         visible={showEnhancementCelebration}
@@ -5216,6 +5313,33 @@ const styles = StyleSheet.create({
     fontSize: 40,
     color: '#667eea',
     fontWeight: '400',
+  },
+  introVideoEmptyButton: {
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginTop: 4,
+  },
+  introVideoEmptyGradient: {
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  introVideoEmptyEmoji: {
+    fontSize: 28,
+    marginBottom: 8,
+  },
+  introVideoEmptyTitle: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  introVideoEmptySubtext: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
   photoHint: {
     fontSize: 12,

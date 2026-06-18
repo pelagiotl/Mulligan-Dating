@@ -31,7 +31,17 @@ import fs from "fs";
 async function initCronScheduler() {
   try {
     const cron = (await import("node-cron")).default;
-    
+    const { processLiveDateReminders } = await import("./services/liveDateNotifications.js");
+
+    cron.schedule("*/15 * * * *", async () => {
+      try {
+        await processLiveDateReminders();
+      } catch (error) {
+        console.error("❌ Live Dates reminder job failed:", error);
+      }
+    });
+    console.log("✅ Live Dates reminder job scheduled (every 15 minutes)");
+
     // DISABLED: Weekly match generation - matches are now only created when users use tokens to connect
     // Schedule weekly match generation (runs every Monday at 9 AM)
     // Cron format: minute hour day-of-month month day-of-week
