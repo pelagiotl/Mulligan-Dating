@@ -718,18 +718,18 @@ export default function MatchCelebration({
             </View>
 
             {isSoberCelebration ? (
-              <View style={styles.soberBadgeRow}>
+              <View style={styles.soberBadgeStack}>
                 <SoberCircleBadge
                   level={viewerSoberLevel}
                   prefix={viewerName}
+                  stacked
                   midnight={connectShellMode === 'midnight'}
-                  style={styles.soberBadgeItem}
                 />
                 <SoberCircleBadge
                   level={partnerSoberLevel}
                   prefix={partnerFirstName}
+                  stacked
                   midnight={connectShellMode === 'midnight'}
-                  style={styles.soberBadgeItem}
                 />
               </View>
             ) : null}
@@ -1145,16 +1145,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     letterSpacing: 0.3,
   },
-  soberBadgeRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+  soberBadgeStack: {
+    width: '100%',
+    paddingHorizontal: 12,
     gap: 8,
-    paddingHorizontal: 16,
     marginBottom: 14,
-  },
-  soberBadgeItem: {
-    maxWidth: '48%',
+    alignItems: 'stretch',
   },
   bold: {
     fontWeight: '800',

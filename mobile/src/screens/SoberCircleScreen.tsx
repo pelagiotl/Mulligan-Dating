@@ -24,7 +24,6 @@ import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { connectShellGradientStops, soberCircleButtonShimmerColors } from '../lib/connectShellTheme';
 import { iosFloatingTabBarInset } from '../utils/androidConnectShellChrome';
 import OptimizedImage from '../components/OptimizedImage';
-import VerifiedBadge from '../components/VerifiedBadge';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { SOBER_CIRCLE_LEVELS, soberCircleLevelLabel } from '../constants/soberCircle';
 import MatchCelebration from '../components/MatchCelebration';
@@ -252,9 +251,8 @@ export default function SoberCircleScreen() {
 
   const [savingLevel, setSavingLevel] = useState(false);
   const [changingLevel, setChangingLevel] = useState(false);
-  const [currentProfile, setCurrentProfile] = useState<BrowseProfile | null>(null);
   const [poolTotal, setPoolTotal] = useState(0);
-  const [loadingBrowse, setLoadingBrowse] = useState(false);
+  const [loadingPoolTotal, setLoadingPoolTotal] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [datePlannerOpen, setDatePlannerOpen] = useState(false);
@@ -326,7 +324,6 @@ export default function SoberCircleScreen() {
       await api.put('/profile/sober-circle', { level: id });
       await refreshProfile();
       setChangingLevel(false);
-      setCurrentProfile(null);
     } catch (err: unknown) {
       Alert.alert('Error', err instanceof Error ? err.message : 'Could not save level');
     } finally {
@@ -334,34 +331,50 @@ export default function SoberCircleScreen() {
     }
   };
 
-  const loadBrowse = useCallback(async (): Promise<{ profile: BrowseProfile | null; total: number }> => {
-    if (!level) return { profile: null, total: 0 };
-    setLoadingBrowse(true);
+  /** Pool count only — does not reveal a candidate on screen (Connect-style landing). */
+  const refreshPoolTotal = useCallback(async () => {
+    if (!level) return;
+    setLoadingPoolTotal(true);
     try {
-      const data = await api.get<{ profile: BrowseProfile | null; total?: number }>(
-        '/users/browse?pool=sober&offset=0',
-        false,
-      );
-      const total = data.total ?? 0;
-      setPoolTotal(total);
-      setCurrentProfile(data.profile ?? null);
-      return { profile: data.profile ?? null, total };
-    } catch (err: unknown) {
-      setCurrentProfile(null);
+      const data = await api.get<{ total?: number }>('/users/browse?pool=sober&offset=0', false);
+      setPoolTotal(data.total ?? 0);
+    } catch {
       setPoolTotal(0);
-      const msg = err instanceof Error ? err.message : '';
-      if (msg) Alert.alert('Sober Circle', msg);
-      return { profile: null, total: 0 };
     } finally {
-      setLoadingBrowse(false);
+      setLoadingPoolTotal(false);
     }
   }, [level]);
 
   useEffect(() => {
-    if (level && !changingLevel) void loadBrowse();
-  }, [level, changingLevel, loadBrowse]);
+    if (level && !changingLevel) void refreshPoolTotal();
+  }, [level, changingLevel, refreshPoolTotal]);
 
   const connectWithProfile = async (profileToConnect: BrowseProfile) => {
+    const result = await api.post<{
+      matchId: string;
+      existingMatch?: boolean;
+      partnerIntroVideoUrl?: string | null;
+      explanation?: { reasons: string[]; sharedInterests: string[]; sharedValues: number } | null;
+    }>('/matches/connect', { targetUserId: profileToConnect.userId, source: 'sober_circle' });
+
+    if (result.existingMatch) {
+      openSoberChat(result.matchId);
+      void refreshPoolTotal();
+      return;
+    }
+
+    setMatchId(result.matchId);
+    setMatchedProfile(profileToConnect);
+    setMatchedIntroVideoUrl(result.partnerIntroVideoUrl ?? null);
+    setMatchExplanation(result.explanation ?? null);
+    setShowCelebration(true);
+    void refreshPoolTotal();
+    void loadSoberMatches();
+  };
+
+  const handleMainAction = async () => {
+    if (connecting || loadingPoolTotal) return;
+
     setConnecting(true);
     try {
       try {
@@ -369,46 +382,24 @@ export default function SoberCircleScreen() {
       } catch {
         // ignore
       }
-      const result = await api.post<{
-        matchId: string;
-        existingMatch?: boolean;
-        partnerIntroVideoUrl?: string | null;
-        explanation?: { reasons: string[]; sharedInterests: string[]; sharedValues: number } | null;
-      }>('/matches/connect', { targetUserId: profileToConnect.userId, source: 'sober_circle' });
 
-      if (result.existingMatch) {
-        openSoberChat(result.matchId);
-        setCurrentProfile(null);
-        void loadBrowse();
+      const data = await api.get<{ profile: BrowseProfile | null; total?: number }>(
+        '/users/browse?pool=sober&offset=0',
+        false,
+      );
+      const total = data.total ?? 0;
+      setPoolTotal(total);
+
+      if (!data.profile) {
+        setNoMatchModal({ visible: true, poolHasPeople: total > 0 });
         return;
       }
 
-      setMatchId(result.matchId);
-      setMatchedProfile(profileToConnect);
-      setMatchedIntroVideoUrl(result.partnerIntroVideoUrl ?? null);
-      setMatchExplanation(result.explanation ?? null);
-      setShowCelebration(true);
-      setCurrentProfile(null);
-      void loadBrowse();
-      void loadSoberMatches();
+      await connectWithProfile(data.profile);
     } catch (err: unknown) {
-      Alert.alert('Connect', err instanceof Error ? err.message : 'Could not connect');
+      Alert.alert('Sober Circle', err instanceof Error ? err.message : 'Could not connect');
     } finally {
       setConnecting(false);
-    }
-  };
-
-  const handleMainAction = async () => {
-    if (connecting || loadingBrowse) return;
-
-    if (currentProfile) {
-      await connectWithProfile(currentProfile);
-      return;
-    }
-
-    const { profile: found, total } = await loadBrowse();
-    if (!found) {
-      setNoMatchModal({ visible: true, poolHasPeople: total > 0 });
     }
   };
 
@@ -433,13 +424,12 @@ export default function SoberCircleScreen() {
     );
   }
 
-  const actionLabel = currentProfile ? 'Connect in Sober Circle' : 'Find a Sober Circle match';
+  const actionLabel = 'Find a Sober Circle match';
   const actionSub =
-    currentProfile
-      ? `Use a Mulligan to connect with ${currentProfile.displayName}`
-      : poolTotal > 0
-        ? `${poolTotal} in the pool — tap to get a random match`
-        : 'Tap to search the sober connect pool';
+    poolTotal > 0
+      ? `${poolTotal} in the pool — tap to connect with someone new`
+      : 'Tap to search the sober connect pool';
+  const findingMatch = connecting || loadingPoolTotal;
 
   return (
     <LinearGradient colors={connectShellGradientStops(shellMode)} style={styles.flex}>
@@ -461,7 +451,8 @@ export default function SoberCircleScreen() {
         </View>
 
         <Text style={[styles.lead, midnight && styles.leadMidnight]}>
-          Tap the button below to get matched with someone else in the circle. Sobriety level shows here only.
+          Tap below when you are ready — we will find someone in the circle and connect you. No one is shown until
+          you tap.
         </Text>
 
         {soberMatches.length > 0 ? (
@@ -516,50 +507,15 @@ export default function SoberCircleScreen() {
           <ActivityIndicator style={{ marginBottom: 12 }} color={midnight ? '#4ade80' : '#16a34a'} />
         ) : null}
 
-        {loadingBrowse && !currentProfile ? (
-          <ActivityIndicator style={{ marginTop: 32 }} color={midnight ? '#f472b6' : '#16a34a'} />
-        ) : currentProfile ? (
-          <View style={[styles.profileCard, midnight && styles.profileCardMidnight]}>
-            <Text style={[styles.matchFoundLabel, midnight && styles.leadMidnight]}>Your match</Text>
-            {currentProfile.photoUrl ? (
-              <OptimizedImage
-                source={getPhotoUrl(currentProfile.photoUrl)}
-                style={styles.photo}
-                resizeMode="cover"
-              />
-            ) : (
-              <View style={styles.photoPlaceholder}>
-                <Text style={styles.photoPlaceholderText}>
-                  {currentProfile.displayName.charAt(0).toUpperCase()}
-                </Text>
-              </View>
-            )}
-            <View style={styles.nameRow}>
-              <Text style={[styles.name, midnight && styles.textLight]}>
-                {currentProfile.displayName}, {currentProfile.age}
-              </Text>
-              <VerifiedBadge verified={currentProfile.photoVerified} size={20} />
-            </View>
-            <Text style={[styles.meta, midnight && styles.leadMidnight]}>
-              💚 {soberCircleLevelLabel(currentProfile.soberCircleLevel ?? level)}
-              {currentProfile.location ? ` · 📍 ${currentProfile.location}` : ''}
-            </Text>
-            {currentProfile.bio ? (
-              <Text style={[styles.bio, midnight && styles.leadMidnight]} numberOfLines={3}>
-                {currentProfile.bio}
-              </Text>
-            ) : null}
-            <TouchableOpacity onPress={() => void loadBrowse()} style={styles.refreshLink}>
-              <Text style={styles.refreshText}>Show me someone else</Text>
-            </TouchableOpacity>
-          </View>
+        {loadingPoolTotal && soberMatches.length === 0 ? (
+          <ActivityIndicator style={{ marginTop: 32 }} color={midnight ? '#4ade80' : '#16a34a'} />
         ) : (
           <View style={[styles.emptyCard, midnight && styles.emptyCardMidnight]}>
             <SmoothPulsingEmoji emoji="🌿" fontSize={40} variant="emoji" containerStyle={styles.emptyEmojiWrap} />
             <Text style={[styles.emptyTitle, midnight && styles.textLight]}>Ready when you are</Text>
             <Text style={[styles.emptySub, midnight && styles.leadMidnight]}>
               {poolTotal > 0
-                ? `${poolTotal} ${poolTotal === 1 ? 'person is' : 'people are'} in the sober pool. Tap below to get a random match.`
+                ? `${poolTotal} ${poolTotal === 1 ? 'person is' : 'people are'} in the sober pool. Tap below when you want us to pick someone and connect you.`
                 : 'Be the first to find a match — tap below and we\'ll search the sober connect pool for you.'}
             </Text>
           </View>
@@ -577,7 +533,7 @@ export default function SoberCircleScreen() {
           style={styles.connectBtnOuter}
           onPress={() => void handleMainAction()}
           onPressIn={() => {
-            if (connecting || loadingBrowse) return;
+            if (findingMatch) return;
             try {
               Vibration.vibrate(Platform.OS === 'ios' ? [0, 30] : 30);
             } catch (_) {}
@@ -595,7 +551,7 @@ export default function SoberCircleScreen() {
               useNativeDriver: true,
             }).start();
           }}
-          disabled={connecting || loadingBrowse}
+          disabled={findingMatch}
           activeOpacity={1}
         >
           <Animated.View
@@ -613,7 +569,7 @@ export default function SoberCircleScreen() {
                 sweepWidth={matchButtonSweepWidth}
                 showHearts={false}
               />
-              {connecting || loadingBrowse ? (
+              {findingMatch ? (
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
@@ -650,7 +606,7 @@ export default function SoberCircleScreen() {
           explanation={matchExplanation}
           matchId={matchId}
           celebrationFlow="sober_circle"
-          partnerSoberLevel={matchedProfile.soberCircleLevel ?? level}
+          partnerSoberLevel={matchedProfile.soberCircleLevel ?? null}
           viewerSoberLevel={viewerSoberLevel}
           viewerName={viewerDisplayName.split(' ')[0] || 'You'}
           skipLoadingReveal={false}

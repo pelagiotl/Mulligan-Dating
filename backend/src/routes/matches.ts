@@ -16,6 +16,7 @@ import {
   profileHasMinPhotosForConnect,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
+import { MATCH_POOL_CONNECT, sqlMatchesInPool, normalizeConnectSource } from "../utils/matchPools.js";
 
 function datePlanSnapshotFromJoin(m: Record<string, unknown>) {
   if (!m.date_plan_id) return undefined;
@@ -175,13 +176,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
          ) msg ON msg.match_id = m.id
          WHERE (m.user1_id = ? OR m.user2_id = ?)
          AND m.stage != 'expired'
-         ${soberPool ? `AND (
-           COALESCE(m.connected_via, 'connect') = 'sober_circle'
-           OR (
-             COALESCE(TRIM(p1.sober_circle_level), '') != ''
-             AND COALESCE(TRIM(p2.sober_circle_level), '') != ''
-           )
-         )` : ''}
+         ${sqlMatchesInPool(soberPool, 'm')}
          ORDER BY COALESCE(msg.last_message_at, m.created_at) DESC`
       )
       .all([userId, userId]);
@@ -547,7 +542,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { targetUserId, expandSlot, source } = req.body;
-  const connectedVia = source === 'sober_circle' ? 'sober_circle' : 'connect';
+  const connectedVia = normalizeConnectSource(source);
 
   if (!targetUserId || typeof targetUserId !== 'string') {
     return res.status(400).json({ error: "Target user ID required" });
@@ -586,9 +581,10 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       .prepare(
         `SELECT * FROM matches 
          WHERE ((user1_id = ? AND user2_id = ?) OR (user1_id = ? AND user2_id = ?))
-         AND stage != 'expired'`
+         AND stage != 'expired'
+         AND COALESCE(connected_via, '${MATCH_POOL_CONNECT}') = ?`
       )
-      .get([userId, targetUserId, targetUserId, userId]);
+      .get([userId, targetUserId, targetUserId, userId, connectedVia]);
     const existingMatch = (existingMatchResult instanceof Promise
       ? await existingMatchResult
       : existingMatchResult) as MatchRow | undefined;

@@ -7,6 +7,8 @@ type SoberCircleBadgeProps = {
   /** Shown before the level label (e.g. "You" or a first name). */
   prefix?: string;
   compact?: boolean;
+  /** Full-width stacked layout for match celebration cards. */
+  stacked?: boolean;
   midnight?: boolean;
   style?: StyleProp<ViewStyle>;
   /** When level is unknown but match is from sober circle. */
@@ -17,6 +19,7 @@ export default function SoberCircleBadge({
   level,
   prefix,
   compact = false,
+  stacked = false,
   midnight = false,
   style,
   fallbackLabel = 'Sober Circle',
@@ -28,12 +31,20 @@ export default function SoberCircleBadge({
   return (
     <View
       style={[
-        compact ? styles.compact : styles.badge,
+        stacked ? styles.stacked : compact ? styles.compact : styles.badge,
         midnight ? styles.badgeMidnight : styles.badgeLight,
         style,
       ]}
     >
-      <Text style={[compact ? styles.compactText : styles.text, midnight && styles.textMidnight]} numberOfLines={1}>
+      <Text
+        style={[
+          stacked ? styles.stackedText : compact ? styles.compactText : styles.text,
+          midnight && styles.textMidnight,
+        ]}
+        numberOfLines={stacked ? 2 : 1}
+        adjustsFontSizeToFit={!stacked}
+        minimumFontScale={stacked ? 1 : 0.85}
+      >
         {emoji} {text}
       </Text>
     </View>
@@ -76,5 +87,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
     color: '#15803d',
+  },
+  stacked: {
+    alignSelf: 'stretch',
+    width: '100%',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.35)',
+  },
+  stackedText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#166534',
+    textAlign: 'center',
+    lineHeight: 20,
   },
 });

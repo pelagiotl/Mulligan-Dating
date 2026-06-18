@@ -941,7 +941,7 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
-              {(item.otherUser.soberCircleLevel || item.connectedVia === 'sober_circle') ? (
+              {(item.connectedVia === 'sober_circle') ? (
                 <SoberCircleBadge
                   level={item.otherUser.soberCircleLevel}
                   compact
@@ -2006,6 +2006,19 @@ export default function MatchesScreen() {
             (data.partnerName
               ? `Great news! ${data.partnerName} also wants a second date. Ready to plan the next one?`
               : 'You both want a second date!');
+          Alert.alert(title, body);
+        },
+      );
+
+      socket.on(
+        'date_reflection_nudge',
+        (data: { matchId: string; submitterName?: string; title?: string; body?: string }) => {
+          const title = data.title ?? 'Post-date reflection';
+          const body =
+            data.body ??
+            (data.submitterName
+              ? `${data.submitterName} shared a private reflection — add yours when you're ready.`
+              : "Your match shared a private reflection — add yours when you're ready.");
           Alert.alert(title, body);
         },
       );

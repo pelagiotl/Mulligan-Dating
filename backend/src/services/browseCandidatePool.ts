@@ -16,6 +16,7 @@ import {
 import { checkDealbreakers } from '../utils/dealbreakers.js';
 import { isAtWeeklyIncomingMatchLimit } from '../utils/matchSlotLimits.js';
 import { sqlUserHasMinPhotos } from '../utils/accountStatus.js';
+import { sqlMatchesInPool } from '../utils/matchPools.js';
 import { type BrowsePoolFunnel } from './browsePoolSummary.js';
 
 const usePostgres = !!process.env.DATABASE_URL;
@@ -92,7 +93,8 @@ export async function resolveBrowseCandidatePool(
           END as matched_user_id
          FROM matches 
          WHERE (user1_id = ? OR user2_id = ?) 
-         AND stage != 'expired'`,
+         AND stage != 'expired'
+         ${sqlMatchesInPool(soberCircleOnly === true)}`,
     )
     .all([userId, userId, userId]) as Promise<{ matched_user_id: string }[]>);
 
