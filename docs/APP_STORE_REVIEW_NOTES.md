@@ -4,15 +4,21 @@
 
 ---
 
+## Suggested opening (Resolution Center / 4.3(b) resubmit)
+
+We respectfully address **Guideline 4.3(b)**. Mulligan is not a generic swipe app. It is a regional intentional dating product for **Southern Oregon** with: mandatory **video intro** onboarding, **token-based Connect**, a dedicated **Sober Circle** tab and pool, **Mulligan Live Dates** for IRL events, in-match tools (games, Smart Date Planner), and **post-date reflection** with mutual reveal when both want a second date. Our attached screen recording demonstrates each of these flows.
+
+---
+
 ## 1. Screen recording
 
 We have provided a screen recording captured on a physical iPhone. The recording shows:
 
-- App launch and onboarding (phone + SMS verification)
+- App launch and onboarding (phone + SMS verification, **mandatory intro video**)
 - **Connect tab:** token-based matching (not an endless swipe deck) — browse profiles, tap **Connect & Match** (uses 1 Mulligan token)
-- **Sober tab (Sober Circle):** choose sober level, find matches in a separate sober/sober-curious pool, in-tab messaging
+- **Sober tab (Sober Circle):** choose sober level, find matches in a separate sober/sober-curious pool
 - **Live tab (Mulligan Live Dates):** view and sign up for a local IRL dating event in Southern Oregon
-- **Matches tab:** messaging, optional icebreaker games (Truth or Dare), intentional date planner, post-date reflection
+- **Matches tab:** messaging, optional icebreaker games (Truth or Dare), Smart Date Planner, **post-date reflection** and **Date 2 ready** mutual reveal
 - **Profile tab:** edit photos, bio, interests, dealbreakers, lifestyle
 - **Settings tab:** Mulligan tokens (weekly claim + IAP via RevenueCat), privacy (show/hide last active), block list, **Delete Account** (Danger Zone)
 - **Reporting and blocking** from match chat / profile
@@ -28,12 +34,14 @@ We have provided a screen recording captured on a physical iPhone. The recording
 
 **How Mulligan differs:**
 
-1. **Regional focus** — Southern Oregon only; matches are local and meetable in person.
-2. **Intentional connections** — users spend **Mulligan tokens** to connect (no unlimited swiping).
-3. **Rich profiles** — interests, dealbreakers, lifestyle, and photos before connecting.
-4. **Sober Circle** — a separate tab and matching pool for people on a sober or sober-curious path.
-5. **Mulligan Live Dates** — sign up for curated in-person dating events (IRL), not profile-only matching.
-6. **In-match tools** — messaging, Truth or Dare, intentional date ideas, and private post-date reflections.
+1. **Mandatory video intro** — short onboarding video so personality and voice come through before matching
+2. **Regional focus** — Southern Oregon only; matches are local and meetable in person
+3. **Intentional connections** — users spend **Mulligan tokens** to connect (no unlimited swiping)
+4. **Rich profiles** — interests, dealbreakers, lifestyle, and photos before connecting
+5. **Sober Circle** — a separate tab and matching pool for people on a sober or sober-curious path
+6. **Mulligan Live Dates** — sign up for curated in-person dating events (IRL), not profile-only matching
+7. **Post-date reflection** — private after-date prompts; mutual reveal only when both want a second date
+8. **In-match tools** — messaging, Truth or Dare, Smart Date Planner with local venue ideas
 
 **Audience:** Adults 18+ in or near Southern Oregon who want intentional, local dating — including sober-curious users and people who want real-world events.
 
@@ -41,16 +49,16 @@ We have provided a screen recording captured on a physical iPhone. The recording
 
 ## 3. Instructions and test credentials
 
-**Login:** We do not provide a shared test account. Please **Sign Up** with your own phone number; you will receive an SMS one-time code. Registration is quick: phone → code → create profile.
+**Login:** We do not provide a shared test account. Please **Sign Up** with your own phone number; you will receive an SMS one-time code. Registration: phone → code → profile → **intro video** → Connect.
 
 **Suggested review path (5–7 minutes):**
 
-1. Complete sign-up and create a minimal profile (name, photo, location in Southern Oregon if prompted).
-2. **Connect** — browse profiles → **Connect & Match** (uses 1 free/weekly token if available).
-3. **Sober** — open Sober Circle, select a sober level, explore the separate match flow.
-4. **Live** — open Mulligan Live Dates and view the featured local event.
-5. **Matches** — open a conversation; explore chat tools from the match screen.
-6. **Settings** — view tokens; confirm **Delete Account** exists under Danger Zone (no need to delete if testing).
+1. Complete sign-up and create a minimal profile (name, photo, location in Southern Oregon if prompted, intro video)
+2. **Connect** — browse profiles → **Connect & Match** (uses 1 free/weekly token if available)
+3. **Sober** — open Sober Circle, select a sober level, explore the separate match flow
+4. **Live** — open Mulligan Live Dates and view the featured local event
+5. **Matches** — open a conversation; explore chat tools; tap **We went on a date** to see reflection flow
+6. **Settings** — view tokens; confirm **Delete Account** exists under Danger Zone (no need to delete if testing)
 
 **Main tabs:** Connect · Matches · Live · Sober · Profile · Settings
 

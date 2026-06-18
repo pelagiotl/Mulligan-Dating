@@ -67,7 +67,7 @@ const LANE_VISUALS: Record<DatePlanLaneId, DatePlanLaneVisual> = {
     label: 'Market & bites',
     emoji: '🛍️',
     imageUrl:
-      'https://images.unsplash.com/photo-1488459716781-31db37582c9f?auto=format&fit=crop&w=800&q=80',
+      'https://images.unsplash.com/photo-1578662996442-48f60103fc96?auto=format&fit=crop&w=800&q=80',
     gradientFrom: '#713f12',
     gradientTo: '#f59e0b',
   },

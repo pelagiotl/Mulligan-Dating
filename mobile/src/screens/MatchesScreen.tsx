@@ -2007,33 +2007,6 @@ export default function MatchesScreen() {
         }
       });
 
-      socket.on(
-        'second_date_match',
-        (data: { matchId: string; partnerName?: string; title?: string; body?: string }) => {
-          void fetchMatches();
-          const title = data.title ?? 'Second date vibes ❤️';
-          const body =
-            data.body ??
-            (data.partnerName
-              ? `Great news! ${data.partnerName} also wants a second date. Ready to plan the next one?`
-              : 'You both want a second date!');
-          Alert.alert(title, body);
-        },
-      );
-
-      socket.on(
-        'date_reflection_nudge',
-        (data: { matchId: string; submitterName?: string; title?: string; body?: string }) => {
-          const title = data.title ?? 'Post-date reflection';
-          const body =
-            data.body ??
-            (data.submitterName
-              ? `${data.submitterName} shared a private reflection — add yours when you're ready.`
-              : "Your match shared a private reflection — add yours when you're ready.");
-          Alert.alert(title, body);
-        },
-      );
-      
       // Handle message read receipts (backend marks all messages in match as read)
       socket.on('messages_read', (data: { matchId: string }) => {
         const currentMatchId = selectedMatchRef.current?.id;
@@ -2507,8 +2480,10 @@ export default function MatchesScreen() {
         showGameRequest?: boolean;
         showMatchCelebration?: boolean;
         matchName?: string;
+        openDateReflection?: boolean;
       } | undefined;
       const routeMatchId = routeParams?.matchId;
+      const shouldOpenReflection = routeParams?.openDateReflection === true;
       const matchIdToOpen =
         pendingId ?? (isDemoCelebrationMatchId(routeMatchId) ? null : routeMatchId);
 
@@ -2529,6 +2504,10 @@ export default function MatchesScreen() {
           if (matchToSelect) {
             openMatchAttemptRef.current = matchIdToOpen;
             openMatchChat(matchToSelect, !!pendingId);
+            if (shouldOpenReflection) {
+              setDateReflectionOpen(true);
+              navigation.setParams({ openDateReflection: undefined });
+            }
             if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
               setGameRequestToShow(pendingGame);
               clearPendingGameRequest();
@@ -2545,6 +2524,10 @@ export default function MatchesScreen() {
           const found = fetched.find((m) => m.id === matchIdToOpen);
           if (found) {
             openMatchChat(found, !!pendingId);
+            if (shouldOpenReflection) {
+              setDateReflectionOpen(true);
+              navigation.setParams({ openDateReflection: undefined });
+            }
             if (pendingGame && (routeParams?.showGameRequest || pendingGame.matchId === matchIdToOpen)) {
               setGameRequestToShow(pendingGame);
               clearPendingGameRequest();

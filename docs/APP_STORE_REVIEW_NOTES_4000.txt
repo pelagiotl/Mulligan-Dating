@@ -1,17 +1,24 @@
 1. SCREEN RECORDING
-Screen recording attached to this submission (physical iPhone). Shows: sign-up/login (phone + SMS); Connect tab (token-based matching — NOT an endless swipe deck); Sober tab (Sober Circle — separate sober/sober-curious matching pool); Live tab (Mulligan Live Dates — local IRL event signup); Matches (messaging, Truth or Dare, date planner); Profile (photos, bio, interests); Settings (Mulligan tokens + RevenueCat IAP, block list, show/hide last active, Delete Account in Danger Zone); reporting/blocking; camera, photos, optional location (Southern Oregon), push prompts.
+Physical iPhone recording attached. Shows: sign-up (phone + SMS); Connect (token-based matching — NOT an endless swipe deck); mandatory intro video onboarding; Sober Circle tab (separate sober/sober-curious pool); Live Dates tab (local IRL event signup); Matches (chat, Truth or Dare, Smart Date Planner, post-date reflection with mutual reveal / Date 2 ready); Profile; Settings (tokens + RevenueCat IAP, block list, Delete Account in Danger Zone); report/block; camera, photos, optional Southern Oregon location, push prompts.
 
-2. APP PURPOSE AND VALUE — HOW MULLIGAN IS DIFFERENT
-Mulligan is a dating app for adults 18+ in Southern Oregon. It is NOT a clone swipe app. Differentiation: (1) Southern Oregon region lock — local, meetable matches; (2) Mulligan TOKENS — each connect costs a token (intentional, not unlimited swiping); (3) rich profiles (interests, dealbreakers, lifestyle); (4) SOBER CIRCLE tab — separate matching pool for sober/sober-curious users; (5) LIVE DATES tab — sign up for curated in-person dating events; (6) in-match messaging plus icebreaker games and date-planning tools. Audience: adults 18+ near Southern Oregon seeking intentional local dating.
+2. RESPONSE TO GUIDELINE 4.3(b) — HOW MULLIGAN IS DIFFERENT
+Mulligan is NOT a generic swipe clone. It is an intentional dating app for adults 18+ in Southern Oregon, built around authenticity and real-life connection:
+
+(1) Mandatory 10–15 second video intro during onboarding — personality and voice before matching.
+(2) Live Dates tab — curated in-person speed-dating events with in-app signup.
+(3) Sober Circle tab — separate matching pool for sober and sober-curious users (levels: Newly Sober, 1 Year+, 5 Years+, Sober-Curious).
+(4) Post-date reflection with mutual reveal — private prompts after a date; positive feedback is revealed only if both want a second date.
+(5) Token-based Connect — limited curated connects per week, not infinite swiping.
+(6) Smart Date Planner — local Southern Oregon date ideas tailored to each match.
 
 3. INSTRUCTIONS AND TEST CREDENTIALS
-No shared test account. Please Sign Up with your own phone number (SMS code). Suggested path: sign up → create profile → Connect (browse, tap Connect & Match — uses 1 token) → Sober tab (pick sober level, explore pool) → Live tab (view/sign up for event) → Matches (chat) → Settings (tokens, privacy, Delete Account under Danger Zone). Main tabs: Connect, Matches, Live, Sober, Profile, Settings.
+No shared test account. Please Sign Up with your own phone number (SMS code). Suggested 5–7 min path: sign up → record intro video → Connect (browse profiles; Connect & Match uses 1 token) → Sober tab → Live tab → Matches (chat tools; tap “We went on a date” for reflection) → Settings (confirm Delete Account under Danger Zone). Main tabs: Connect · Matches · Live · Sober · Profile · Settings.
 
 4. EXTERNAL SERVICES
-Backend: Node/Express on Render (mulligan-backend.onrender.com). Auth: phone + SMS. IAP: RevenueCat + Apple IAP for Mulligan tokens. DB: PostgreSQL. Push: Expo. Location: Southern Oregon eligibility check. Optional OpenAI for some prompts (fallbacks if unavailable).
+Backend: Node/Express on Render (mulligan-backend.onrender.com). Auth: phone + SMS. IAP: RevenueCat + Apple IAP (Mulligan tokens). DB: PostgreSQL. Push: Expo. Location: Southern Oregon eligibility. Optional OpenAI for some prompts (static fallbacks if unavailable).
 
 5. REGIONAL DIFFERENCES
-Restricted to Southern Oregon, USA. Outside region: cannot browse/match; message explains app unavailable. Same account/profile/IAP/messaging/report/block behavior inside the region.
+Southern Oregon, USA only. Outside region: cannot browse/match; in-app message explains unavailability. Account, profile, IAP, messaging, report, and block work the same inside the region.
 
 6. REGULATED INDUSTRY
-Dating/social app, adults 18+ only. Privacy Policy and Child Safety/CSAE policy linked in app. No other regulated services.
+Dating/social app, adults 18+ only. Privacy Policy and Child Safety/CSAE policy linked in app.

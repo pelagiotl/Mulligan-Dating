@@ -38,8 +38,7 @@ export type MessageNotificationItem = {
   senderName: string;
   preview: string;
   matchId: string;
-  /** When 'message_liked', show "Message loved" and "❤️ {senderName} loved your message" */
-  notificationType?: 'message' | 'message_liked';
+  notificationType?: 'message' | 'message_liked' | 'date_reflection' | 'second_date_match';
 };
 /** @deprecated Use messageNotifications (array); kept for compatibility as first item or null */
 export type MessageNotification = MessageNotificationItem | null;
@@ -71,7 +70,66 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 const MESSAGE_NOTIFICATION_DURATION_MS = 5000;
+const REFLECTION_NOTIFICATION_DURATION_MS = 7000;
+const SECOND_DATE_NOTIFICATION_DURATION_MS = 8000;
 const MAX_STACKED_MESSAGE_NOTIFICATIONS = 5;
+
+type InAppNotificationPresentation = {
+  gradient: readonly [string, string, ...string[]];
+  icon: string;
+  label: string;
+  title: string;
+  preview: string | null;
+  pillText: string;
+  pillTextColor: string;
+};
+
+function getInAppNotificationPresentation(item: MessageNotificationItem): InAppNotificationPresentation {
+  if (item.notificationType === 'date_reflection') {
+    const partnerFirst = item.senderName.split(' ')[0] || item.senderName;
+    return {
+      gradient: ['#f5576c', '#f093fb', '#667eea'],
+      icon: '💑',
+      label: 'Post-date reflection',
+      title: `${partnerFirst} shared theirs`,
+      preview: item.preview || 'Add yours when you\'re ready — private until you both want date 2.',
+      pillText: 'Reflect',
+      pillTextColor: '#be185d',
+    };
+  }
+  if (item.notificationType === 'second_date_match') {
+    const partnerFirst = item.senderName.split(' ')[0] || item.senderName;
+    return {
+      gradient: ['#fb923c', '#f472b6', '#c084fc', '#818cf8'],
+      icon: '❤️',
+      label: 'Date 2 ready ✨',
+      title: `${partnerFirst} wants another date too!`,
+      preview: item.preview || 'See what you both shared — and plan your next hangout.',
+      pillText: 'Reveal',
+      pillTextColor: '#c026d3',
+    };
+  }
+  if (item.notificationType === 'message_liked') {
+    return {
+      gradient: ['#8b5cf6', '#a855f7', '#c026d3', '#be185d'],
+      icon: '❤️',
+      label: 'Message loved',
+      title: `❤️ ${item.senderName} ${item.preview}`,
+      preview: null,
+      pillText: 'View',
+      pillTextColor: '#7c3aed',
+    };
+  }
+  return {
+    gradient: ['#8b5cf6', '#a855f7', '#c026d3', '#be185d'],
+    icon: '💬',
+    label: 'New message',
+    title: item.senderName,
+    preview: item.preview,
+    pillText: 'View',
+    pillTextColor: '#7c3aed',
+  };
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -117,23 +175,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const showMessageNotification = useCallback((senderName: string, preview: string, matchId: string, notificationType: 'message' | 'message_liked' = 'message') => {
-    const id = `${Date.now()}-${matchId}-${Math.random().toString(36).slice(2, 9)}`;
-    const item: MessageNotificationItem = { id, senderName, preview, matchId, notificationType };
-    setMessageNotifications((prev) => {
-      const next = [item, ...prev].slice(0, MAX_STACKED_MESSAGE_NOTIFICATIONS);
-      return next;
-    });
-    const timeoutId = setTimeout(() => {
-      messageNotificationTimeoutsRef.current.delete(id);
-      setMessageNotifications((prev) => prev.filter((n) => n.id !== id));
-    }, MESSAGE_NOTIFICATION_DURATION_MS);
-    messageNotificationTimeoutsRef.current.set(id, timeoutId);
-  }, []);
+  const showMessageNotification = useCallback(
+    (
+      senderName: string,
+      preview: string,
+      matchId: string,
+      notificationType: MessageNotificationItem['notificationType'] = 'message',
+    ) => {
+      const id = `${Date.now()}-${matchId}-${Math.random().toString(36).slice(2, 9)}`;
+      const item: MessageNotificationItem = { id, senderName, preview, matchId, notificationType };
+      const durationMs =
+        notificationType === 'date_reflection'
+          ? REFLECTION_NOTIFICATION_DURATION_MS
+          : notificationType === 'second_date_match'
+            ? SECOND_DATE_NOTIFICATION_DURATION_MS
+            : MESSAGE_NOTIFICATION_DURATION_MS;
+      setMessageNotifications((prev) => {
+        const next = [item, ...prev].slice(0, MAX_STACKED_MESSAGE_NOTIFICATIONS);
+        return next;
+      });
+      const timeoutId = setTimeout(() => {
+        messageNotificationTimeoutsRef.current.delete(id);
+        setMessageNotifications((prev) => prev.filter((n) => n.id !== id));
+      }, durationMs);
+      messageNotificationTimeoutsRef.current.set(id, timeoutId);
+    },
+    [],
+  );
 
   const showMessageLikedNotification = useCallback((likerName: string, matchId: string) => {
     showMessageNotification(likerName, 'loved your message', matchId, 'message_liked');
   }, [showMessageNotification]);
+
+  const showReflectionNudgeNotification = useCallback(
+    (submitterName: string, body: string, matchId: string) => {
+      showMessageNotification(submitterName, body, matchId, 'date_reflection');
+    },
+    [showMessageNotification],
+  );
+
+  const showSecondDateMatchNotification = useCallback(
+    (partnerName: string, body: string, matchId: string) => {
+      showMessageNotification(partnerName, body, matchId, 'second_date_match');
+    },
+    [showMessageNotification],
+  );
 
   useEffect(() => {
     checkAuth();
@@ -253,6 +339,48 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           console.warn('⚠️ AuthContext message_liked handler error:', err);
         }
       });
+
+      socket.on(
+        'date_reflection_nudge',
+        (data: { matchId?: string; submitterName?: string; title?: string; body?: string }) => {
+          try {
+            if (!data.matchId) return;
+            if (currentMatchIdRef.current === data.matchId) {
+              if (__DEV__) console.log('💑 Reflection nudge skipped: already viewing this chat');
+              return;
+            }
+            const submitterName = data.submitterName || 'Your match';
+            const body =
+              data.body ??
+              `${submitterName} shared a private reflection — add yours when you're ready.`;
+            showReflectionNudgeNotification(submitterName, body, data.matchId);
+            playMessageSound().catch(() => {});
+            if (__DEV__) console.log('💑 In-app reflection nudge:', submitterName);
+          } catch (err) {
+            console.warn('⚠️ AuthContext date_reflection_nudge handler error:', err);
+          }
+        },
+      );
+
+      socket.on(
+        'second_date_match',
+        (data: { matchId?: string; partnerName?: string; title?: string; body?: string }) => {
+          try {
+            if (!data.matchId) return;
+            api.clearCache('/matches');
+            onNewMatchRef.current?.();
+            const partnerName = data.partnerName || 'Your match';
+            const body =
+              data.body ??
+              `Great news! ${partnerName} also wants a second date. Ready to plan the next one?`;
+            showSecondDateMatchNotification(partnerName, body, data.matchId);
+            playMessageSound().catch(() => {});
+            if (__DEV__) console.log('✨ In-app second date match:', partnerName);
+          } catch (err) {
+            console.warn('⚠️ AuthContext second_date_match handler error:', err);
+          }
+        },
+      );
     };
 
     initMessageNotificationSocket();
@@ -264,11 +392,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         messageNotificationSocketRef.current.off('partner_profile_updated');
         messageNotificationSocketRef.current.off('new_message');
         messageNotificationSocketRef.current.off('message_liked');
+        messageNotificationSocketRef.current.off('date_reflection_nudge');
+        messageNotificationSocketRef.current.off('second_date_match');
         messageNotificationSocketRef.current.disconnect();
         messageNotificationSocketRef.current = null;
       }
     };
-  }, [user?.id, showMessageNotification, showMessageLikedNotification]);
+  }, [
+    user?.id,
+    showMessageNotification,
+    showMessageLikedNotification,
+    showReflectionNudgeNotification,
+    showSecondDateMatchNotification,
+  ]);
 
   // Reconnect message notification socket when app comes to foreground (Android often drops socket in background)
   useEffect(() => {
@@ -527,10 +663,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             try {
               navigationRef.current.navigate('MainTabs', {
                 screen: 'Matches',
-                params: { matchId: data.matchId },
+                params: { matchId: data.matchId, openDateReflection: true },
               });
             } catch (error) {
               console.error('❌ Error navigating to match from reflection nudge:', error);
+            }
+          } else if (attemptNumber < maxAttempts) {
+            setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
+          }
+        };
+        attemptNavigation();
+      }
+
+      if (data?.type === 'second_date_match' && data?.matchId) {
+        api.clearCache('/matches');
+        onNewMatchRef.current?.();
+        const attemptNavigation = (attemptNumber: number = 0) => {
+          const maxAttempts = 10;
+          if (navigationRef.current?.isReady() && userRef.current) {
+            try {
+              navigationRef.current.navigate('MainTabs', {
+                screen: 'Matches',
+                params: { matchId: data.matchId, openDateReflection: true },
+              });
+            } catch (error) {
+              console.error('❌ Error navigating to match from second date notification:', error);
             }
           } else if (attemptNumber < maxAttempts) {
             setTimeout(() => attemptNavigation(attemptNumber + 1), 500);
@@ -598,7 +755,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           } else if (data?.type === 'date_reflection_nudge' && data?.matchId) {
             navigationRef.current.navigate('MainTabs' as never, {
               screen: 'Matches',
-              params: { matchId: data.matchId },
+              params: { matchId: data.matchId, openDateReflection: true },
+            } as never);
+          } else if (data?.type === 'second_date_match' && data?.matchId) {
+            navigationRef.current.navigate('MainTabs' as never, {
+              screen: 'Matches',
+              params: { matchId: data.matchId, openDateReflection: true },
             } as never);
           }
         } catch (_) {}
@@ -1115,52 +1277,85 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           pointerEvents="box-none"
         >
           <Animated.View style={[messageNotificationStyles.stack, { transform: [{ translateY: messageSlideAnim }] }]}>
-            {messageNotifications.map((item, index) => (
-              <TouchableOpacity
-                key={item.id}
-                activeOpacity={0.92}
-                onPress={() => {
-                  clearMessageNotification(item.id);
-                  if (item.matchId && navigationRef.current?.isReady()) {
-                    navigationRef.current.navigate('MainTabs' as never, {
-                      screen: 'Matches',
-                      params: { matchId: item.matchId },
-                    } as never);
-                  }
-                }}
-                style={[
-                  messageNotificationStyles.bannerTouchable,
-                  index > 0 && messageNotificationStyles.bannerTouchableStacked,
-                ]}
-              >
-                <LinearGradient
-                  colors={['#8b5cf6', '#a855f7', '#c026d3', '#be185d']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={messageNotificationStyles.gradient}
+            {messageNotifications.map((item, index) => {
+              const presentation = getInAppNotificationPresentation(item);
+              const isReflection = item.notificationType === 'date_reflection';
+              const isSecondDate = item.notificationType === 'second_date_match';
+              const opensReflection = isReflection || isSecondDate;
+              return (
+                <TouchableOpacity
+                  key={item.id}
+                  activeOpacity={0.92}
+                  onPress={() => {
+                    clearMessageNotification(item.id);
+                    if (item.matchId && navigationRef.current?.isReady()) {
+                      navigationRef.current.navigate('MainTabs' as never, {
+                        screen: 'Matches',
+                        params: {
+                          matchId: item.matchId,
+                          ...(opensReflection ? { openDateReflection: true } : {}),
+                        },
+                      } as never);
+                    }
+                  }}
+                  style={[
+                    messageNotificationStyles.bannerTouchable,
+                    index > 0 && messageNotificationStyles.bannerTouchableStacked,
+                  ]}
                 >
-                  <View style={messageNotificationStyles.bannerContent}>
-                    <View style={messageNotificationStyles.iconCircle}>
-                      <Text style={messageNotificationStyles.iconText}>{item.notificationType === 'message_liked' ? '❤️' : '💬'}</Text>
-                    </View>
-                    <View style={messageNotificationStyles.textBlock}>
-                      <Text style={messageNotificationStyles.label}>{item.notificationType === 'message_liked' ? 'Message loved' : 'New message'}</Text>
-                      <Text style={messageNotificationStyles.senderName} numberOfLines={1}>
-                        {item.notificationType === 'message_liked' ? `❤️ ${item.senderName} ${item.preview}` : item.senderName}
-                      </Text>
-                      {item.notificationType !== 'message_liked' && (
-                        <Text style={messageNotificationStyles.preview} numberOfLines={1}>
-                          {item.preview}
+                  <LinearGradient
+                    colors={[...presentation.gradient]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={messageNotificationStyles.gradient}
+                  >
+                    <View style={messageNotificationStyles.accentBar} />
+                    <View style={messageNotificationStyles.bannerContent}>
+                      <View
+                        style={[
+                          messageNotificationStyles.iconCircle,
+                          isReflection && messageNotificationStyles.iconCircleReflection,
+                          isSecondDate && messageNotificationStyles.iconCircleSecondDate,
+                        ]}
+                      >
+                        <Text style={messageNotificationStyles.iconText}>{presentation.icon}</Text>
+                        {isReflection ? (
+                          <View style={messageNotificationStyles.lockBadge}>
+                            <Text style={messageNotificationStyles.lockBadgeText}>🔒</Text>
+                          </View>
+                        ) : null}
+                        {isSecondDate ? (
+                          <View style={messageNotificationStyles.sparkleBadge}>
+                            <Text style={messageNotificationStyles.sparkleBadgeText}>✨</Text>
+                          </View>
+                        ) : null}
+                      </View>
+                      <View style={messageNotificationStyles.textBlock}>
+                        <Text style={messageNotificationStyles.label}>{presentation.label}</Text>
+                        <Text style={messageNotificationStyles.senderName} numberOfLines={1}>
+                          {presentation.title}
                         </Text>
-                      )}
+                        {presentation.preview ? (
+                          <Text style={messageNotificationStyles.preview} numberOfLines={2}>
+                            {presentation.preview}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <View style={messageNotificationStyles.viewPill}>
+                        <Text
+                          style={[
+                            messageNotificationStyles.viewPillText,
+                            { color: presentation.pillTextColor },
+                          ]}
+                        >
+                          {presentation.pillText}
+                        </Text>
+                      </View>
                     </View>
-                    <View style={messageNotificationStyles.viewPill}>
-                      <Text style={messageNotificationStyles.viewPillText}>View</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
-              </TouchableOpacity>
-            ))}
+                  </LinearGradient>
+                </TouchableOpacity>
+              );
+            })}
           </Animated.View>
         </Animated.View>
       )}
@@ -1201,6 +1396,15 @@ const messageNotificationStyles = StyleSheet.create({
     paddingVertical: 14,
     paddingHorizontal: 16,
     borderRadius: 16,
+    overflow: 'hidden',
+  },
+  accentBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: 'rgba(255,255,255,0.45)',
   },
   bannerContent: {
     flexDirection: 'row',
@@ -1215,6 +1419,44 @@ const messageNotificationStyles = StyleSheet.create({
     alignItems: 'center',
     marginRight: 12,
   },
+  iconCircleReflection: {
+    backgroundColor: 'rgba(255,255,255,0.32)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  iconCircleSecondDate: {
+    backgroundColor: 'rgba(255,255,255,0.36)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.55)',
+  },
+  lockBadge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: 'rgba(255,255,255,0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lockBadgeText: {
+    fontSize: 10,
+  },
+  sparkleBadge: {
+    position: 'absolute',
+    right: -3,
+    bottom: -3,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: 'rgba(255,255,255,0.96)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sparkleBadgeText: {
+    fontSize: 11,
+  },
   iconText: {
     fontSize: 22,
   },
@@ -1224,9 +1466,9 @@ const messageNotificationStyles = StyleSheet.create({
   },
   label: {
     fontSize: 11,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.85)',
-    letterSpacing: 0.8,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.9)',
+    letterSpacing: 0.6,
     marginBottom: 2,
     textTransform: 'uppercase',
   },
@@ -1237,8 +1479,9 @@ const messageNotificationStyles = StyleSheet.create({
     marginBottom: 1,
   },
   preview: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    fontSize: 13,
+    lineHeight: 18,
+    color: 'rgba(255,255,255,0.92)',
   },
   viewPill: {
     backgroundColor: 'rgba(255,255,255,0.95)',
@@ -1250,7 +1493,6 @@ const messageNotificationStyles = StyleSheet.create({
   viewPillText: {
     fontSize: 14,
     fontWeight: '700',
-    color: '#7c3aed',
   },
 });
 
