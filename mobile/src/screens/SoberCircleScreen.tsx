@@ -9,9 +9,12 @@ import {
   Alert,
   Platform,
   Vibration,
+  Modal,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import type { StackNavigationProp } from '@react-navigation/stack';
 import { api } from '../utils/api';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
@@ -21,6 +24,8 @@ import OptimizedImage from '../components/OptimizedImage';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { SOBER_CIRCLE_LEVELS, soberCircleLevelLabel } from '../constants/soberCircle';
 import MatchCelebration from '../components/MatchCelebration';
+import type { SoberCircleStackParamList } from '../navigation/SoberCircleNavigator';
+import { setPendingOpenMatchId } from '../utils/pendingMatchOpen';
 
 type BrowseProfile = {
   id: string;
@@ -33,6 +38,81 @@ type BrowseProfile = {
   photoUrl?: string;
   soberCircleLevel?: string;
 };
+
+type SoberMatch = {
+  id: string;
+  stage: string;
+  unreadCount?: number;
+  otherUser: {
+    userId: string;
+    displayName: string;
+    age: number;
+    photoUrl?: string | null;
+    soberCircleLevel?: string | null;
+  };
+};
+
+type NoMatchModalProps = {
+  visible: boolean;
+  midnight: boolean;
+  poolHasPeople: boolean;
+  onClose: () => void;
+  onTryAgain: () => void;
+  onUpdateProfile: () => void;
+};
+
+function NoMatchModal({
+  visible,
+  midnight,
+  poolHasPeople,
+  onClose,
+  onTryAgain,
+  onUpdateProfile,
+}: NoMatchModalProps) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.noMatchOverlay}>
+        <LinearGradient
+          colors={['#22c55e', '#16a34a', '#667eea', '#4ade80']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+        <View style={[styles.noMatchCard, midnight && styles.noMatchCardMidnight]}>
+          <LinearGradient
+            colors={midnight ? ['#1a1628', '#1e1b2e', '#162016'] : ['#f0fdf4', '#ffffff', '#ecfdf5']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.noMatchCardInner}
+          >
+            <View style={styles.noMatchEmojiRing}>
+              <Text style={styles.noMatchEmoji}>{poolHasPeople ? '🔍' : '🌿'}</Text>
+            </View>
+            <Text style={[styles.noMatchTitle, midnight && styles.textLight]}>No match right now</Text>
+            <Text style={[styles.noMatchBody, midnight && styles.leadMidnight]}>
+              {poolHasPeople
+                ? 'People are in the circle, but none fit your preferences today. Try widening distance or updating who you want to meet.'
+                : 'The sober pool is still growing. Check back soon — or invite friends on a sober path.'}
+            </Text>
+            <TouchableOpacity style={styles.noMatchPrimaryBtn} onPress={onTryAgain} activeOpacity={0.88}>
+              <LinearGradient colors={['#22c55e', '#16a34a', '#667eea']} style={styles.noMatchPrimaryGrad}>
+                <Text style={styles.noMatchPrimaryText}>Try again 🌿</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+            {poolHasPeople ? (
+              <TouchableOpacity onPress={onUpdateProfile} style={styles.noMatchSecondaryBtn} activeOpacity={0.8}>
+                <Text style={styles.noMatchSecondaryText}>Update preferences</Text>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity onPress={onClose} style={styles.noMatchDismiss} activeOpacity={0.7}>
+              <Text style={[styles.noMatchDismissText, midnight && styles.leadMidnight]}>Not now</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function LevelPicker({
   midnight,
@@ -85,10 +165,20 @@ function LevelPicker({
 
 export default function SoberCircleScreen() {
   const insets = useSafeAreaInsets();
-  const { profile, refreshProfile } = useAuth();
+  const navigation = useNavigation<StackNavigationProp<SoberCircleStackParamList, 'SoberCircleHome'>>();
+  const { profile, refreshProfile, registerMatchListRefresh } = useAuth();
   const { mode: shellMode } = useConnectShellTheme();
   const midnight = shellMode === 'midnight';
   const bottomPad = iosFloatingTabBarInset(insets.bottom) + 88;
+
+  const viewerSoberLevel =
+    (profile as { sober_circle_level?: string; soberCircleLevel?: string } | null)?.sober_circle_level ??
+    (profile as { soberCircleLevel?: string } | null)?.soberCircleLevel ??
+    null;
+  const viewerDisplayName =
+    (profile as { display_name?: string; displayName?: string } | null)?.display_name ??
+    (profile as { displayName?: string } | null)?.displayName ??
+    'You';
 
   const level =
     (profile as { sober_circle_level?: string; soberCircleLevel?: string } | null)?.sober_circle_level ??
@@ -104,6 +194,52 @@ export default function SoberCircleScreen() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [matchId, setMatchId] = useState<string | null>(null);
   const [matchedProfile, setMatchedProfile] = useState<BrowseProfile | null>(null);
+  const [matchedIntroVideoUrl, setMatchedIntroVideoUrl] = useState<string | null>(null);
+  const [matchExplanation, setMatchExplanation] = useState<{
+    reasons: string[];
+    sharedInterests: string[];
+    sharedValues: number;
+  } | null>(null);
+  const [soberMatches, setSoberMatches] = useState<SoberMatch[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [noMatchModal, setNoMatchModal] = useState<{ visible: boolean; poolHasPeople: boolean }>({
+    visible: false,
+    poolHasPeople: false,
+  });
+
+  const loadSoberMatches = useCallback(async () => {
+    if (!level) return;
+    setLoadingMatches(true);
+    try {
+      const data = await api.get<{ matches: SoberMatch[] }>('/matches?pool=sober', false);
+      setSoberMatches(data.matches ?? []);
+    } catch {
+      setSoberMatches([]);
+    } finally {
+      setLoadingMatches(false);
+    }
+  }, [level]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (level && !changingLevel) void loadSoberMatches();
+    }, [level, changingLevel, loadSoberMatches]),
+  );
+
+  useEffect(() => {
+    registerMatchListRefresh(() => {
+      void loadSoberMatches();
+    });
+    return () => registerMatchListRefresh(null);
+  }, [registerMatchListRefresh, loadSoberMatches]);
+
+  const openSoberChat = useCallback(
+    (id: string) => {
+      setPendingOpenMatchId(id);
+      navigation.navigate('SoberCircleChat', { matchId: id, soberCircleMode: true });
+    },
+    [navigation],
+  );
 
   const saveLevel = async (id: string) => {
     setSavingLevel(true);
@@ -154,15 +290,28 @@ export default function SoberCircleScreen() {
       } catch {
         // ignore
       }
-      const result = await api.post<{ matchId: string; partnerIntroVideoUrl?: string | null }>(
-        '/matches/connect',
-        { targetUserId: profileToConnect.userId },
-      );
+      const result = await api.post<{
+        matchId: string;
+        existingMatch?: boolean;
+        partnerIntroVideoUrl?: string | null;
+        explanation?: { reasons: string[]; sharedInterests: string[]; sharedValues: number } | null;
+      }>('/matches/connect', { targetUserId: profileToConnect.userId, source: 'sober_circle' });
+
+      if (result.existingMatch) {
+        openSoberChat(result.matchId);
+        setCurrentProfile(null);
+        void loadBrowse();
+        return;
+      }
+
       setMatchId(result.matchId);
       setMatchedProfile(profileToConnect);
+      setMatchedIntroVideoUrl(result.partnerIntroVideoUrl ?? null);
+      setMatchExplanation(result.explanation ?? null);
       setShowCelebration(true);
       setCurrentProfile(null);
       void loadBrowse();
+      void loadSoberMatches();
     } catch (err: unknown) {
       Alert.alert('Connect', err instanceof Error ? err.message : 'Could not connect');
     } finally {
@@ -180,11 +329,7 @@ export default function SoberCircleScreen() {
 
     const { profile: found, total } = await loadBrowse();
     if (!found) {
-      const hint =
-        total > 0
-          ? 'People are in the circle, but none match your preferences right now. Try updating distance or preferences in Profile.'
-          : 'No one else is in the Sober Circle pool yet. Check back soon — or invite friends on a sober path.';
-      Alert.alert('No match right now', hint);
+      setNoMatchModal({ visible: true, poolHasPeople: total > 0 });
     }
   };
 
@@ -239,6 +384,58 @@ export default function SoberCircleScreen() {
         <Text style={[styles.lead, midnight && styles.leadMidnight]}>
           Tap the button below to get matched with someone else in the circle. Sobriety level shows here only.
         </Text>
+
+        {soberMatches.length > 0 ? (
+          <View style={styles.matchesSection}>
+            <View style={styles.matchesSectionHeader}>
+              <Text style={[styles.matchesSectionTitle, midnight && styles.textLight]}>Your circle matches</Text>
+              <TouchableOpacity
+                onPress={() => navigation.navigate('SoberCircleChat', { soberCircleMode: true })}
+              >
+                <Text style={styles.matchesSectionLink}>See all →</Text>
+              </TouchableOpacity>
+            </View>
+            {soberMatches.slice(0, 3).map((m) => {
+              const photo = m.otherUser.photoUrl;
+              return (
+                <TouchableOpacity
+                  key={m.id}
+                  style={[styles.matchRow, midnight && styles.matchRowMidnight]}
+                  onPress={() => openSoberChat(m.id)}
+                  activeOpacity={0.85}
+                >
+                  {photo ? (
+                    <OptimizedImage source={getPhotoUrl(photo)} style={styles.matchRowPhoto} resizeMode="cover" />
+                  ) : (
+                    <View style={styles.matchRowPhotoPlaceholder}>
+                      <Text style={styles.matchRowPhotoLetter}>
+                        {m.otherUser.displayName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                  )}
+                  <View style={styles.matchRowText}>
+                    <Text style={[styles.matchRowName, midnight && styles.textLight]} numberOfLines={1}>
+                      {m.otherUser.displayName}
+                    </Text>
+                    <Text style={[styles.matchRowMeta, midnight && styles.leadMidnight]} numberOfLines={1}>
+                      💚 {soberCircleLevelLabel(m.otherUser.soberCircleLevel ?? level)}
+                    </Text>
+                  </View>
+                  <View style={styles.matchRowCta}>
+                    {m.unreadCount && m.unreadCount > 0 ? (
+                      <View style={styles.unreadBadge}>
+                        <Text style={styles.unreadBadgeText}>{m.unreadCount > 9 ? '9+' : m.unreadCount}</Text>
+                      </View>
+                    ) : null}
+                    <Text style={styles.matchRowMessage}>Message 💬</Text>
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ) : loadingMatches ? (
+          <ActivityIndicator style={{ marginBottom: 12 }} color={midnight ? '#4ade80' : '#16a34a'} />
+        ) : null}
 
         {loadingBrowse && !currentProfile ? (
           <ActivityIndicator style={{ marginTop: 32 }} color={midnight ? '#f472b6' : '#16a34a'} />
@@ -313,17 +510,42 @@ export default function SoberCircleScreen() {
         </TouchableOpacity>
       </View>
 
+      <NoMatchModal
+        visible={noMatchModal.visible}
+        midnight={midnight}
+        poolHasPeople={noMatchModal.poolHasPeople}
+        onClose={() => setNoMatchModal((s) => ({ ...s, visible: false }))}
+        onTryAgain={() => {
+          setNoMatchModal((s) => ({ ...s, visible: false }));
+          void handleMainAction();
+        }}
+        onUpdateProfile={() => {
+          setNoMatchModal((s) => ({ ...s, visible: false }));
+          const parent = navigation.getParent();
+          parent?.navigate('MyProfile' as never);
+        }}
+      />
+
       {showCelebration && matchedProfile ? (
         <MatchCelebration
           profileName={matchedProfile.displayName}
           photoUrl={matchedProfile.photoUrl}
+          introVideoUrl={matchedIntroVideoUrl}
+          explanation={matchExplanation}
           matchId={matchId}
+          celebrationFlow="sober_circle"
+          partnerSoberLevel={matchedProfile.soberCircleLevel ?? level}
+          viewerSoberLevel={viewerSoberLevel}
+          viewerName={viewerDisplayName.split(' ')[0] || 'You'}
           skipLoadingReveal={false}
           revealWhenMatchIdReady
           onClose={() => {
             setShowCelebration(false);
             setMatchId(null);
             setMatchedProfile(null);
+            setMatchedIntroVideoUrl(null);
+            setMatchExplanation(null);
+            void loadSoberMatches();
           }}
         />
       ) : null}
@@ -384,6 +606,56 @@ const styles = StyleSheet.create({
   },
   levelPillMidnight: { backgroundColor: 'rgba(34,197,94,0.2)' },
   levelPillText: { fontSize: 13, fontWeight: '700', color: '#166534' },
+  matchesSection: { marginBottom: 16 },
+  matchesSectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 10,
+  },
+  matchesSectionTitle: { fontSize: 16, fontWeight: '800', color: '#1e1b4b' },
+  matchesSectionLink: { fontSize: 13, fontWeight: '700', color: '#16a34a' },
+  matchRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.94)',
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(34,197,94,0.22)',
+  },
+  matchRowMidnight: {
+    backgroundColor: 'rgba(26,22,40,0.92)',
+    borderColor: 'rgba(34,197,94,0.32)',
+  },
+  matchRowPhoto: { width: 48, height: 48, borderRadius: 24, marginRight: 12 },
+  matchRowPhotoPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    marginRight: 12,
+    backgroundColor: '#16a34a',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  matchRowPhotoLetter: { color: '#fff', fontSize: 20, fontWeight: '800' },
+  matchRowText: { flex: 1, minWidth: 0 },
+  matchRowName: { fontSize: 15, fontWeight: '700', color: '#1e1b4b' },
+  matchRowMeta: { fontSize: 12, color: '#64748b', marginTop: 2 },
+  matchRowCta: { alignItems: 'flex-end', marginLeft: 8 },
+  matchRowMessage: { fontSize: 12, fontWeight: '700', color: '#16a34a' },
+  unreadBadge: {
+    backgroundColor: '#ef4444',
+    borderRadius: 999,
+    minWidth: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+    marginBottom: 4,
+  },
+  unreadBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
   emptyCard: {
     backgroundColor: 'rgba(255,255,255,0.92)',
     borderRadius: 20,
@@ -459,4 +731,67 @@ const styles = StyleSheet.create({
     marginTop: 4,
     textAlign: 'center',
   },
+  noMatchOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  noMatchCard: {
+    width: '100%',
+    maxWidth: 360,
+    borderRadius: 24,
+    overflow: 'hidden',
+    shadowColor: '#16a34a',
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 12,
+  },
+  noMatchCardMidnight: {
+    shadowColor: '#4ade80',
+  },
+  noMatchCardInner: {
+    padding: 28,
+    alignItems: 'center',
+  },
+  noMatchEmojiRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: 'rgba(34,197,94,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  noMatchEmoji: { fontSize: 36 },
+  noMatchTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1e1b4b',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  noMatchBody: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: '#64748b',
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  noMatchPrimaryBtn: {
+    alignSelf: 'stretch',
+    borderRadius: 999,
+    overflow: 'hidden',
+    marginBottom: 10,
+  },
+  noMatchPrimaryGrad: {
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  noMatchPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '800' },
+  noMatchSecondaryBtn: { paddingVertical: 8 },
+  noMatchSecondaryText: { color: '#16a34a', fontSize: 14, fontWeight: '700' },
+  noMatchDismiss: { marginTop: 4, paddingVertical: 6 },
+  noMatchDismissText: { fontSize: 13, fontWeight: '600', color: '#94a3b8' },
 });

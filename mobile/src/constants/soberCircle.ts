@@ -11,3 +11,17 @@ export function soberCircleLevelLabel(level: string | null | undefined): string 
   const found = SOBER_CIRCLE_LEVELS.find((l) => l.id === level);
   return found ? found.label : null;
 }
+
+export function soberCircleLevelEmoji(level: string | null | undefined): string {
+  const found = SOBER_CIRCLE_LEVELS.find((l) => l.id === level);
+  return found?.emoji ?? '💚';
+}
+
+export function soberCircleLevelMeta(level: string | null | undefined): {
+  label: string;
+  emoji: string;
+} | null {
+  const found = SOBER_CIRCLE_LEVELS.find((l) => l.id === level);
+  if (!found) return null;
+  return { label: found.label, emoji: found.emoji };
+}

@@ -148,13 +148,55 @@ function softTheme(): MatchCelebrationTheme {
   };
 }
 
-export function matchCelebrationTheme(mode: ConnectShellMode): MatchCelebrationTheme {
+export function matchCelebrationTheme(
+  mode: ConnectShellMode,
+  flow: 'connect' | 'sober_circle' = 'connect',
+): MatchCelebrationTheme {
+  let base: MatchCelebrationTheme;
   switch (mode) {
     case 'sunny':
-      return sunnyTheme();
+      base = sunnyTheme();
+      break;
     case 'soft':
-      return softTheme();
+      base = softTheme();
+      break;
     default:
-      return midnightTheme();
+      base = midnightTheme();
+      break;
   }
+  if (flow !== 'sober_circle') return base;
+  return soberCircleCelebrationVariant(base, mode);
+}
+
+function soberCircleCelebrationVariant(
+  base: MatchCelebrationTheme,
+  mode: ConnectShellMode,
+): MatchCelebrationTheme {
+  const isMidnight = mode === 'midnight';
+  return {
+    ...base,
+    scrim: isMidnight ? 'rgba(6, 18, 12, 0.82)' : 'rgba(22, 101, 52, 0.38)',
+    cardBorder: isMidnight ? 'rgba(74, 222, 128, 0.45)' : 'rgba(34, 197, 94, 0.42)',
+    cardShadow: '#16a34a',
+    loadingCardGradient: isMidnight
+      ? (['#14281c', '#1a3324', '#0f1f16'] as const)
+      : (['#f0fdf4', '#ffffff', '#ecfdf5'] as const),
+    loadingBorder: 'rgba(34, 197, 94, 0.45)',
+    loadingTitle: isMidnight ? '#bbf7d0' : '#166534',
+    loadingSub: isMidnight ? '#86efac' : '#4ade80',
+    loadingDot: '#22c55e',
+    titleAccent: isMidnight ? '#4ade80' : '#16a34a',
+    subtitleBold: isMidnight ? '#86efac' : '#15803d',
+    explanationBg: 'rgba(34, 197, 94, 0.12)',
+    explanationBorder: 'rgba(34, 197, 94, 0.32)',
+    explanationTitle: isMidnight ? '#bbf7d0' : '#166534',
+    explanationBullet: '#22c55e',
+    primaryCta: ['#22c55e', '#16a34a', '#667eea'],
+    secondaryBorder: 'rgba(34, 197, 94, 0.5)',
+    secondaryText: isMidnight ? '#bbf7d0' : '#166534',
+    photoRing: 'rgba(34, 197, 94, 0.55)',
+    placeholderGradient: ['#22c55e', '#16a34a'],
+    confettiColors: ['#22c55e', '#4ade80', '#16a34a', '#86efac', '#667eea'],
+    floatingEmojis: ['🌿', '💚', '🌱', '✨', '🤝', '💚', '🌿', '🙌', '💌', '🌲'],
+  };
 }

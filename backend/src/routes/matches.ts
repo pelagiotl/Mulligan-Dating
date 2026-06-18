@@ -132,6 +132,7 @@ matchesRouter.get("/count", authenticateToken, async (req: AuthRequest, res) => 
 matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const soberPool = (req.query.pool as string) === 'sober';
 
     // Auto-expire matches whose 7-day timer has passed (so they disappear from the tab and users can re-match later)
     const nowIso = new Date().toISOString();
@@ -156,10 +157,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         `SELECT m.*, 
                 p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
                 p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location, p1.looking_for as user1_looking_for,
-                p1.intro_video_url as user1_intro_video,
+                p1.intro_video_url as user1_intro_video, p1.sober_circle_level as user1_sober_circle_level,
                 p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
                 p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location, p2.looking_for as user2_looking_for,
-                p2.intro_video_url as user2_intro_video,
+                p2.intro_video_url as user2_intro_video, p2.sober_circle_level as user2_sober_circle_level,
                 u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active,
                 u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active
          FROM matches m
@@ -174,14 +175,21 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
          ) msg ON msg.match_id = m.id
          WHERE (m.user1_id = ? OR m.user2_id = ?)
          AND m.stage != 'expired'
+         ${soberPool ? `AND (
+           COALESCE(m.connected_via, 'connect') = 'sober_circle'
+           OR (
+             COALESCE(TRIM(p1.sober_circle_level), '') != ''
+             AND COALESCE(TRIM(p2.sober_circle_level), '') != ''
+           )
+         )` : ''}
          ORDER BY COALESCE(msg.last_message_at, m.created_at) DESC`
       )
       .all([userId, userId]);
-    const matches = (matchesResult instanceof Promise
+    let matches = (matchesResult instanceof Promise
       ? await matchesResult
       : matchesResult) as any[];
 
-    console.log(`📊 Matches query returned ${matches.length} matches for user ${userId}`);
+    console.log(`📊 Matches query returned ${matches.length} matches for user ${userId}${soberPool ? ' (sober pool)' : ''}`);
 
     if (matches.length === 0) {
       return res.json({ matches: [] });
@@ -453,6 +461,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 
       const otherLastActive = isUser1 ? m.user2_last_active : m.user1_last_active;
       const otherShowActive = isUser1 ? (m.user2_show_active !== 0 && m.user2_show_active !== false) : (m.user1_show_active !== 0 && m.user1_show_active !== false);
+      const otherSoberLevel = isUser1 ? m.user2_sober_circle_level : m.user1_sober_circle_level;
       const otherUser = {
         userId: otherUserId,
         displayName: isUser1 ? m.user2_name : m.user1_name,
@@ -465,6 +474,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         introVideoUrl: (m.stage === "stage1" || m.stage === "stage2")
           ? (isUser1 ? m.user2_intro_video : m.user1_intro_video) ?? null
           : null,
+        soberCircleLevel: otherSoberLevel && String(otherSoberLevel).trim() ? otherSoberLevel : null,
         last_active_at: otherLastActive,
         show_active_status: otherShowActive,
       };
@@ -500,6 +510,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         stage1At: m.stage1_at,
         stage2At: m.stage2_at,
         expiresAt: m.expires_at || null,
+        connectedVia: m.connected_via === 'sober_circle' ? 'sober_circle' : 'connect',
         isInitiator: isUser1,
         userWantsReveal: m.userWantsReveal === 1,
         otherWantsReveal: m.otherWantsReveal === 1,
@@ -533,7 +544,8 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 // Match limit: default 10 active matches per user (see matchSlots config). Tokens stay at 7 (weekly claim, max 7).
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
-  const { targetUserId, expandSlot } = req.body;
+  const { targetUserId, expandSlot, source } = req.body;
+  const connectedVia = source === 'sober_circle' ? 'sober_circle' : 'connect';
 
   if (!targetUserId || typeof targetUserId !== 'string') {
     return res.status(400).json({ error: "Target user ID required" });
@@ -895,9 +907,9 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // Create match directly in stage1 (mutual match, chat available immediately)
     const insertMatchResult = db.prepare(
-      `INSERT INTO matches (id, user1_id, user2_id, user1_token_id, status, stage, stage1_at, expires_at)
-       VALUES (?, ?, ?, ?, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?)`
-    ).run([matchId, userId, targetUserId, token.id, sevenDaysFromNow.toISOString()]);
+      `INSERT INTO matches (id, user1_id, user2_id, user1_token_id, status, stage, stage1_at, expires_at, connected_via)
+       VALUES (?, ?, ?, ?, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?, ?)`
+    ).run([matchId, userId, targetUserId, token.id, sevenDaysFromNow.toISOString(), connectedVia]);
     if (insertMatchResult instanceof Promise) {
       await insertMatchResult;
     }

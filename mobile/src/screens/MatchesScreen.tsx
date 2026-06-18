@@ -61,6 +61,7 @@ import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
 import GameRequestModal from '../components/GameRequestModal';
 import MatchCelebration from '../components/MatchCelebration';
+import SoberCircleBadge from '../components/SoberCircleBadge';
 import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import DatePlanProposalMessageCard, {
   type DatePlanMessageSnapshot,
@@ -118,6 +119,7 @@ interface Match {
   stage1At: string | null;
   stage2At: string | null;
   expiresAt: string | null;
+  connectedVia?: 'connect' | 'sober_circle';
   isInitiator: boolean;
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
@@ -135,6 +137,7 @@ interface Match {
     lookingFor?: string | null;
     photoUrl: string | null;
     introVideoUrl?: string | null;
+    soberCircleLevel?: string | null;
     profileId?: string;
     photos?: Photo[];
     interests: string[];
@@ -935,6 +938,13 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
               </Text>
             ) : null}
             <View style={styles.badgesRow}>
+              {(item.otherUser.soberCircleLevel || item.connectedVia === 'sober_circle') ? (
+                <SoberCircleBadge
+                  level={item.otherUser.soberCircleLevel}
+                  compact
+                  style={styles.matchSoberBadge}
+                />
+              ) : null}
               {item.profileCompatibility != null && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityInline}>
                   <Text style={styles.matchCardCompatibilityIcon}>🎯</Text>
@@ -1009,6 +1019,7 @@ function EmptyStateAnimated({
   supportAvailableTokens,
   supportActiveMatches,
   supportSlotLimit,
+  soberCircleMode = false,
 }: {
   navigation: any;
   shellBackdropColors: readonly [string, string, ...string[]];
@@ -1020,6 +1031,7 @@ function EmptyStateAnimated({
   supportAvailableTokens?: number;
   supportActiveMatches?: number;
   supportSlotLimit?: number;
+  soberCircleMode?: boolean;
 }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.8)).current;
@@ -1121,20 +1133,26 @@ function EmptyStateAnimated({
           },
         ]}
       >
-        <Text style={styles.emptyEmoji}>💔</Text>
+        <Text style={styles.emptyEmoji}>{soberCircleMode ? '🌿' : '💔'}</Text>
       </Animated.View>
       <Animated.Text style={[styles.emptyTitle, { opacity: fadeAnim }, shellIsMidnight && { color: '#f1f5f9' }]}>
-        No matches yet
+        {soberCircleMode ? 'No sober circle matches yet' : 'No matches yet'}
       </Animated.Text>
       <TouchableOpacity
         style={styles.browseButton}
-        onPress={() => navigation.navigate('Browse' as never)}
+        onPress={() => {
+          if (soberCircleMode) {
+            if (navigation.canGoBack()) navigation.goBack();
+            return;
+          }
+          navigation.navigate('Browse' as never);
+        }}
         activeOpacity={0.9}
       >
         <Animated.View style={{ transform: [{ scale: browseButtonPulse }] }}>
           <View style={styles.browseButtonInner}>
             <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb']}
+              colors={soberCircleMode ? ['#22c55e', '#16a34a', '#667eea'] : ['#667eea', '#764ba2', '#f093fb']}
               style={StyleSheet.absoluteFill}
             />
             <Animated.View
@@ -1153,7 +1171,9 @@ function EmptyStateAnimated({
               ]}
               pointerEvents="none"
             />
-            <Text style={styles.browseButtonText}>✨ Browse People</Text>
+            <Text style={styles.browseButtonText}>
+              {soberCircleMode ? '🌿 Find a Sober Circle match' : '✨ Browse People'}
+            </Text>
           </View>
         </Animated.View>
       </TouchableOpacity>
@@ -1311,6 +1331,17 @@ export default function MatchesScreen() {
   const { user, profile, isAuthenticated, loading: authLoading, registerMatchListRefresh } = useAuth();
   const navigation = useNavigation();
   const route = useRoute();
+  const soberCircleMode =
+    (route.params as { soberCircleMode?: boolean } | undefined)?.soberCircleMode === true;
+  const listHeaderTitle = soberCircleMode ? 'Sober Circle' : 'Your Matches';
+  const viewerSoberLevel =
+    (profile as { sober_circle_level?: string; soberCircleLevel?: string } | null)?.sober_circle_level ??
+    (profile as { soberCircleLevel?: string } | null)?.soberCircleLevel ??
+    null;
+  const viewerDisplayName =
+    (profile as { display_name?: string; displayName?: string } | null)?.display_name ??
+    (profile as { displayName?: string } | null)?.displayName ??
+    'You';
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
   const { width: windowWidth, height: windowHeight } = useWindowDimensions();
@@ -2401,7 +2432,9 @@ export default function MatchesScreen() {
         return [];
       }
       
-      const data = await api.get<{ matches: Match[] }>('/matches');
+      const data = await api.get<{ matches: Match[] }>(
+        soberCircleMode ? '/matches?pool=sober' : '/matches',
+      );
       const fetchedMatches = data.matches || [];
       setMatches(fetchedMatches);
 
@@ -2433,7 +2466,7 @@ export default function MatchesScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [soberCircleMode]);
 
   // Handle pending open (celebration "Send message", push, game request) when screen is focused
   useFocusEffect(
@@ -3274,7 +3307,7 @@ export default function MatchesScreen() {
           <View style={styles.header}>
             <View style={styles.headerTitleContainer}>
               <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
-              <Text style={styles.headerTitle}>Your Matches</Text>
+              <Text style={styles.headerTitle}>{listHeaderTitle}</Text>
             </View>
           </View>
         </LinearGradient>
@@ -3297,21 +3330,31 @@ export default function MatchesScreen() {
           shellBackdropColors={shellBackdropColors}
         >
           <View style={[styles.header, Platform.OS === 'android' && styles.headerWithLimits]}>
+            {soberCircleMode ? (
+              <TouchableOpacity
+                onPress={() => navigation.goBack()}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                style={styles.soberCircleHeaderBack}
+              >
+                <Text style={styles.soberCircleHeaderBackText}>← Back</Text>
+              </TouchableOpacity>
+            ) : null}
             <View
               style={[
                 styles.headerTitleContainer,
                 Platform.OS === 'android' && styles.headerTitleContainerWithLimits,
+                soberCircleMode && styles.headerTitleContainerSober,
               ]}
             >
               <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
-              <Text style={styles.headerTitle}>Your Matches</Text>
+              <Text style={styles.headerTitle}>{listHeaderTitle}</Text>
             </View>
-            {Platform.OS === 'android' ? (
+            {Platform.OS === 'android' && !soberCircleMode ? (
               <View style={styles.connectionLimitsInHeader}>{connectionLimitsHeader}</View>
             ) : null}
           </View>
         </AnimatedHeaderGradient>
-        {Platform.OS !== 'android' ? (
+        {Platform.OS !== 'android' && !soberCircleMode ? (
           <View style={styles.connectionLimitsHeaderWrap}>{connectionLimitsHeader}</View>
         ) : null}
         {visibleMatches.length === 0 ? (
@@ -3326,6 +3369,7 @@ export default function MatchesScreen() {
             supportAvailableTokens={availableTokens}
             supportActiveMatches={matchSlotStatus?.count ?? 0}
             supportSlotLimit={matchSlotStatus?.slotLimit ?? 10}
+            soberCircleMode={soberCircleMode}
           />
         ) : (
           <FlatList
@@ -3997,6 +4041,10 @@ export default function MatchesScreen() {
         const rp = route.params as { showMatchCelebration?: boolean; matchId?: string; matchName?: string } | undefined;
         const celebrationMatchId = rp?.showMatchCelebration ? rp?.matchId : undefined;
         const celebrationMatch = celebrationMatchId ? matches.find(m => m.id === celebrationMatchId) : null;
+        const isSoberCelebration =
+          soberCircleMode ||
+          celebrationMatch?.connectedVia === 'sober_circle' ||
+          !!celebrationMatch?.otherUser?.soberCircleLevel;
         return celebrationMatchId ? (
           <MatchCelebration
             profileName={rp?.matchName || celebrationMatch?.otherUser?.displayName || 'Someone'}
@@ -4009,6 +4057,10 @@ export default function MatchesScreen() {
             }
             introVideoUrl={celebrationMatch?.otherUser?.introVideoUrl ?? null}
             matchId={celebrationMatchId}
+            celebrationFlow={isSoberCelebration ? 'sober_circle' : 'connect'}
+            partnerSoberLevel={celebrationMatch?.otherUser?.soberCircleLevel ?? null}
+            viewerSoberLevel={viewerSoberLevel}
+            viewerName={viewerDisplayName.split(' ')[0] || 'You'}
             onClose={() => {
               navigation.setParams({ matchId: undefined, showMatchCelebration: undefined, matchName: undefined });
               const m = matches.find(x => x.id === celebrationMatchId);
@@ -4441,6 +4493,19 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     overflow: 'visible',
   },
+  headerTitleContainerSober: {
+    flex: 1,
+    marginBottom: 0,
+  },
+  soberCircleHeaderBack: {
+    marginRight: 4,
+    paddingVertical: 4,
+  },
+  soberCircleHeaderBackText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
+  },
   animatedHeartContainer: {
     position: 'relative',
     alignItems: 'center',
@@ -4826,6 +4891,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 6,
     gap: 6,
+  },
+  matchSoberBadge: {
+    marginRight: 2,
   },
   matchCardCompatibilityInline: {
     flexDirection: 'row',

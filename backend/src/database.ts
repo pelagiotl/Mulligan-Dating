@@ -392,6 +392,18 @@ export async function initDatabase() {
     }
   }
 
+  try {
+    await execSQL(
+      `ALTER TABLE matches ADD COLUMN connected_via ${usePostgres ? 'VARCHAR(32)' : 'TEXT'} DEFAULT 'connect'`,
+    );
+    console.log('✅ Added matches.connected_via');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add matches.connected_via:', msg);
+    }
+  }
+
   // Photos table - multiple photos per profile
   await execSQL(`
     CREATE TABLE IF NOT EXISTS photos (

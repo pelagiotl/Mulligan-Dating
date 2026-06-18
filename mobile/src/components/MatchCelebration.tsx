@@ -21,11 +21,13 @@ import { resolveIntroVideoUrl } from '../utils/introVideo';
 import { playMatchSound } from '../utils/sounds';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import { matchCelebrationTheme, type MatchCelebrationTheme } from '../lib/matchCelebrationTheme';
+import SoberCircleBadge from './SoberCircleBadge';
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 /** NBSP keeps "Match!" on one line (avoids orphan "!" on narrow widths, e.g. iPhone SE). */
-const TITLE_MATCH_TAIL = 'Match!\u00a0❤️‍🔥';
+const TITLE_MATCH_TAIL_CONNECT = 'Match!\u00a0❤️‍🔥';
+const TITLE_MATCH_TAIL_SOBER = 'Match!\u00a0💚🌿';
 
 interface MatchExplanation {
   reasons: string[];
@@ -45,6 +47,11 @@ interface MatchCelebrationProps {
   skipLoadingReveal?: boolean;
   /** When true (Connect flow), show loading until matchId is set, then reveal after a short delay. When false, use fixed REVEAL_DELAY_MS. */
   revealWhenMatchIdReady?: boolean;
+  /** Where celebration CTAs navigate after a match (default: Connect → Matches tab). */
+  celebrationFlow?: 'connect' | 'sober_circle';
+  partnerSoberLevel?: string | null;
+  viewerSoberLevel?: string | null;
+  viewerName?: string;
 }
 
 interface ConfettiParticle {
@@ -104,7 +111,13 @@ function ConfettiParticleComponent({ particle }: { particle: ConfettiParticle })
 }
 
 // Loading state before celebration reveal (Connect flow)
-function FindingMatchLoading({ theme }: { theme: MatchCelebrationTheme }) {
+function FindingMatchLoading({
+  theme,
+  celebrationFlow,
+}: {
+  theme: MatchCelebrationTheme;
+  celebrationFlow: 'connect' | 'sober_circle';
+}) {
   const dot1 = useRef(new Animated.Value(0)).current;
   const dot2 = useRef(new Animated.Value(0)).current;
   const dot3 = useRef(new Animated.Value(0)).current;
@@ -162,9 +175,13 @@ function FindingMatchLoading({ theme }: { theme: MatchCelebrationTheme }) {
       style={[styles.loadingCard, { borderColor: theme.loadingBorder }]}
     >
       <Animated.View style={[styles.loadingHeartWrap, { transform: [{ scale: pulse }] }]}>
-        <Text style={styles.loadingHeart}>❤️‍🔥</Text>
+        <Text style={styles.loadingHeart}>{celebrationFlow === 'sober_circle' ? '💚' : '❤️‍🔥'}</Text>
       </Animated.View>
-      <Text style={[styles.loadingTitle, { color: theme.loadingTitle }]}>Finding your curated match</Text>
+      <Text style={[styles.loadingTitle, { color: theme.loadingTitle }]}>
+        {celebrationFlow === 'sober_circle'
+          ? 'Finding someone in your circle'
+          : 'Finding your curated match'}
+      </Text>
       <View style={styles.loadingDotsRow}>
         <Animated.View
           style={[styles.loadingDot, { backgroundColor: theme.loadingDot, transform: [{ translateY: translateY1 }] }]}
@@ -176,7 +193,9 @@ function FindingMatchLoading({ theme }: { theme: MatchCelebrationTheme }) {
           style={[styles.loadingDot, { backgroundColor: theme.loadingDot, transform: [{ translateY: translateY3 }] }]}
         />
       </View>
-      <Text style={[styles.loadingSubtext, { color: theme.loadingSub }]}>Good things take a moment...</Text>
+      <Text style={[styles.loadingSubtext, { color: theme.loadingSub }]}>
+        {celebrationFlow === 'sober_circle' ? 'Good connections take a moment...' : 'Good things take a moment...'}
+      </Text>
     </LinearGradient>
   );
 }
@@ -193,11 +212,21 @@ export default function MatchCelebration({
   onSeeDateIdeas,
   skipLoadingReveal = false,
   revealWhenMatchIdReady = false,
+  celebrationFlow = 'connect',
+  partnerSoberLevel = null,
+  viewerSoberLevel = null,
+  viewerName = 'You',
 }: MatchCelebrationProps) {
   const { width: windowWidth } = useWindowDimensions();
   const navigation = useNavigation();
   const { mode: connectShellMode } = useConnectShellTheme();
-  const theme = useMemo(() => matchCelebrationTheme(connectShellMode), [connectShellMode]);
+  const isSoberCelebration = celebrationFlow === 'sober_circle';
+  const theme = useMemo(
+    () => matchCelebrationTheme(connectShellMode, celebrationFlow),
+    [connectShellMode, celebrationFlow],
+  );
+  const titleMatchTail = isSoberCelebration ? TITLE_MATCH_TAIL_SOBER : TITLE_MATCH_TAIL_CONNECT;
+  const partnerFirstName = profileName.split(' ')[0] || profileName;
   // Init from prop so User B (skipLoadingReveal=true) shows celebration immediately; User A (false) always sees loading first
   const [revealed, setRevealed] = useState(() => skipLoadingReveal);
   const [showContent, setShowContent] = useState(false);
@@ -388,6 +417,32 @@ export default function MatchCelebration({
     const idToOpen = matchId ?? null;
     try {
       onClose();
+      if (celebrationFlow === 'sober_circle') {
+        if (idToOpen && !isDemoCelebrationMatchId(idToOpen)) {
+          setPendingOpenMatchId(idToOpen);
+        }
+        if (navigationRef.current?.isReady()) {
+          navigationRef.current.dispatch(
+            CommonActions.navigate({
+              name: 'MainTabs',
+              params: {
+                screen: 'SoberCircle',
+                params: {
+                  screen: 'SoberCircleChat',
+                  params: { matchId: idToOpen ?? undefined, soberCircleMode: true },
+                },
+              },
+            }),
+          );
+        } else {
+          navigation.navigate('SoberCircle' as never, {
+            screen: 'SoberCircleChat',
+            params: { matchId: idToOpen ?? undefined, soberCircleMode: true },
+          } as never);
+        }
+        return;
+      }
+
       if (idToOpen && !isDemoCelebrationMatchId(idToOpen)) {
         setPendingOpenMatchId(idToOpen);
         if (navigationRef.current?.isReady()) {
@@ -413,27 +468,38 @@ export default function MatchCelebration({
     }
   };
 
-  /** Navigate to Connect (Browse) tab landing page and close the celebration — used by "Back to Connect" */
+  /** Navigate to Connect (Browse) or Sober Circle home — secondary CTA after a match */
   const handleKeepBrowsing = () => {
     try {
       import('../utils/debugLogger').then(({ addBreadcrumb, debugLog }) => {
-        addBreadcrumb('MatchCelebration', 'Back to Connect tapped', { matchId });
-        debugLog('MatchCelebration', 'Back to Connect flow', { step: 'unblock then navigate then onClose' });
+        addBreadcrumb('MatchCelebration', celebrationFlow === 'sober_circle' ? 'Back to Sober Circle tapped' : 'Back to Connect tapped', { matchId });
+        debugLog('MatchCelebration', celebrationFlow === 'sober_circle' ? 'Back to Sober Circle flow' : 'Back to Connect flow', { step: 'unblock then navigate then onClose' });
       });
       // Let touches pass through immediately so tab bar and Connect button stay usable (avoids freeze)
       setIsClosingToBrowse(true);
       // Next tick: navigate first so Browse receives resetToLanding and hides modal by param, then clear state
       setTimeout(() => {
         import('../utils/debugLogger').then(({ addBreadcrumb }) => {
-          addBreadcrumb('MatchCelebration', 'Navigate to Browse', { ready: navigationRef.current?.isReady() });
+          addBreadcrumb('MatchCelebration', celebrationFlow === 'sober_circle' ? 'Navigate to Sober Circle' : 'Navigate to Browse', { ready: navigationRef.current?.isReady() });
         });
         if (navigationRef.current?.isReady()) {
-          navigationRef.current.dispatch(
-            CommonActions.navigate({
-              name: 'MainTabs',
-              params: { screen: 'Browse', params: { resetToLanding: true } },
-            })
-          );
+          if (celebrationFlow === 'sober_circle') {
+            navigationRef.current.dispatch(
+              CommonActions.navigate({
+                name: 'MainTabs',
+                params: { screen: 'SoberCircle', params: { screen: 'SoberCircleHome' } },
+              }),
+            );
+          } else {
+            navigationRef.current.dispatch(
+              CommonActions.navigate({
+                name: 'MainTabs',
+                params: { screen: 'Browse', params: { resetToLanding: true } },
+              }),
+            );
+          }
+        } else if (celebrationFlow === 'sober_circle') {
+          navigation.navigate('SoberCircle' as never, { screen: 'SoberCircleHome' } as never);
         } else {
           navigation.navigate('MainTabs' as never, { screen: 'Browse', params: { resetToLanding: true } } as never);
         }
@@ -505,7 +571,7 @@ export default function MatchCelebration({
         <View style={[StyleSheet.absoluteFill, { backgroundColor: theme.scrim }]} />
 
         {/* Loading state before reveal */}
-        {!revealed && <FindingMatchLoading theme={theme} />}
+        {!revealed && <FindingMatchLoading theme={theme} celebrationFlow={celebrationFlow} />}
 
         {/* Confetti particles */}
         {revealed && showConfetti && (
@@ -642,16 +708,35 @@ export default function MatchCelebration({
                     },
                   ]}
                 >
-                  {TITLE_MATCH_TAIL}
+                  {titleMatchTail}
                 </Animated.Text>
               </Animated.View>
             </View>
 
             <View style={styles.subtitleContainer}>
               <Text style={[styles.subtitle, { color: theme.subtitle }]}>
-                You matched — time to say hi ❤️‍🔥
+                {isSoberCelebration
+                  ? 'You matched in Sober Circle — time to say hi 💚'
+                  : 'You matched — time to say hi ❤️‍🔥'}
               </Text>
             </View>
+
+            {isSoberCelebration ? (
+              <View style={styles.soberBadgeRow}>
+                <SoberCircleBadge
+                  level={viewerSoberLevel}
+                  prefix={viewerName}
+                  midnight={connectShellMode === 'midnight'}
+                  style={styles.soberBadgeItem}
+                />
+                <SoberCircleBadge
+                  level={partnerSoberLevel}
+                  prefix={partnerFirstName}
+                  midnight={connectShellMode === 'midnight'}
+                  style={styles.soberBadgeItem}
+                />
+              </View>
+            ) : null}
 
             {/* Match Explanation */}
             {explanation && explanation.reasons.length > 0 && (
@@ -686,7 +771,7 @@ export default function MatchCelebration({
                     activeOpacity={0.85}
                   >
                     <LinearGradient
-                      colors={['#7c3aed', '#a855f7', '#c084fc']}
+                      colors={isSoberCelebration ? ['#16a34a', '#22c55e', '#4ade80'] : ['#7c3aed', '#a855f7', '#c084fc']}
                       start={{ x: 0, y: 0 }}
                       end={{ x: 1, y: 1 }}
                       style={styles.dateIdeasGradient}
@@ -732,7 +817,7 @@ export default function MatchCelebration({
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.secondaryButtonText, { color: theme.secondaryText }]}>
-                    Back to Connect ❤️‍🔥
+                    {celebrationFlow === 'sober_circle' ? 'Back to Sober Circle 🌿' : 'Back to Connect ❤️‍🔥'}
                   </Text>
                 </TouchableOpacity>
               </Animated.View>
@@ -1069,6 +1154,17 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontWeight: '600',
     letterSpacing: 0.3,
+  },
+  soberBadgeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    marginBottom: 14,
+  },
+  soberBadgeItem: {
+    maxWidth: '48%',
   },
   bold: {
     fontWeight: '800',

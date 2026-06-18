@@ -24,7 +24,8 @@ import CreateProfileScreen from '../screens/CreateProfileScreen';
 import BrowseScreen from '../screens/BrowseScreen';
 import MatchesScreen from '../screens/MatchesScreen';
 import LiveDatesScreen from '../screens/LiveDatesScreen';
-import SoberCircleScreen from '../screens/SoberCircleScreen';
+import SoberCircleNavigator, { type SoberCircleStackParamList } from './SoberCircleNavigator';
+import type { NavigatorScreenParams } from '@react-navigation/native';
 import MyProfileScreen from '../screens/MyProfileScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import AdminScreen from '../screens/AdminScreen';
@@ -46,7 +47,7 @@ export type MainTabParamList = {
   Browse: { resetToLanding?: boolean } | undefined;
   Matches: { matchId?: string } | undefined;
   LiveDates: undefined;
-  SoberCircle: undefined;
+  SoberCircle: NavigatorScreenParams<SoberCircleStackParamList> | undefined;
   MyProfile:
     | {
         scrollToPhotos?: boolean;
@@ -429,7 +430,7 @@ function MainTabs() {
         />
         <Tab.Screen
           name="SoberCircle"
-          component={SoberCircleScreen}
+          component={SoberCircleNavigator}
           options={soberCircleTabOptions}
         />
         <Tab.Screen 
