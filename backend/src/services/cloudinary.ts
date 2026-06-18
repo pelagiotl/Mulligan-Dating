@@ -154,6 +154,9 @@ export async function uploadToCloudinaryMedia(
       resource_type: resourceType,
       timeout: 300000,
     };
+    if (folder === 'profile-intro-videos' && resourceType === 'video') {
+      uploadOptions.quality = 'auto:good';
+    }
     if (publicId) uploadOptions.public_id = publicId.replace(/^\//, ''); // Cloudinary expects no leading slash
     const uploadStream = cloudinary.uploader.upload_stream(
       uploadOptions,
@@ -178,38 +181,38 @@ export async function uploadToCloudinaryMedia(
  * @param url - The Cloudinary URL of the file to delete
  * @returns Promise<boolean> - true if deleted successfully
  */
-export async function deleteFromCloudinary(url: string): Promise<boolean> {
-  try {
-    // Extract public_id from Cloudinary URL
-    // Cloudinary URLs format: https://res.cloudinary.com/{cloud_name}/image/upload/{version}/{public_id}.{format}
-    const urlParts = url.split('/');
-    const filenameWithExt = urlParts[urlParts.length - 1];
-    const publicId = filenameWithExt.split('.')[0];
-    
-    // Get folder from URL if present
-    const uploadIndex = urlParts.indexOf('upload');
-    let fullPublicId = publicId;
-    if (uploadIndex !== -1 && uploadIndex < urlParts.length - 2) {
-      // Check if there's a version number (v1234567890)
-      const versionIndex = uploadIndex + 1;
-      const folderIndex = versionIndex + 1;
-      if (urlParts[versionIndex]?.match(/^v\d+$/)) {
-        // Has version, folder is after version
-        if (folderIndex < urlParts.length - 1) {
-          const folder = urlParts.slice(folderIndex, -1).join('/');
-          fullPublicId = `${folder}/${publicId}`;
-        }
-      } else {
-        // No version, folder might be at versionIndex
-        if (versionIndex < urlParts.length - 1) {
-          const folder = urlParts.slice(versionIndex, -1).join('/');
-          fullPublicId = `${folder}/${publicId}`;
-        }
+function parseCloudinaryPublicId(url: string): string | null {
+  const urlParts = url.split('/');
+  const filenameWithExt = urlParts[urlParts.length - 1];
+  const publicId = filenameWithExt.split('.')[0];
+  const uploadIndex = urlParts.indexOf('upload');
+  let fullPublicId = publicId;
+  if (uploadIndex !== -1 && uploadIndex < urlParts.length - 2) {
+    const versionIndex = uploadIndex + 1;
+    const folderIndex = versionIndex + 1;
+    if (urlParts[versionIndex]?.match(/^v\d+$/)) {
+      if (folderIndex < urlParts.length - 1) {
+        const folder = urlParts.slice(folderIndex, -1).join('/');
+        fullPublicId = `${folder}/${publicId}`;
       }
+    } else if (versionIndex < urlParts.length - 1) {
+      const folder = urlParts.slice(versionIndex, -1).join('/');
+      fullPublicId = `${folder}/${publicId}`;
     }
+  }
+  return fullPublicId;
+}
+
+export async function deleteFromCloudinary(
+  url: string,
+  resourceType: 'image' | 'video' | 'raw' = 'image',
+): Promise<boolean> {
+  try {
+    const fullPublicId = parseCloudinaryPublicId(url);
+    if (!fullPublicId) return false;
 
     const result = await cloudinary.uploader.destroy(fullPublicId, {
-      resource_type: 'image',
+      resource_type: resourceType,
     });
 
     if (result.result === 'ok') {
@@ -223,6 +226,14 @@ export async function deleteFromCloudinary(url: string): Promise<boolean> {
     console.error('❌ Cloudinary delete error:', error);
     return false;
   }
+}
+
+/** JPG snapshot at `offsetSec` into a hosted Cloudinary video (for moderation). */
+export function buildCloudinaryVideoFrameUrl(videoUrl: string, offsetSec: number): string | null {
+  const match = videoUrl.match(/^(https:\/\/res\.cloudinary\.com\/[^/]+\/video\/upload\/)(.+)$/i);
+  if (!match) return null;
+  const pathWithoutExt = match[2].replace(/\.[a-z0-9]+$/i, '');
+  return `${match[1]}so_${offsetSec}/${pathWithoutExt}.jpg`;
 }
 
 /**

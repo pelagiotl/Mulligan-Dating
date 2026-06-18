@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import type { Express } from 'express';
+import { buildCloudinaryVideoFrameUrl } from './cloudinary.js';
 
 /** Shown to users when content is blocked. */
 export const CONTENT_MODERATION_REJECTED_MESSAGE =
@@ -149,10 +150,67 @@ async function postSightengine(
   return data;
 }
 
+async function checkSightengineImageUrl(
+  imageUrl: string,
+  timeoutMs = 12_000,
+): Promise<SightengineImageResponse> {
+  const creds = credentials();
+  if (!creds) {
+    throw new Error('Sightengine credentials not configured');
+  }
+
+  const params = new URLSearchParams({
+    models: 'nudity-2.1,offensive',
+    url: imageUrl,
+    api_user: creds.user,
+    api_secret: creds.secret,
+  });
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
+  try {
+    response = await fetch(`https://api.sightengine.com/1.0/check.json?${params.toString()}`, {
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Sightengine timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const data = (await response.json().catch(() => ({}))) as SightengineImageResponse & {
+    error?: { message?: string };
+  };
+  if (!response.ok) {
+    throw new Error(data.error?.message || `Sightengine HTTP ${response.status}`);
+  }
+  return data;
+}
+
+async function checkSightengineImageUrlWithRetry(imageUrl: string): Promise<SightengineImageResponse> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (attempt > 0) {
+        await new Promise((resolve) => setTimeout(resolve, 700 * attempt));
+      }
+      return await checkSightengineImageUrl(imageUrl);
+    } catch (err) {
+      lastError = err;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error('Sightengine frame check failed');
+}
+
 async function runCheck(
   kind: 'image' | 'video',
   buffer: Buffer,
   mimeType: string,
+  videoTimeoutMs = 45_000,
 ): Promise<void> {
   if (!isContentModerationEnabled()) return;
 
@@ -175,6 +233,7 @@ async function runCheck(
       buffer,
       mimeType,
       'nudity-2.1,offensive',
+      videoTimeoutMs,
     )) as SightengineVideoResponse;
     if (evaluateVideoResult(result)) {
       throw new ContentModerationError();
@@ -196,6 +255,42 @@ export async function moderateImageUpload(buffer: Buffer, mimeType: string): Pro
 export async function moderateVideoUpload(buffer: Buffer, mimeType: string): Promise<void> {
   if (!buffer?.length) return;
   await runCheck('video', buffer, mimeType);
+}
+
+/** Scan short intro clips via Cloudinary frame snapshots (fast, no full-video sync). */
+export async function moderateIntroVideoAtUrl(
+  videoUrl: string,
+  fallback?: { buffer: Buffer; mimeType: string },
+): Promise<void> {
+  if (!isContentModerationEnabled()) return;
+
+  const frameOffsetsSec = [0, 4, 8];
+
+  try {
+    if (videoUrl.includes('res.cloudinary.com')) {
+      // Cloudinary may need a moment to serve frame derivatives right after upload.
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      for (const offsetSec of frameOffsetsSec) {
+        const frameUrl = buildCloudinaryVideoFrameUrl(videoUrl, offsetSec);
+        if (!frameUrl) continue;
+        const result = await checkSightengineImageUrlWithRetry(frameUrl);
+        if (evaluateImageResult(result)) {
+          throw new ContentModerationError();
+        }
+      }
+      return;
+    }
+
+    if (fallback?.buffer?.length) {
+      await runCheck('video', fallback.buffer, fallback.mimeType, 20_000);
+    }
+  } catch (error) {
+    if (error instanceof ContentModerationError) throw error;
+    console.error('Intro video moderation error (upload allowed):', error);
+    if (process.env.CONTENT_MODERATION_STRICT === 'true') {
+      throw new Error('Content moderation is temporarily unavailable. Please try again shortly.');
+    }
+  }
 }
 
 /** Resolve multer file bytes for disk or memory storage. */

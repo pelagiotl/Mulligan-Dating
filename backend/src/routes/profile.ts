@@ -12,7 +12,11 @@ import { activateUserAccount } from '../utils/accountStatus.js';
 import { normalizeMaxDistanceMiles, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { validateLocationForActiveRegion } from '../utils/locationRegionValidation.js';
 import { uploadChatVideo } from '../middleware/upload.js';
-import { uploadToCloudinaryMedia, isCloudinaryConfigured } from '../services/cloudinary.js';
+import { uploadToCloudinaryMedia, isCloudinaryConfigured, deleteFromCloudinary } from '../services/cloudinary.js';
+import {
+  moderateIntroVideoAtUrl,
+  handleModerationRouteError,
+} from '../services/contentModeration.js';
 import path from 'path';
 import fs from 'fs';
 
@@ -882,8 +886,22 @@ profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRe
       return res.status(503).json({ error: 'Video upload is not configured on this server.' });
     }
 
-    // Skip full-video Sightengine sync here — it can exceed Render's request timeout on larger
-    // clips and cause the mobile client to report "Network request failed". Photos/chat stay moderated.
+    try {
+      const fallbackBuffer =
+        file.buffer ?? (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
+      await moderateIntroVideoAtUrl(
+        introVideoUrl,
+        fallbackBuffer ? { buffer: fallbackBuffer, mimeType: file.mimetype } : undefined,
+      );
+    } catch (modError) {
+      if (introVideoUrl.includes('res.cloudinary.com')) {
+        await deleteFromCloudinary(introVideoUrl, 'video');
+      } else if (file.path && fs.existsSync(file.path)) {
+        fs.unlinkSync(file.path);
+      }
+      if (handleModerationRouteError(modError, res)) return;
+      throw modError;
+    }
 
     await (db
       .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')

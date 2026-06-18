@@ -27,6 +27,14 @@ const APP_VERSION =
 /** OkHttp’s default UA is often blocked by edge/WAF on SMS routes; browsers and curl use a recognizable UA. */
 const DEFAULT_API_USER_AGENT = `Mulligan/${APP_VERSION} (${Platform.OS === 'ios' ? 'iOS' : 'Android'}; ReactNative)`;
 
+/** Headers for multipart uploads (matches api client UA for WAF parity). */
+export function getMultipartUploadHeaders(token: string): Record<string, string> {
+  return {
+    Authorization: `Bearer ${token}`,
+    'User-Agent': DEFAULT_API_USER_AGENT,
+  };
+}
+
 let tokenCache: string | null | undefined = undefined;
 let pushTokenHeaderLogged = false;
 
