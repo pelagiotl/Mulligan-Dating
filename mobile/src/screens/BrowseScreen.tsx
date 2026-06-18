@@ -2621,7 +2621,9 @@ export default function BrowseScreen() {
           matchId={matchId}
           skipLoadingReveal={false}
           revealWhenMatchIdReady={true}
-          onSeeDateIdeas={() => setDatePlannerOpen(true)}
+          onSeeDateIdeas={() => {
+            setDatePlannerOpen(true);
+          }}
         />
       )}
 

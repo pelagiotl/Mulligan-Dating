@@ -232,19 +232,22 @@ export default function IntroVideoPreview({
 
   const openFullscreen = useCallback(async () => {
     const video = videoRef.current;
-    if (!video) return;
     try {
-      const seed = await readPlaybackSeed(video);
-      if (!seed) return;
+      let seed: PlaybackSeed = { positionMillis: 0, isPlaying: false, isMuted };
+      if (video) {
+        const loaded = await readPlaybackSeed(video);
+        if (loaded) seed = loaded;
+        await video.pauseAsync();
+      }
       syncSeedRef.current = seed;
       setIsPlaying(seed.isPlaying);
       setIsMuted(seed.isMuted);
-      await video.pauseAsync();
       setIsFullscreen(true);
     } catch {
-      // ignore
+      syncSeedRef.current = { positionMillis: 0, isPlaying: false, isMuted: false };
+      setIsFullscreen(true);
     }
-  }, [readPlaybackSeed]);
+  }, [readPlaybackSeed, isMuted]);
 
   const closeFullscreen = useCallback(async () => {
     const fullscreenVideo = fullscreenVideoRef.current;
@@ -276,19 +279,37 @@ export default function IntroVideoPreview({
 
   useEffect(() => {
     if (!isFullscreen) return;
-    const seed = syncSeedRef.current;
-    if (!seed) return;
+    const seed = syncSeedRef.current ?? {
+      positionMillis: 0,
+      isPlaying: false,
+      isMuted: false,
+    };
 
     let cancelled = false;
     const boot = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      await new Promise((resolve) => setTimeout(resolve, 80));
       if (cancelled) return;
       const video = fullscreenVideoRef.current;
       if (!video) return;
       try {
-        await applySeedToVideo(video, seed, !seed.isPlaying);
+        const videoSource = typeof source === 'number' ? source : { uri: source.uri };
+        await video.loadAsync(videoSource, {
+          positionMillis: seed.positionMillis,
+          shouldPlay: seed.isPlaying,
+          isMuted: seed.isMuted,
+        });
+        if (seed.isPlaying) {
+          await video.playAsync();
+        } else {
+          await video.pauseAsync();
+        }
+        setIsMuted(seed.isMuted);
       } catch {
-        // ignore
+        try {
+          await applySeedToVideo(video, seed, false);
+        } catch {
+          // ignore
+        }
       }
     };
 
@@ -296,7 +317,7 @@ export default function IntroVideoPreview({
     return () => {
       cancelled = true;
     };
-  }, [isFullscreen, applySeedToVideo]);
+  }, [isFullscreen, applySeedToVideo, source, sourceKey]);
 
   return (
     <>

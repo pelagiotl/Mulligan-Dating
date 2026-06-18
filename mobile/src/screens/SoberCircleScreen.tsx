@@ -655,7 +655,10 @@ export default function SoberCircleScreen() {
           viewerName={viewerDisplayName.split(' ')[0] || 'You'}
           skipLoadingReveal={false}
           revealWhenMatchIdReady
-          onSeeDateIdeas={() => setDatePlannerOpen(true)}
+          onSeeDateIdeas={() => {
+            setShowCelebration(false);
+            setDatePlannerOpen(true);
+          }}
           onClose={() => {
             setShowCelebration(false);
             setMatchId(null);

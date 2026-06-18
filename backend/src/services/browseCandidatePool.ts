@@ -119,6 +119,7 @@ export async function resolveBrowseCandidatePool(
       LEFT JOIN users u ON u.id = p.user_id
       WHERE p.user_id != ?
       AND (u.is_restricted IS NULL OR u.is_restricted = 0)
+      AND p.intro_video_url IS NOT NULL AND TRIM(p.intro_video_url) != ''
       ${sqlUserHasMinPhotos('u')}
     `;
 

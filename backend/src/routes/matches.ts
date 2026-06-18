@@ -13,7 +13,6 @@ import { isMatchmakingGloballyDisabled, matchmakingDisabledJson } from "../confi
 import {
   connectSetupErrorPayload,
   getConnectSetupViolationsForUser,
-  hasIntroVideo,
   profileHasMinPhotosForConnect,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
@@ -831,13 +830,6 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       return res.status(400).json({
         error: "This person hasn't added a photo yet. Try connecting with someone else.",
         code: "TARGET_PHOTOS_REQUIRED",
-      });
-    }
-
-    if (!hasIntroVideo(targetProfile.intro_video_url)) {
-      return res.status(400).json({
-        error: "This person hasn't recorded an intro video yet. Try connecting with someone else.",
-        code: "TARGET_INTRO_VIDEO_REQUIRED",
       });
     }
 

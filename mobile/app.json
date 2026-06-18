@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.mulligandating",
-      "buildNumber": "200",
+      "buildNumber": "201",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait"
@@ -86,7 +86,7 @@
         "expo-image-picker",
         {
           "photosPermission": "Mulligan needs access to your photos to upload profile pictures and send photos in chat.",
-          "cameraPermission": "Mulligan needs camera access for your intro video, profile photos, and chat media.",
+          "cameraPermission": "Mulligan needs camera access for your intro video, profile photos, and chat media."
         }
       ],
       [

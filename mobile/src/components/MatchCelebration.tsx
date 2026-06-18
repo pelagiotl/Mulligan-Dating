@@ -10,12 +10,12 @@ import {
   useWindowDimensions,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { Video, ResizeMode } from 'expo-av';
 import { useNavigation, CommonActions } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import { setPendingOpenMatchId, isDemoCelebrationMatchId } from '../utils/pendingMatchOpen';
 import { navigationRef } from '../navigation/navigationRef';
 import OptimizedImage from './OptimizedImage';
+import IntroVideoPreview from './IntroVideoPreview';
 import { getPhotoUrl } from '../utils/photoUrl';
 import { resolveIntroVideoUrl } from '../utils/introVideo';
 import { playMatchSound } from '../utils/sounds';
@@ -651,16 +651,12 @@ export default function MatchCelebration({
               <Text style={[styles.introVideoLabel, { color: theme.subtitle }]}>
                 {profileName.split(' ')[0]}'s intro
               </Text>
-              <View style={[styles.introVideoWrap, { borderColor: theme.photoBorder }]}>
-                <Video
-                  source={{ uri: resolveIntroVideoUrl(introVideoUrl) }}
-                  style={styles.introVideo}
-                  resizeMode={ResizeMode.COVER}
-                  useNativeControls
-                  shouldPlay={false}
-                  isLooping={false}
-                />
-              </View>
+              <IntroVideoPreview
+                source={{ uri: resolveIntroVideoUrl(introVideoUrl) }}
+                maxHeight={200}
+                maxWidth={140}
+                style={styles.introVideoPreview}
+              />
             </View>
           ) : null}
 
@@ -767,7 +763,10 @@ export default function MatchCelebration({
                 {onSeeDateIdeas && matchId ? (
                   <TouchableOpacity
                     style={[styles.dateIdeasButton, { borderColor: theme.secondaryBorder }]}
-                    onPress={onSeeDateIdeas}
+                    onPress={() => {
+                      setModalVisible(false);
+                      onSeeDateIdeas();
+                    }}
                     activeOpacity={0.85}
                   >
                     <LinearGradient
@@ -1103,17 +1102,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     opacity: 0.9,
   },
-  introVideoWrap: {
-    width: 120,
-    height: 200,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 3,
-    backgroundColor: '#1a1028',
-  },
-  introVideo: {
-    width: '100%',
-    height: '100%',
+  introVideoPreview: {
+    alignSelf: 'center',
   },
   textContainer: {
     alignItems: 'center',

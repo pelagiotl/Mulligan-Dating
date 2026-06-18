@@ -12,6 +12,8 @@ import {
   Platform,
   Animated,
   Easing,
+  Keyboard,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -278,7 +280,16 @@ export default function DateReflectionModal({
             <ActivityIndicator size="large" color="#764ba2" />
           </View>
         ) : (
-          <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
+          <KeyboardAvoidingView
+            style={styles.formFlex}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 8 : 0}
+          >
+          <ScrollView
+            contentContainerStyle={styles.scroll}
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+          >
             <Text style={styles.label}>What went well?</Text>
             <TextInput
               style={styles.input}
@@ -298,7 +309,10 @@ export default function DateReflectionModal({
                   <TouchableOpacity
                     key={c.id}
                     style={[styles.choice, selected && styles.choiceSelected]}
-                    onPress={() => setSecondDate(c.id)}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setSecondDate(c.id);
+                    }}
                     activeOpacity={0.85}
                   >
                     <Text style={styles.choiceEmoji}>{c.emoji}</Text>
@@ -334,6 +348,7 @@ export default function DateReflectionModal({
               </LinearGradient>
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
         )}
           </>
         )}
@@ -344,6 +359,7 @@ export default function DateReflectionModal({
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#f8f9ff' },
+  formFlex: { flex: 1 },
   header: {
     paddingHorizontal: 20,
     paddingBottom: 20,

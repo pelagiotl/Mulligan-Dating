@@ -29,7 +29,7 @@ import {
   resetLibraryPickerMutex,
 } from '../utils/pickImagesFromLibrary';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { GestureHandlerRootView, PanGestureHandler, State } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PanGestureHandler, TapGestureHandler, State } from 'react-native-gesture-handler';
 import { api } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
@@ -324,7 +324,6 @@ export default function MyProfileScreen() {
   const [detectingLocation, setDetectingLocation] = useState(false);
   const [updatingField, setUpdatingField] = useState(false);
   const [reordering, setReordering] = useState(false);
-  const longPressTimerRef = useRef<NodeJS.Timeout | null>(null);
   // Bump when photos change so the header avatar reloads (avoids stale image cache after upload/reorder/delete)
   const [avatarVersion, setAvatarVersion] = useState(0);
   // Cached primary photo URL so avatar can show immediately when opening Profile tab (before fetchPhotos returns)
@@ -2216,13 +2215,10 @@ export default function MyProfileScreen() {
                       />
                       <Text style={styles.infoCardLabel}>Gender</Text>
                       <Text
-                        style={[
-                          styles.infoCardValue,
-                          displayProfileGender(profile.gender).length > 6 && styles.infoCardValueCompact,
-                        ]}
-                        numberOfLines={2}
+                        style={styles.infoCardValueGender}
+                        numberOfLines={1}
                         adjustsFontSizeToFit
-                        minimumFontScale={0.72}
+                        minimumFontScale={0.7}
                       >
                         {displayProfileGender(profile.gender)}
                       </Text>
@@ -3405,26 +3401,25 @@ export default function MyProfileScreen() {
               return (
                 <PanGestureHandler
                   key={photo.id}
+                  activateAfterLongPress={280}
                   onGestureEvent={Animated.event(
                     [{ nativeEvent: { translationX: dragAnimatedValue.x, translationY: dragAnimatedValue.y } }],
                     { useNativeDriver: false }
                   )}
                   onHandlerStateChange={(event) => {
                     const { state } = event.nativeEvent;
-                    if (state === State.BEGAN && !isDragging) {
-                      longPressTimerRef.current = setTimeout(() => {
-                        onLongPress(photo.id, index);
-                      }, 300);
+                    if (state === State.ACTIVE && !isDragging) {
+                      onLongPress(photo.id, index);
                     } else if (state === State.ACTIVE && isDragging && draggingPhotoId === photo.id) {
                       const { translationX, translationY } = event.nativeEvent;
                       dragAnimatedValue.setValue({ x: translationX, y: translationY });
                     } else if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-                      if (longPressTimerRef.current) {
-                        clearTimeout(longPressTimerRef.current);
-                        longPressTimerRef.current = null;
-                      }
                       if (isDragging && draggingPhotoId === photo.id) {
                         onDragEnd(event);
+                      } else {
+                        setDraggingPhotoId(null);
+                        setDraggingIndex(null);
+                        dragAnimatedValue.setValue({ x: 0, y: 0 });
                       }
                     }
                   }}
@@ -3432,6 +3427,15 @@ export default function MyProfileScreen() {
                   maxPointers={1}
                   enabled={!isDragging || draggingPhotoId === photo.id}
                 >
+                  <TapGestureHandler
+                    onActivated={() => {
+                      setCurrentPhotoIndex(index);
+                      setShowPhotoGallery(true);
+                      if (Platform.OS === 'ios') {
+                        Vibration.vibrate(30);
+                      }
+                    }}
+                  >
                   <Animated.View
                     style={[
                       styles.photoContainer,
@@ -3462,6 +3466,7 @@ export default function MyProfileScreen() {
                       </View>
                     )}
                   </Animated.View>
+                  </TapGestureHandler>
                 </PanGestureHandler>
               );
             }
@@ -4701,6 +4706,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '900',
     letterSpacing: -0.8,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 3 },
+    textShadowRadius: 6,
+  },
+  infoCardValueGender: {
+    fontSize: 22,
+    color: '#fff',
+    fontWeight: '900',
+    letterSpacing: 0,
+    textAlign: 'center',
+    alignSelf: 'stretch',
+    paddingHorizontal: 4,
     textShadowColor: 'rgba(0, 0, 0, 0.25)',
     textShadowOffset: { width: 0, height: 3 },
     textShadowRadius: 6,
