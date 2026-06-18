@@ -88,13 +88,13 @@ export async function resolveBrowseCandidatePool(
     .prepare(
       `SELECT 
           CASE 
-            WHEN user1_id = ? THEN user2_id 
-            ELSE user1_id 
+            WHEN m.user1_id = ? THEN m.user2_id 
+            ELSE m.user1_id 
           END as matched_user_id
-         FROM matches 
-         WHERE (user1_id = ? OR user2_id = ?) 
-         AND stage != 'expired'
-         ${sqlMatchesInPool(soberCircleOnly === true)}`,
+         FROM matches m
+         WHERE (m.user1_id = ? OR m.user2_id = ?) 
+         AND m.stage != 'expired'
+         ${sqlMatchesInPool(soberCircleOnly === true, 'm')}`,
     )
     .all([userId, userId, userId]) as Promise<{ matched_user_id: string }[]>);
 
