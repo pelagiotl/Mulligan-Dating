@@ -42,6 +42,11 @@ import {
 } from "../utils/matchSlotLimits.js";
 import { uploadChatImage, uploadChatVideo, uploadChatAudio } from "../middleware/upload.js";
 import { uploadToCloudinary, uploadToCloudinaryMedia, isCloudinaryConfigured } from "../services/cloudinary.js";
+import {
+  moderateImageUpload,
+  moderateVideoUpload,
+  handleModerationRouteError,
+} from "../services/contentModeration.js";
 
 export const matchesRouter = Router();
 
@@ -1578,6 +1583,13 @@ matchesRouter.post("/:matchId/messages/upload-image", authenticateToken, rateLim
       return res.status(503).json({ error: "Image upload is not configured" });
     }
 
+    try {
+      await moderateImageUpload(file.buffer, file.mimetype);
+    } catch (modError) {
+      if (handleModerationRouteError(modError, res)) return;
+      throw modError;
+    }
+
     const imageUrl = await uploadToCloudinary(file.buffer, 'chat-images');
     res.json({ imageUrl });
   } catch (error) {
@@ -1609,6 +1621,12 @@ matchesRouter.post("/:matchId/messages/upload-video", authenticateToken, rateLim
       return res.status(403).json({ error: CHAT_MEDIA_LOCKED_MESSAGE });
     }
     if (!isCloudinaryConfigured()) return res.status(503).json({ error: "Video upload is not configured" });
+    try {
+      await moderateVideoUpload(file.buffer, file.mimetype);
+    } catch (modError) {
+      if (handleModerationRouteError(modError, res)) return;
+      throw modError;
+    }
     const videoUrl = await uploadToCloudinaryMedia(file.buffer, 'chat-videos', 'video');
     res.json({ videoUrl });
   } catch (error) {

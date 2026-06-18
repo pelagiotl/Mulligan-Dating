@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   Modal,
   View,
@@ -10,7 +10,7 @@ import {
   Platform,
   ScrollView,
 } from 'react-native';
-import { Video, ResizeMode, Audio } from 'expo-av';
+import { Audio } from 'expo-av';
 import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -20,6 +20,7 @@ import {
   INTRO_VIDEO_TIPS,
 } from '../constants/introVideoCopy';
 import IntroVideoExamplePlayer from './IntroVideoExamplePlayer';
+import IntroVideoPreview from './IntroVideoPreview';
 import { resolveIntroVideoUrl, uploadProfileIntroVideo } from '../utils/introVideo';
 
 type Props = {
@@ -38,7 +39,6 @@ export default function IntroVideoRecordModal({
   existingVideoUrl,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const previewRef = useRef<Video | null>(null);
   const [localUri, setLocalUri] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
 
@@ -65,6 +65,9 @@ export default function IntroVideoRecordModal({
         videoMaxDuration: MAX_DURATION_SEC,
         quality: 0.7,
         cameraType: ImagePicker.CameraType.front,
+        ...(Platform.OS === 'ios'
+          ? { videoExportPreset: ImagePicker.VideoExportPreset.Medium }
+          : {}),
       });
       if (!result.canceled && result.assets[0]?.uri) {
         setLocalUri(result.assets[0].uri);
@@ -85,6 +88,9 @@ export default function IntroVideoRecordModal({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         videoMaxDuration: MAX_DURATION_SEC,
         quality: 0.7,
+        ...(Platform.OS === 'ios'
+          ? { videoExportPreset: ImagePicker.VideoExportPreset.Medium }
+          : {}),
       });
       if (!result.canceled && result.assets[0]?.uri) {
         setLocalUri(result.assets[0].uri);
@@ -136,14 +142,11 @@ export default function IntroVideoRecordModal({
 
           <View style={styles.playerWrap}>
             {previewSource ? (
-              <Video
-                ref={previewRef}
+              <IntroVideoPreview
                 source={previewSource}
-                style={styles.player}
-                resizeMode={ResizeMode.COVER}
-                useNativeControls
                 shouldPlay={false}
                 isLooping
+                style={styles.playerPreview}
               />
             ) : (
               <LinearGradient colors={['#1e1b2e', '#2d1b4e']} style={styles.playerPlaceholder}>
@@ -223,16 +226,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   playerWrap: {
-    borderRadius: 20,
-    overflow: 'hidden',
     marginBottom: 16,
-    aspectRatio: 9 / 16,
-    maxHeight: 360,
     alignSelf: 'center',
     width: '100%',
-    backgroundColor: '#1a1028',
   },
-  player: { width: '100%', height: '100%' },
+  playerPreview: {
+    width: '100%',
+  },
   playerPlaceholder: {
     flex: 1,
     alignItems: 'center',

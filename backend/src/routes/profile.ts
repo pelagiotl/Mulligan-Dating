@@ -882,6 +882,9 @@ profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRe
       return res.status(503).json({ error: 'Video upload is not configured on this server.' });
     }
 
+    // Skip full-video Sightengine sync here — it can exceed Render's request timeout on larger
+    // clips and cause the mobile client to report "Network request failed". Photos/chat stay moderated.
+
     await (db
       .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
       .run([introVideoUrl, userId]) as Promise<unknown>);

@@ -14,6 +14,14 @@ import { safeClearTimeout } from './safeTimers';
 export const API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://mulligan-backend.onrender.com';
 const BASE_URL = `${API_URL}/api`;
 
+/** Absolute URL for an API path (`/profile`, `/photos`, …). Handles EXPO_PUBLIC_API_URL with or without `/api`. */
+export function resolveApiUrl(path: string): string {
+  const origin = API_URL.replace(/\/+$/, '').replace(/\/api\/?$/, '');
+  const normalized = path.startsWith('/') ? path : `/${path}`;
+  const apiPath = normalized.startsWith('/api/') ? normalized : `/api${normalized}`;
+  return `${origin}${apiPath}`;
+}
+
 const APP_VERSION =
   Constants.expoConfig?.version ?? (Constants.manifest as { version?: string } | null)?.version ?? '1.0.0';
 /** OkHttp’s default UA is often blocked by edge/WAF on SMS routes; browsers and curl use a recognizable UA. */

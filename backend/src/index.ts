@@ -22,6 +22,7 @@ import { matchMemoryBankRouter } from "./routes/matchMemoryBank.js";
 import { dateReflectionsRouter } from "./routes/dateReflections.js";
 import { liveDatesRouter } from "./routes/liveDates.js";
 import { initDatabase, db } from "./database.js";
+import { isContentModerationEnabled } from "./services/contentModeration.js";
 import { generateWeeklyMatchesForAll } from "./services/matching.js";
 import path from "path";
 import fs from "fs";
@@ -774,12 +775,16 @@ async function startServer() {
     
     // Start server only after database is ready
     server.listen(PORT, () => {
+      const moderationLine = isContentModerationEnabled()
+        ? '  ║   🛡️  Upload content moderation: ON       ║'
+        : '  ║   ⚠️  Upload content moderation: OFF      ║';
       console.log(`
   ╔═══════════════════════════════════════════╗
   ║                                           ║
   ║   💘 Mulligan API Server                  ║
   ║   Running on http://localhost:${PORT}        ║
   ║   🔌 WebSocket Server Ready              ║
+${moderationLine}
   ║                                           ║
   ╚═══════════════════════════════════════════╝
   `);

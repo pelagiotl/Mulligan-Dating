@@ -4,7 +4,7 @@ Bundled **real video clip** shown inline on onboarding Step 3 and in the record 
 
 | File | Purpose |
 |------|---------|
-| `intro-example.mp4` | ~10–15s portrait clip. Replace with Luke's founder recording. |
+| `intro-example.mp4` | ~10–15s landscape clip (1080×720, same framing as Luke's recording). |
 | `demo-portrait.png` | Legacy still (used by old placeholder generator only) |
 
 ## Luke script (when you film)
@@ -13,11 +13,11 @@ Bundled **real video clip** shown inline on onboarding Step 3 and in the record 
 
 Save as `intro-example.mp4` (H.264, portrait, under ~15 MB). No code changes needed.
 
-## Current placeholder
+## Current clip
 
-`intro-example.mp4` may still be Mixkit stock until replaced. Copy in the app references Luke — swap the file before App Store submit.
+`intro-example.mp4` is Luke's founder recording (June 2026, ~14s portrait). Re-export with the steps below if you re-film.
 
-## Regenerate from stock (dev only)
+## Replace later
 
 ```bash
 cd mobile

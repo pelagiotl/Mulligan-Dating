@@ -463,8 +463,8 @@ export default function CreateProfileScreen() {
           ? 78
           : 76
         : Platform.OS === 'android'
-          ? 96
-          : 98
+          ? 108
+          : 110
       : Platform.OS === 'android'
         ? 96
         : 98;
@@ -474,13 +474,33 @@ export default function CreateProfileScreen() {
         : 0;
     const bodyBudget =
       h - insets.top - insets.bottom - headerBudget - footerBudget - keyboardOverlap;
-    const threeCardStackEstimate = 2 * 118 + 280 + 2 * 6;
+    // Name ~84, location ~68–96, intro chrome ~84–104 (excl. player), gaps — player height filled dynamically.
+    const threeCardStackEstimate = 84 + 96 + 104 + 72 + 12;
     const rawSqueeze = bodyBudget / threeCardStackEstimate;
-    const minSqueeze = isOnboardingLayout && keyboardHeight > 0 ? 0.56 : 0.64;
+    const minSqueeze = isOnboardingLayout && keyboardHeight > 0 ? 0.52 : 0.58;
     const onboardingSqueeze = Math.min(1, Math.max(minSqueeze, rawSqueeze));
     const sq = (n: number) => Math.round(n * onboardingSqueeze);
-    const onboardingOverflow =
-      bodyBudget < threeCardStackEstimate * onboardingSqueeze * 0.97;
+    const onboardingTight = onboardingSqueeze < 0.88;
+    const onboardingVeryTight = onboardingSqueeze < 0.76;
+    const locationStackEstimate = onboardingVeryTight ? 68 : onboardingTight ? 78 : 96;
+    const locationStack = sq(locationStackEstimate);
+    const nameLocStack = sq(84) + locationStack + sq(6) * 2;
+    const introChromeEstimate = onboardingVeryTight ? 78 : onboardingTight ? 94 : 132;
+    const introChrome = sq(introChromeEstimate);
+    const onboardingScrollBottomInset = sq(14);
+    const introPlayerMaxHeight = Math.max(
+      52,
+      Math.min(
+        onboardingVeryTight ? 72 : onboardingTight ? 84 : 100,
+        Math.floor(
+          bodyBudget - nameLocStack - introChrome - onboardingScrollBottomInset - 18,
+        ),
+      ),
+    );
+    const estimatedStackHeight =
+      nameLocStack + introChrome + introPlayerMaxHeight + onboardingScrollBottomInset;
+    const onboardingFitsWithoutScroll = estimatedStackHeight <= bodyBudget - 14;
+    const onboardingOverflow = !onboardingFitsWithoutScroll;
     return {
       sectionMinHeight: h * 0.62,
       sectionPaddingH: Math.round(20 * scaleW),
@@ -488,6 +508,7 @@ export default function CreateProfileScreen() {
       cardPadding: Math.round(36 * scaleW),
       cardPaddingFirst: Math.round(44 * scaleW),
       onboardingCardPadding: sq(Math.round(14 * scaleW)),
+      onboardingLocationCardPadding: sq(Math.round((onboardingTight ? 8 : 10) * scaleW)),
       cardPaddingKeyboard: Math.round(22 * scaleW),
       emojiSize: Math.round(72 * scaleW),
       emojiSizeSmall: Math.round(42 * scaleW),
@@ -506,7 +527,13 @@ export default function CreateProfileScreen() {
       onboardingSubtitleLineHeight: sq(Math.round(13 * scaleW)),
       onboardingSubtitleMargin: sq(Math.round(4 * scaleH)),
       onboardingSectionsGap: sq(6),
-      showOnboardingStepPill: onboardingSqueeze >= 0.82,
+      showOnboardingStepPill: onboardingSqueeze >= 0.78,
+      showOnboardingCardEmoji: onboardingSqueeze >= 0.86,
+      onboardingTight,
+      onboardingVeryTight,
+      onboardingIntroPlayerMaxHeight: introPlayerMaxHeight,
+      onboardingScrollBottomInset,
+      onboardingFitsWithoutScroll,
       onboardingOverflow,
       onboardingSqueeze,
       subtitleSizeTiny: Math.max(9, Math.round(10 * scaleW)),
@@ -1575,10 +1602,11 @@ export default function CreateProfileScreen() {
 
   // Steps 1–2: compact onboarding layout (name, location)
   const onboardingScrollLocked =
-    Platform.OS === 'ios' && isOnboardingWizard && !rs.onboardingOverflow;
+    Platform.OS === 'ios' && isOnboardingWizard && rs.onboardingFitsWithoutScroll && keyboardHeight === 0;
   const onboardingStepContentStyle = [
     styles.onboardingStepScrollContent,
     styles.onboardingStepScrollContentAndroidIdle,
+    { paddingBottom: rs.onboardingScrollBottomInset },
     onboardingScrollLocked && styles.onboardingStepScrollContentAndroidLocked,
   ];
   const onboardingStepWrapper = (content: React.ReactNode) => (
@@ -1601,15 +1629,15 @@ export default function CreateProfileScreen() {
     styles.onboardingFieldWrap,
     { paddingHorizontal: rs.sectionPaddingH },
   ];
-  const renderOnboardingStepPill = (label: string) =>
+  const renderOnboardingStepPill = (label: string, compact = false) =>
     rs.showOnboardingStepPill ? (
-      <View style={styles.onboardingStepPill}>
+      <View style={[styles.onboardingStepPill, compact && styles.onboardingStepPillCompact]}>
         <Text style={styles.onboardingStepPillText}>{label}</Text>
       </View>
     ) : null;
 
   const renderOnboardingCardEmoji = (emoji: string, delay: number) =>
-    Platform.OS === 'ios' ? (
+    !rs.showOnboardingCardEmoji ? null : Platform.OS === 'ios' ? (
       <ProfileCardAnimatedEmoji
         emoji={emoji}
         variant="pulse"
@@ -1654,27 +1682,29 @@ export default function CreateProfileScreen() {
             style={[
               styles.focusedTitle,
               {
-                fontSize: rs.onboardingTitleSize,
+                fontSize: rs.onboardingTight ? rs.onboardingTitleSizeSmall : rs.onboardingTitleSize,
                 marginBottom: rs.onboardingTitleMargin,
               },
             ]}
           >
-            Welcome to Mulligan!
+            {rs.onboardingVeryTight ? 'Your name' : 'Welcome to Mulligan!'}
           </Text>
-          <Text
-            style={[
-              styles.focusedSubtitle,
-              {
-                fontSize: rs.onboardingSubtitleSize,
-                lineHeight: rs.onboardingSubtitleLineHeight,
-                marginBottom: rs.onboardingSubtitleMargin,
-                maxWidth: '100%',
-              },
-            ]}
-            numberOfLines={2}
-          >
-            Let&apos;s start with your first name
-          </Text>
+          {!rs.onboardingTight ? (
+            <Text
+              style={[
+                styles.focusedSubtitle,
+                {
+                  fontSize: rs.onboardingSubtitleSize,
+                  lineHeight: rs.onboardingSubtitleLineHeight,
+                  marginBottom: rs.onboardingSubtitleMargin,
+                  maxWidth: '100%',
+                },
+              ]}
+              numberOfLines={2}
+            >
+              Let&apos;s start with your first name
+            </Text>
+          ) : null}
           <Animated.View
             pointerEvents="box-none"
             style={[
@@ -1717,91 +1747,93 @@ export default function CreateProfileScreen() {
           style={[
             styles.focusedFieldCard,
             styles.onboardingCompactCard,
-            { padding: rs.onboardingCardPadding },
+            styles.onboardingLocationCard,
+            { padding: rs.onboardingLocationCardPadding },
           ]}
         >
-          {renderOnboardingStepPill('Step 2 · Your location')}
-          {renderOnboardingCardEmoji('📍', 200)}
-          <Text
-            style={[
-              styles.focusedTitle,
-              {
-                fontSize: rs.onboardingTitleSizeSmall,
-                marginBottom: rs.onboardingTitleMargin,
-              },
-            ]}
-          >
-            Where do you live?
-          </Text>
-          <Text
-            style={[
-              styles.focusedSubtitle,
-              {
-                fontSize: rs.onboardingSubtitleSize,
-                lineHeight: rs.onboardingSubtitleLineHeight,
-                marginBottom: rs.onboardingSubtitleMargin,
-                opacity: 0.92,
-              },
-            ]}
-            numberOfLines={2}
-          >
-            Southern Oregon & nearby (~100 mi)
-          </Text>
-          <Animated.View
-            pointerEvents="box-none"
-            style={[
-              styles.focusedInputWrapper,
-              styles.onboardingInputWrapper,
-              {
-                shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
-                shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
-              },
-            ]}
-          >
-            <TextInput
-              ref={locationInputRef}
+          {renderOnboardingStepPill(
+            rs.onboardingVeryTight ? 'Step 2' : 'Step 2 · Location',
+            true,
+          )}
+          {!rs.onboardingTight ? (
+            <Text
               style={[
-                styles.focusedLocationInput,
-                styles.onboardingCompactLocationInput,
-                location.length > 28 && styles.focusedLocationInputLong,
+                styles.focusedSubtitle,
+                {
+                  fontSize: rs.onboardingSubtitleSize,
+                  lineHeight: rs.onboardingSubtitleLineHeight,
+                  marginBottom: rs.onboardingSubtitleMargin,
+                  opacity: 0.92,
+                },
               ]}
-              value={location}
-              onChangeText={(t) => handleLocationChange(t, setLocation)}
-              onBlur={() => setLocation((prev) => compactCityState(prev))}
-              onFocus={() => step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false })}
-              onSubmitEditing={finishOnboardingLocationInput}
-              blurOnSubmit
-              placeholder="City, State"
-              placeholderTextColor="#4a5568"
-              editable={!detectingLocation}
-              returnKeyType="done"
-              multiline
-              numberOfLines={2}
-              textAlign="center"
-              textAlignVertical="center"
-              {...(Platform.OS === 'ios'
-                ? { adjustsFontSizeToFit: true, minimumFontScale: 0.72 }
-                : {})}
-            />
-          </Animated.View>
-          <TouchableOpacity
-            style={[styles.focusedLocationButton, styles.onboardingCompactLocButton]}
-            onPress={detectLocation}
-            disabled={detectingLocation}
-          >
-            {detectingLocation ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text style={styles.focusedLocationButtonText}>📍 Use location</Text>
-            )}
-          </TouchableOpacity>
+              numberOfLines={1}
+            >
+              Southern Oregon & nearby (~100 mi)
+            </Text>
+          ) : null}
+          <View style={styles.onboardingLocationRow}>
+            <Animated.View
+              pointerEvents="box-none"
+              style={[
+                styles.focusedInputWrapper,
+                styles.onboardingInputWrapper,
+                styles.onboardingLocationRowInputWrap,
+                {
+                  shadowOpacity: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [0.2, 0.6] }),
+                  shadowRadius: locationGlow.interpolate({ inputRange: [0, 1], outputRange: [8, 20] }),
+                },
+              ]}
+            >
+              <TextInput
+                ref={locationInputRef}
+                style={[
+                  styles.focusedLocationInput,
+                  styles.onboardingCompactLocationInput,
+                  styles.onboardingLocationRowInput,
+                  location.length > 28 && styles.focusedLocationInputLong,
+                ]}
+                value={location}
+                onChangeText={(t) => handleLocationChange(t, setLocation)}
+                onBlur={() => setLocation((prev) => compactCityState(prev))}
+                onFocus={() => step1ScrollViewRef.current?.scrollTo({ y: 0, animated: false })}
+                onSubmitEditing={finishOnboardingLocationInput}
+                blurOnSubmit
+                placeholder="City, State"
+                placeholderTextColor="#4a5568"
+                editable={!detectingLocation}
+                returnKeyType="done"
+                numberOfLines={1}
+                textAlign="center"
+                textAlignVertical="center"
+                {...(Platform.OS === 'ios'
+                  ? { adjustsFontSizeToFit: true, minimumFontScale: 0.72 }
+                  : {})}
+              />
+            </Animated.View>
+            <TouchableOpacity
+              style={[
+                styles.onboardingLocationGpsBtn,
+                detectingLocation && styles.onboardingLocationGpsBtnDisabled,
+              ]}
+              onPress={detectLocation}
+              disabled={detectingLocation}
+              accessibilityLabel="Use my location"
+              accessibilityRole="button"
+            >
+              {detectingLocation ? (
+                <ActivityIndicator color="#fff" size="small" />
+              ) : (
+                <Text style={styles.onboardingLocationGpsBtnText}>📍</Text>
+              )}
+            </TouchableOpacity>
+          </View>
           {validatingLocation && hasCityAndState(location) ? (
-            <Text style={[styles.focusedSubtitle, { marginTop: 10, opacity: 0.85 }]}>
+            <Text style={[styles.focusedSubtitle, styles.onboardingLocationStatus, { opacity: 0.85, fontSize: rs.onboardingSubtitleSize }]}>
               Checking Southern Oregon area…
             </Text>
           ) : null}
           {locationRegionError ? (
-            <Text style={[styles.focusedSubtitle, { marginTop: 10, color: '#fecaca' }]}>
+            <Text style={[styles.focusedSubtitle, styles.onboardingLocationStatus, { color: '#fecaca', fontSize: rs.onboardingSubtitleSize }]}>
               {locationRegionError}
             </Text>
           ) : null}
@@ -1813,20 +1845,24 @@ export default function CreateProfileScreen() {
         style={[
           { transform: [{ scale: genderScale }], opacity: genderOpacity },
           styles.onboardingSectionCardWrap,
+          styles.onboardingIntroSectionWrap,
         ]}
       >
         <LinearGradient
           colors={['#764ba2', '#f093fb', '#f5576c']}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
-          pointerEvents="box-none"
           style={[
             styles.focusedFieldCard,
             styles.onboardingCompactCard,
+            styles.onboardingIntroCard,
             { padding: rs.onboardingCardPadding },
           ]}
         >
-          {renderOnboardingStepPill('Step 3 · Intro video')}
+          {renderOnboardingStepPill(
+            rs.onboardingVeryTight ? 'Step 3' : 'Step 3 · Intro video',
+            rs.onboardingTight,
+          )}
           <Text
             style={[
               styles.focusedSubtitle,
@@ -1837,32 +1873,60 @@ export default function CreateProfileScreen() {
                 opacity: 0.92,
               },
             ]}
+            numberOfLines={rs.onboardingVeryTight ? 2 : 3}
           >
-            {INTRO_VIDEO_PROMPT}
+            {rs.onboardingVeryTight
+              ? '10–15 sec: name, Southern Oregon, what you want.'
+              : INTRO_VIDEO_PROMPT}
           </Text>
 
-          <IntroVideoExamplePlayer compact showCaption={rs.onboardingSqueeze >= 0.72} />
+          <IntroVideoExamplePlayer
+            compact
+            showCaption={false}
+            hideBadge={rs.onboardingVeryTight}
+            maxPlayerHeight={rs.onboardingIntroPlayerMaxHeight}
+          />
 
-          <View style={styles.onboardingIntroEncourage}>
-            <Text style={styles.onboardingIntroEncourageText}>{INTRO_VIDEO_ENCOURAGEMENT}</Text>
-          </View>
+          {!rs.onboardingTight ? (
+            <View style={styles.onboardingIntroEncourage}>
+              <Text style={styles.onboardingIntroEncourageText}>{INTRO_VIDEO_ENCOURAGEMENT}</Text>
+            </View>
+          ) : null}
 
           <TouchableOpacity
-            style={[styles.focusedLocationButton, styles.onboardingCompactLocButton, styles.onboardingIntroVideoButton]}
+            style={styles.onboardingIntroRecordButton}
             onPress={() => setShowIntroVideoModal(true)}
-            activeOpacity={0.85}
+            activeOpacity={0.88}
           >
-            <Text style={styles.focusedLocationButtonText}>
-              {introVideoValid ? '✓ Re-record intro' : '● Record yours'}
-            </Text>
+            {introVideoValid ? (
+              <View style={styles.onboardingIntroRecordDoneInner}>
+                <Text style={styles.onboardingIntroRecordDoneText}>✓ Re-record intro</Text>
+              </View>
+            ) : (
+              <LinearGradient
+                colors={['#ff6b8a', '#f093fb', '#7c6cf0']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.onboardingIntroRecordGradient}
+              >
+                <View style={styles.onboardingIntroRecordRow}>
+                  <View style={styles.onboardingIntroRecordIconWrap}>
+                    <Text style={styles.onboardingIntroRecordIcon}>📹</Text>
+                  </View>
+                  <Text style={styles.onboardingIntroRecordText}>Record your intro</Text>
+                </View>
+              </LinearGradient>
+            )}
           </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.onboardingIntroLibraryBtn}
-            onPress={() => setShowIntroVideoModal(true)}
-            activeOpacity={0.85}
-          >
-            <Text style={styles.onboardingIntroLibraryText}>Upload from camera roll</Text>
-          </TouchableOpacity>
+          {!rs.onboardingTight ? (
+            <TouchableOpacity
+              style={styles.onboardingIntroLibraryBtn}
+              onPress={() => setShowIntroVideoModal(true)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.onboardingIntroLibraryText}>Upload from camera roll</Text>
+            </TouchableOpacity>
+          ) : null}
           {introVideoValid ? (
             <Animated.View style={[styles.successIndicator, styles.onboardingCompactSuccess, { opacity: genderOpacity }]}>
               <Text style={styles.successText}>✓ Intro video saved!</Text>
@@ -4562,17 +4626,15 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
-    paddingTop: 6,
-    paddingBottom: 16,
+    paddingTop: 4,
   },
   onboardingStepScrollContentAndroidIdle: {
     flexGrow: 1,
     justifyContent: 'flex-start',
     paddingTop: 4,
-    paddingBottom: 16,
   },
   onboardingStepScrollContentAndroidLocked: {
-    paddingBottom: 16,
+    // bottom inset comes from rs.onboardingScrollBottomInset
   },
   onboardingInputWrapper: {
     ...(Platform.OS === 'android' ? { elevation: 0 } : {}),
@@ -4597,6 +4659,12 @@ const styles = StyleSheet.create({
   onboardingSectionCardWrap: {
     marginTop: 0,
   },
+  onboardingIntroSectionWrap: {
+    marginBottom: Platform.OS === 'ios' ? 4 : 2,
+  },
+  onboardingIntroCard: {
+    overflow: 'hidden',
+  },
   headerOnboardingCompact: {
     paddingTop: 4,
     paddingBottom: 8,
@@ -4616,9 +4684,9 @@ const styles = StyleSheet.create({
       ? { elevation: 4, shadowOpacity: 0, shadowRadius: 0 }
       : {
           shadowColor: '#1e1b4b',
-          shadowOffset: { width: 0, height: 4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 6,
         }),
   },
   onboardingCompactNameInput: {
@@ -4628,42 +4696,137 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   onboardingCompactLocationInput: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
     fontSize: 14,
-    minHeight: 36,
-    maxHeight: 44,
-    borderRadius: 14,
+    minHeight: 32,
+    maxHeight: 36,
+    borderRadius: 12,
+  },
+  onboardingLocationCard: {
+    paddingBottom: 8,
+  },
+  onboardingLocationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    width: '100%',
+  },
+  onboardingLocationRowInputWrap: {
+    flex: 1,
+    minWidth: 0,
+  },
+  onboardingLocationRowInput: {
+    width: '100%',
+  },
+  onboardingLocationGpsBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  onboardingLocationGpsBtnDisabled: {
+    opacity: 0.7,
+  },
+  onboardingLocationGpsBtnText: {
+    fontSize: 18,
+  },
+  onboardingLocationStatus: {
+    marginTop: 4,
+    lineHeight: 13,
   },
   onboardingCompactLocButton: {
-    marginTop: 4,
-    paddingVertical: 6,
+    marginTop: 2,
+    paddingVertical: 5,
     paddingHorizontal: 14,
     borderRadius: 14,
   },
-  onboardingIntroVideoButton: {
+  onboardingIntroRecordButton: {
     alignSelf: 'stretch',
+    marginTop: 4,
+    borderRadius: 16,
+    overflow: 'hidden',
+    ...(Platform.OS === 'android'
+      ? { elevation: 4 }
+      : {
+          shadowColor: '#f5576c',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.32,
+          shadowRadius: 8,
+        }),
+  },
+  onboardingIntroRecordGradient: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 46,
+  },
+  onboardingIntroRecordRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  onboardingIntroRecordIconWrap: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  onboardingIntroRecordIcon: {
+    fontSize: 14,
+  },
+  onboardingIntroRecordText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3,
+  },
+  onboardingIntroRecordDoneInner: {
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 46,
+    borderRadius: 16,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.55)',
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+  },
+  onboardingIntroRecordDoneText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   onboardingIntroEncourage: {
     backgroundColor: 'rgba(255,255,255,0.14)',
     borderRadius: 10,
-    paddingVertical: 8,
+    paddingVertical: 5,
     paddingHorizontal: 10,
-    marginBottom: 8,
+    marginBottom: 4,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
   },
   onboardingIntroEncourageText: {
     color: 'rgba(255,255,255,0.95)',
-    fontSize: 11,
-    lineHeight: 15,
+    fontSize: 10,
+    lineHeight: 14,
     textAlign: 'center',
     fontWeight: '600',
   },
   onboardingIntroLibraryBtn: {
     alignSelf: 'center',
-    paddingVertical: 4,
-    marginBottom: 2,
+    paddingVertical: 2,
+    marginBottom: 0,
   },
   onboardingIntroLibraryText: {
     color: 'rgba(255,255,255,0.78)',
@@ -4711,6 +4874,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  onboardingStepPillCompact: {
+    marginBottom: 2,
+    paddingVertical: 2,
   },
   onboardingStepPillText: {
     fontSize: 10,

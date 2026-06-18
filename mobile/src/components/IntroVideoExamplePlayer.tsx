@@ -1,35 +1,111 @@
-import React from 'react';
-import { View, Text, StyleSheet, Platform } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import React, { useCallback, useRef, useState } from 'react';
+import { View, Text, StyleSheet, Platform, Pressable } from 'react-native';
+import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
 import { LinearGradient } from 'expo-linear-gradient';
-import { INTRO_VIDEO_EXAMPLE_SOURCE } from '../utils/introVideo';
+import { INTRO_VIDEO_EXAMPLE_ASPECT, INTRO_VIDEO_EXAMPLE_SOURCE } from '../utils/introVideo';
 import { INTRO_VIDEO_LUKE_SCRIPT } from '../constants/introVideoCopy';
 
 type Props = {
   compact?: boolean;
   showCaption?: boolean;
+  hideBadge?: boolean;
+  /** When set (onboarding card), caps example player height to fit the viewport stack. */
+  maxPlayerHeight?: number;
 };
 
-/** Bundled Luke example clip — swap `intro-example.mp4` when founder recording is ready. */
-export default function IntroVideoExamplePlayer({ compact = false, showCaption = true }: Props) {
+function buildPlayerSize(maxPlayerHeight?: number) {
+  if (maxPlayerHeight == null) return null;
+  return {
+    width: Math.round(maxPlayerHeight * INTRO_VIDEO_EXAMPLE_ASPECT),
+    height: maxPlayerHeight,
+    maxHeight: maxPlayerHeight,
+    alignSelf: 'center' as const,
+  };
+}
+
+/** Bundled Luke example clip shown during onboarding. */
+export default function IntroVideoExamplePlayer({
+  compact = false,
+  showCaption = true,
+  hideBadge = false,
+  maxPlayerHeight,
+}: Props) {
+  const videoRef = useRef<Video>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const sizedPlayer = buildPlayerSize(maxPlayerHeight);
+
+  const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
+    if (!status.isLoaded) return;
+    setIsPlaying(status.isPlaying);
+    if (status.didJustFinish) {
+      void videoRef.current?.setPositionAsync(0);
+      void videoRef.current?.pauseAsync();
+    }
+  }, []);
+
+  const onWatch = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    try {
+      await video.presentFullscreenPlayer();
+      await video.playAsync();
+    } catch {
+      try {
+        if (isPlaying) {
+          await video.pauseAsync();
+        } else {
+          await video.playAsync();
+        }
+      } catch {
+        // ignore playback errors
+      }
+    }
+  }, [isPlaying]);
+
   return (
     <View style={[styles.wrap, compact && styles.wrapCompact]}>
-      <Text style={[styles.badge, compact && styles.badgeCompact]}>Example from Luke</Text>
-      <View style={[styles.playerShell, compact && styles.playerShellCompact]}>
+      {!hideBadge ? (
+        <Text style={[styles.badge, compact && styles.badgeCompact]}>Example from Luke</Text>
+      ) : null}
+      <Pressable
+        onPress={onWatch}
+        accessibilityRole="button"
+        accessibilityLabel="Play Luke's example intro video"
+        style={({ pressed }) => [
+          styles.playerShell,
+          compact && !maxPlayerHeight ? styles.playerShellCompact : null,
+          sizedPlayer,
+          pressed && styles.playerShellPressed,
+        ]}
+      >
         <Video
+          ref={videoRef}
           source={INTRO_VIDEO_EXAMPLE_SOURCE}
           style={styles.player}
-          resizeMode={ResizeMode.COVER}
-          useNativeControls
+          resizeMode={ResizeMode.CONTAIN}
+          useNativeControls={false}
           shouldPlay={false}
           isLooping={false}
+          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
         />
-        <LinearGradient
-          colors={['transparent', 'rgba(15, 6, 24, 0.85)']}
-          style={styles.playerFade}
-          pointerEvents="none"
-        />
-      </View>
+        {!isPlaying ? (
+          <>
+            <LinearGradient
+              colors={['transparent', 'rgba(15, 6, 24, 0.88)']}
+              style={styles.playBarGradient}
+              pointerEvents="none"
+            />
+            <View style={styles.playBar} pointerEvents="none">
+              <View style={styles.playBarRow}>
+                <View style={styles.playButton}>
+                  <Text style={styles.playIcon}>▶</Text>
+                </View>
+                <Text style={styles.playHint}>Watch example</Text>
+              </View>
+            </View>
+          </>
+        ) : null}
+      </Pressable>
       {showCaption ? (
         <Text style={[styles.caption, compact && styles.captionCompact]} numberOfLines={compact ? 3 : 5}>
           "{INTRO_VIDEO_LUKE_SCRIPT}"
@@ -46,7 +122,7 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   wrapCompact: {
-    marginBottom: 6,
+    marginBottom: 2,
   },
   badge: {
     color: 'rgba(255,255,255,0.9)',
@@ -58,40 +134,78 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   badgeCompact: {
-    fontSize: 10,
-    marginBottom: 4,
+    fontSize: 9,
+    marginBottom: 3,
   },
   playerShell: {
     width: '100%',
-    maxWidth: 200,
-    aspectRatio: 9 / 16,
-    maxHeight: 220,
+    maxWidth: 280,
+    aspectRatio: INTRO_VIDEO_EXAMPLE_ASPECT,
+    maxHeight: 180,
     borderRadius: 16,
     overflow: 'hidden',
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.45)',
+    borderColor: 'rgba(255, 255, 255, 0.45)',
     backgroundColor: '#1a1028',
     alignSelf: 'center',
   },
   playerShellCompact: {
-    maxWidth: 140,
-    maxHeight: 160,
+    maxWidth: 220,
+    maxHeight: 140,
     borderRadius: 12,
+  },
+  playerShellPressed: {
+    opacity: 0.92,
   },
   player: {
     width: '100%',
     height: '100%',
   },
-  playerFade: {
+  playBarGradient: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
-    height: Platform.OS === 'ios' ? 48 : 40,
+    height: Platform.OS === 'ios' ? 44 : 40,
+  },
+  playBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: Platform.OS === 'ios' ? 44 : 40,
+    justifyContent: 'center',
+    paddingHorizontal: 10,
+  },
+  playBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  playButton: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playIcon: {
+    color: '#2d1b4e',
+    fontSize: 11,
+    marginLeft: 1,
+    fontWeight: '700',
+  },
+  playHint: {
+    color: 'rgba(255, 255, 255, 0.96)',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.2,
   },
   caption: {
     marginTop: 8,
-    color: 'rgba(255,255,255,0.82)',
+    color: 'rgba(255, 255, 255, 0.82)',
     fontSize: 12,
     lineHeight: 17,
     fontStyle: 'italic',

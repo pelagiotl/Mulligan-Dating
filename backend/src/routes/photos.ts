@@ -6,6 +6,11 @@ import { uploadMultiple, uploadSingle } from "../middleware/upload.js";
 import { uploadToCloudinary, deleteFromCloudinary, isCloudinaryConfigured } from "../services/cloudinary.js";
 import { compressImageForCloudinary } from "../services/imageCompression.js";
 import { notifyPartnersProfileChanged } from "../services/partnerProfileBroadcast.js";
+import {
+  moderateImageUpload,
+  readUploadBuffer,
+  handleModerationRouteError,
+} from "../services/contentModeration.js";
 import fs from "fs";
 import path from "path";
 
@@ -251,6 +256,14 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
         }
 
         try {
+          const moderationBuffer = file.buffer ?? (await readUploadBuffer(file));
+          await moderateImageUpload(moderationBuffer, file.mimetype);
+        } catch (modError) {
+          if (handleModerationRouteError(modError, res)) return;
+          throw modError;
+        }
+
+        try {
           const originalSize = file.buffer.length;
           const originalSizeMB = (originalSize / (1024 * 1024)).toFixed(2);
           
@@ -442,6 +455,14 @@ photosRouter.post("/", authenticateToken, (req: AuthRequest, res, next) => {
         }
       } else {
         // Use local filesystem
+        try {
+          const moderationBuffer = await readUploadBuffer(file);
+          await moderateImageUpload(moderationBuffer, file.mimetype);
+        } catch (modError) {
+          if (handleModerationRouteError(modError, res)) return;
+          throw modError;
+        }
+
         photoUrl = `/uploads/${file.filename}`;
         
         // Verify file exists after insert (only for local storage)
