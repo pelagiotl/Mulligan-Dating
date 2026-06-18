@@ -1,6 +1,7 @@
 import { db } from '../database.js';
 import { sendPushNotification, isExpoPushToken } from './pushNotifications.js';
 import { sendWebPushToUser } from './webPushDelivery.js';
+import { liveEventAtForApi } from './liveDateTime.js';
 
 const EVENT_TIMEZONE = 'America/Los_Angeles';
 
@@ -28,8 +29,8 @@ function escapeHtml(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
-export function formatLiveDateWhen(eventAt: string): string {
-  const when = new Date(eventAt);
+export function formatLiveDateWhen(eventAt: string | Date): string {
+  const when = new Date(liveEventAtForApi(eventAt));
   return when.toLocaleString('en-US', {
     weekday: 'long',
     month: 'long',

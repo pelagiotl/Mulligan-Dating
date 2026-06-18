@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database.js';
 import { notifyLiveDateSignup } from './liveDateNotifications.js';
+import { liveEventAtForApi, liveEventAtForDb } from './liveDateTime.js';
 
 export const MULLIGAN_LIVE_DATES_EVENT_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
 
@@ -12,6 +13,7 @@ const FEATURED_EVENT = {
 Low pressure, gated venue, built for real connections. Only 25 spots for our first night.`,
   venueName: 'Mulligan Live Dates',
   venueAddress: '812 S Riverside, Medford, OR 97501',
+  /** 5:30 PM Pacific — offset re-applied on API read (TIMESTAMP columns lose tz). */
   eventAt: '2026-07-25T17:30:00-07:00',
   foodTrucks: [] as string[],
   capacity: 25,
@@ -92,7 +94,7 @@ async function ensureFeaturedEvent(): Promise<void> {
         FEATURED_EVENT.description,
         FEATURED_EVENT.venueName,
         FEATURED_EVENT.venueAddress,
-        FEATURED_EVENT.eventAt,
+        liveEventAtForDb(FEATURED_EVENT.eventAt),
         JSON.stringify(FEATURED_EVENT.foodTrucks),
         FEATURED_EVENT.capacity,
         FEATURED_EVENT.id,
@@ -112,7 +114,7 @@ async function ensureFeaturedEvent(): Promise<void> {
       FEATURED_EVENT.description,
       FEATURED_EVENT.venueName,
       FEATURED_EVENT.venueAddress,
-      FEATURED_EVENT.eventAt,
+      liveEventAtForDb(FEATURED_EVENT.eventAt),
       JSON.stringify(FEATURED_EVENT.foodTrucks),
       FEATURED_EVENT.capacity,
     ]);
@@ -166,7 +168,7 @@ export async function listLiveDateEvents(userId: string): Promise<LiveDateEvent[
       description: e.description,
       venueName: e.venue_name,
       venueAddress: e.venue_address,
-      eventAt: e.event_at,
+      eventAt: liveEventAtForApi(e.event_at),
       foodTrucks: parseFoodTrucks(e.food_trucks),
       capacity: e.capacity,
       signupCount,
