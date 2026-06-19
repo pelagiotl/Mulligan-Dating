@@ -1,4 +1,6 @@
 import { db } from '../database.js';
+import type { ClientPlatform } from './clientPlatform.js';
+import { normalizeStoredClientPlatform } from './clientPlatform.js';
 
 export const MIN_PHOTOS_TO_CONNECT = 1;
 
@@ -90,6 +92,31 @@ export async function userGrandfatheredFromIntroVideoRequirement(
   );
 }
 
+/** Intro video is a mobile-native onboarding step; web has no recorder UI. */
+export async function introVideoRequiredForActivation(
+  userId: string,
+  activatingClient?: ClientPlatform | null,
+): Promise<boolean> {
+  if (await userGrandfatheredFromIntroVideoRequirement(userId)) {
+    return false;
+  }
+
+  if (activatingClient === 'web') {
+    return false;
+  }
+
+  const userResult = db
+    .prepare('SELECT last_client_platform FROM users WHERE id = ?')
+    .get([userId]);
+  const user = (userResult instanceof Promise ? await userResult : userResult) as
+    | { last_client_platform: string | null }
+    | undefined;
+  const stored = normalizeStoredClientPlatform(user?.last_client_platform);
+  const effective = activatingClient ?? stored;
+
+  return effective === 'ios' || effective === 'android';
+}
+
 export type OnboardingProgress = {
   hasName: boolean;
   hasLocation: boolean;
@@ -103,8 +130,11 @@ export type OnboardingProgress = {
   readyToActivate: boolean;
 };
 
-/** Violations for POST /profile/activate (name, location, intro video — no gender/photos). */
-export async function getActivationSetupViolationsForUser(userId: string): Promise<string[]> {
+/** Violations for POST /profile/activate (name, location, intro video on mobile only). */
+export async function getActivationSetupViolationsForUser(
+  userId: string,
+  options?: { clientPlatform?: ClientPlatform | null },
+): Promise<string[]> {
   const profileResult = db
     .prepare('SELECT id, display_name, location, intro_video_url FROM profiles WHERE user_id = ?')
     .get([userId]);
@@ -117,8 +147,11 @@ export async function getActivationSetupViolationsForUser(userId: string): Promi
   const violations: string[] = [];
   if (!hasConnectDisplayName(profile.display_name)) violations.push('name');
   if (!isValidConnectLocation(profile.location)) violations.push('location');
-  const grandfatherIntroVideo = await userGrandfatheredFromIntroVideoRequirement(userId);
-  if (!hasIntroVideo(profile.intro_video_url) && !grandfatherIntroVideo) {
+  const requireIntroVideo = await introVideoRequiredForActivation(
+    userId,
+    options?.clientPlatform,
+  );
+  if (!hasIntroVideo(profile.intro_video_url) && requireIntroVideo) {
     violations.push('introVideo');
   }
   return violations;
@@ -205,8 +238,8 @@ export async function getConnectSetupViolationsForUser(userId: string): Promise<
 
   if (!hasValidProfileAge(profile.age)) return ['age'];
   if (!hasValidProfileGender(profile.gender)) return ['gender'];
-  const grandfatherIntroVideo = await userGrandfatheredFromIntroVideoRequirement(userId);
-  if (!hasIntroVideo(profile.intro_video_url) && !grandfatherIntroVideo) {
+  const requireIntroVideo = await introVideoRequiredForActivation(userId);
+  if (!hasIntroVideo(profile.intro_video_url) && requireIntroVideo) {
     return ['introVideo'];
   }
 

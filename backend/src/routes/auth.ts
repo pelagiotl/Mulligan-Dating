@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { z } from 'zod';
 import { db } from '../database.js';
 import { generateToken, authenticateToken, AuthRequest, userHasAdminAccess } from '../middleware/auth.js';
-import { persistClientPlatformForUser } from '../utils/clientPlatform.js';
+import { persistClientPlatformForUser, detectClientPlatformFromRequest } from '../utils/clientPlatform.js';
 import { sanitizeText, rateLimitAuth, rateLimitSignup, rateLimitAPI } from '../middleware/security.js';
 import { isWebPushConfigured } from '../services/webPushDelivery.js';
 import { getConnectSetupViolationsForUser } from '../utils/connectRequirements.js';
@@ -239,7 +239,10 @@ authRouter.get('/me', authenticateToken, async (req: AuthRequest, res) => {
     const { getActivationSetupViolationsForUser, getConnectSetupViolationsForUser } = await import(
       '../utils/connectRequirements.js',
     );
-    const activationMissing = await getActivationSetupViolationsForUser(user.id);
+    const clientPlatform = detectClientPlatformFromRequest(req);
+    const activationMissing = await getActivationSetupViolationsForUser(user.id, {
+      clientPlatform,
+    });
     const connectSetupMissing = await getConnectSetupViolationsForUser(user.id);
     const { isActiveAccountStatus } = await import('../utils/accountStatus.js');
     const accountActive = isActiveAccountStatus(user.account_status);

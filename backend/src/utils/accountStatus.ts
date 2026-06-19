@@ -1,4 +1,5 @@
 import { db } from '../database.js';
+import type { ClientPlatform } from './clientPlatform.js';
 import {
   getActivationSetupViolationsForUser,
   MIN_PHOTOS_TO_CONNECT,
@@ -40,7 +41,10 @@ export function sqlCompleteProfileAccounts(userAlias = 'u'): string {
   return `${sqlOnlyActiveAccounts(userAlias)}${sqlUserHasMinPhotos(userAlias)}`;
 }
 
-export async function activateUserAccount(userId: string): Promise<{
+export async function activateUserAccount(
+  userId: string,
+  options?: { clientPlatform?: ClientPlatform | null },
+): Promise<{
   accountStatus: typeof ACCOUNT_STATUS_ACTIVE;
   tokensGranted: number;
   alreadyActive: boolean;
@@ -53,7 +57,9 @@ export async function activateUserAccount(userId: string): Promise<{
     throw Object.assign(new Error('User not found'), { status: 404 });
   }
 
-  const violations = await getActivationSetupViolationsForUser(userId);
+  const violations = await getActivationSetupViolationsForUser(userId, {
+    clientPlatform: options?.clientPlatform,
+  });
   if (violations.length > 0) {
     throw Object.assign(
       new Error('Complete your profile before finishing account setup.'),

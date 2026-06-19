@@ -9,6 +9,7 @@ import { rateLimitAPI } from '../middleware/security.js';
 import { notifyPartnersProfileChanged } from '../services/partnerProfileBroadcast.js';
 import { ensureStubProfile, isUniqueViolation } from '../utils/ensureStubProfile.js';
 import { activateUserAccount } from '../utils/accountStatus.js';
+import { detectClientPlatformFromRequest } from '../utils/clientPlatform.js';
 import { normalizeMaxDistanceMiles, REGION_MAX_DISTANCE_MILES } from '../config/regions.js';
 import { validateLocationForActiveRegion } from '../utils/locationRegionValidation.js';
 import { uploadChatVideo } from '../middleware/upload.js';
@@ -1038,7 +1039,8 @@ profileRouter.put('/sober-circle', authenticateToken, rateLimitAPI, async (req: 
 
 profileRouter.post('/activate', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
-    const result = await activateUserAccount(req.userId!);
+    const clientPlatform = detectClientPlatformFromRequest(req);
+    const result = await activateUserAccount(req.userId!, { clientPlatform });
     res.json({
       message: result.alreadyActive
         ? 'Account already active'

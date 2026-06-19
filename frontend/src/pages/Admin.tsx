@@ -166,6 +166,7 @@ const LIFESTYLE_FIELD_LABELS: Record<string, string> = {
 
 interface Stats {
   totalUsers: number;
+  completeUsers?: number;
   totalProfiles: number;
   totalMatches: number;
   restrictedUsers: number;
@@ -825,7 +826,7 @@ export default function Admin() {
             aria-haspopup="dialog"
           >
             <div className="stat-icon" aria-hidden>👥</div>
-            <div className="stat-value">{stats.totalUsers}</div>
+            <div className="stat-value">{stats.completeUsers ?? 0}</div>
             <div className="stat-label">Complete Profiles</div>
             <span className="stat-card-hint">View list</span>
           </button>
