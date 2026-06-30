@@ -67,7 +67,7 @@ import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '..
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
 import IntroVideoExamplePlayer from '../components/IntroVideoExamplePlayer';
-import { INTRO_VIDEO_ENCOURAGEMENT, INTRO_VIDEO_PROMPT } from '../constants/introVideoCopy';
+import { INTRO_VIDEO_ENCOURAGEMENT, INTRO_VIDEO_PROMPT, INTRO_VIDEO_UPLOAD_ANY, INTRO_VIDEO_UPLOAD_ANY_HEADLINE, INTRO_VIDEO_UPLOAD_ANY_SHORT } from '../constants/introVideoCopy';
 import { hasIntroVideo } from '../utils/connectSetup';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import {
@@ -495,13 +495,14 @@ export default function CreateProfileScreen() {
       isOnboardingLayout && typeof introVideoUrl === 'string' && introVideoUrl.trim().length > 0;
     const showIntroBadge = isOnboardingLayout && onboardingSqueeze >= 0.76;
     const showIntroEncourage = isOnboardingLayout && !onboardingTight;
-    const showIntroLibrary = isOnboardingLayout && !onboardingTight;
+    const showIntroLibrary = isOnboardingLayout;
     const introCardPadding = sq(Math.round(14 * scaleW)) * 2;
     const introChromeFixed =
       introCardPadding +
       (onboardingSqueeze >= 0.78 ? sq(22) : 0) +
       sq(onboardingVeryTight ? 28 : onboardingTight ? 34 : 44) +
       (showIntroBadge ? sq(30) : 0) +
+      sq(onboardingVeryTight ? 36 : onboardingTight ? 44 : 56) +
       (showIntroEncourage ? sq(34) : 0) +
       sq(48) +
       (showIntroLibrary ? sq(44) : 0) +
@@ -2017,6 +2018,30 @@ export default function CreateProfileScreen() {
               : INTRO_VIDEO_PROMPT}
           </Text>
 
+          <View
+            style={[
+              styles.onboardingIntroUploadAnyCallout,
+              rs.onboardingVeryTight && styles.onboardingIntroUploadAnyCalloutCompact,
+            ]}
+          >
+            <Text
+              style={[
+                styles.onboardingIntroUploadAnyHeadline,
+                rs.onboardingVeryTight && styles.onboardingIntroUploadAnyHeadlineCompact,
+              ]}
+              numberOfLines={rs.onboardingVeryTight ? 3 : 2}
+            >
+              {rs.onboardingVeryTight
+                ? INTRO_VIDEO_UPLOAD_ANY_SHORT
+                : INTRO_VIDEO_UPLOAD_ANY_HEADLINE}
+            </Text>
+            {!rs.onboardingVeryTight ? (
+              <Text style={styles.onboardingIntroUploadAnyBody} numberOfLines={4}>
+                {INTRO_VIDEO_UPLOAD_ANY}
+              </Text>
+            ) : null}
+          </View>
+
           <View style={styles.onboardingIntroExampleWrap}>
             <IntroVideoExamplePlayer
               compact
@@ -2090,7 +2115,22 @@ export default function CreateProfileScreen() {
                 </View>
               </LinearGradient>
             </TouchableOpacity>
-          ) : null}
+          ) : (
+            <TouchableOpacity
+              style={[styles.onboardingIntroLibraryBtn, styles.onboardingIntroLibraryBtnCompact]}
+              onPress={() => setShowIntroVideoModal(true)}
+              activeOpacity={0.88}
+            >
+              <LinearGradient
+                colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.08)']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.onboardingIntroLibraryGradCompact}
+              >
+                <Text style={styles.onboardingIntroLibraryTextCompact}>🎞 Upload from camera roll</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          )}
           {introVideoValid && showIntroSavedToast ? (
             <Animated.View
               style={[
@@ -5057,6 +5097,47 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.22)',
   },
+  onboardingIntroUploadAnyCallout: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 8,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.12,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  onboardingIntroUploadAnyCalloutCompact: {
+    paddingVertical: 7,
+    paddingHorizontal: 10,
+    marginBottom: 6,
+    borderRadius: 10,
+  },
+  onboardingIntroUploadAnyHeadline: {
+    color: '#fff',
+    fontSize: 12,
+    lineHeight: 17,
+    textAlign: 'center',
+    fontWeight: '700',
+    letterSpacing: 0.15,
+  },
+  onboardingIntroUploadAnyHeadlineCompact: {
+    fontSize: 10,
+    lineHeight: 14,
+    fontWeight: '700',
+  },
+  onboardingIntroUploadAnyBody: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 11,
+    lineHeight: 15,
+    textAlign: 'center',
+    fontWeight: '500',
+    marginTop: 4,
+  },
   onboardingIntroEncourageText: {
     color: 'rgba(255,255,255,0.95)',
     fontSize: 10,
@@ -5070,12 +5151,30 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     overflow: 'hidden',
   },
+  onboardingIntroLibraryBtnCompact: {
+    marginTop: 4,
+    borderRadius: 12,
+  },
   onboardingIntroLibraryGrad: {
     paddingVertical: 11,
     paddingHorizontal: 14,
     borderRadius: 14,
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  onboardingIntroLibraryGradCompact: {
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    alignItems: 'center',
+  },
+  onboardingIntroLibraryTextCompact: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 12,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   onboardingIntroLibraryInner: {
     flexDirection: 'row',

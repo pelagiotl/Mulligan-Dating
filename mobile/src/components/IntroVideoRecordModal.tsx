@@ -18,6 +18,8 @@ import {
   INTRO_VIDEO_ENCOURAGEMENT,
   INTRO_VIDEO_PROMPT,
   INTRO_VIDEO_TIPS,
+  INTRO_VIDEO_UPLOAD_ANY,
+  INTRO_VIDEO_UPLOAD_ANY_HEADLINE,
   INTRO_VIDEO_MAX_DURATION_MS,
   INTRO_VIDEO_MAX_DURATION_SEC,
   introVideoDurationError,
@@ -165,6 +167,11 @@ export default function IntroVideoRecordModal({
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={styles.lead}>{INTRO_VIDEO_PROMPT}</Text>
 
+          <View style={styles.uploadAnyCallout}>
+            <Text style={styles.uploadAnyHeadline}>{INTRO_VIDEO_UPLOAD_ANY_HEADLINE}</Text>
+            <Text style={styles.uploadAnyBody}>{INTRO_VIDEO_UPLOAD_ANY}</Text>
+          </View>
+
           <IntroVideoExamplePlayer />
 
           <View style={styles.encourageBox}>
@@ -205,7 +212,7 @@ export default function IntroVideoRecordModal({
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.secondaryBtn} onPress={pickFromLibrary} disabled={uploading}>
-            <Text style={styles.secondaryText}>Choose from library</Text>
+            <Text style={styles.secondaryText}>Upload from camera roll</Text>
           </TouchableOpacity>
 
           {localUri ? (
@@ -246,6 +253,29 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
   scroll: { paddingHorizontal: 20, paddingBottom: 24 },
   lead: { color: 'rgba(255,255,255,0.88)', fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  uploadAnyCallout: {
+    backgroundColor: 'rgba(255, 255, 255, 0.12)',
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.35)',
+  },
+  uploadAnyHeadline: {
+    color: '#fff',
+    fontSize: 15,
+    lineHeight: 21,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 6,
+  },
+  uploadAnyBody: {
+    color: 'rgba(255,255,255,0.92)',
+    fontSize: 13,
+    lineHeight: 19,
+    textAlign: 'center',
+    fontWeight: '500',
+  },
   encourageBox: {
     backgroundColor: 'rgba(245, 87, 108, 0.12)',
     borderRadius: 12,
