@@ -136,44 +136,50 @@ const FastTabBarButton = React.memo(function FastTabBarButton(
     [key: string]: unknown;
   }
 ) {
-  const { requiresProfile, refs, accessibilityState, children, style, ...rest } = props;
+  const { requiresProfile, refs, accessibilityState, children, style, onPress, ...rest } = props;
   const navigation = useNavigation();
   const route = useRoute();
   const isFocused = accessibilityState?.selected === true;
 
-  const handlePress = React.useCallback(() => {
-    const profile = refs?.profileRef?.current;
-    const loading = refs?.loadingRef?.current;
-    if (requiresProfile && !profile && !loading) {
-      Alert.alert(
-        'Profile Required',
-        'We could not load your profile. Open Settings to finish setup, or try logging in again.',
-        [
-          {
-            text: 'Open Settings',
-            onPress: () => {
-              try {
-                (navigation as any).navigate('Settings');
-              } catch (err) {
-                console.error('Navigation error:', err);
-              }
+  const handlePress = React.useCallback(
+    (event: Parameters<NonNullable<typeof onPress>>[0]) => {
+      const profile = refs?.profileRef?.current;
+      const loading = refs?.loadingRef?.current;
+      if (requiresProfile && !profile && !loading) {
+        Alert.alert(
+          'Profile Required',
+          'We could not load your profile. Open Settings to finish setup, or try logging in again.',
+          [
+            {
+              text: 'Open Settings',
+              onPress: () => {
+                try {
+                  (navigation as any).navigate('Settings');
+                } catch (err) {
+                  console.error('Navigation error:', err);
+                }
+              },
             },
-          },
-          { text: 'Cancel', style: 'cancel' },
-        ]
-      );
-      return;
-    }
-    if (!isFocused) {
-      (navigation as any).navigate(route.name);
-    }
-    setTimeout(() => {
-      try {
-        if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
-        else Vibration.vibrate(30);
-      } catch (_) {}
-    }, 0);
-  }, [requiresProfile, refs, isFocused, navigation, route.name]);
+            { text: 'Cancel', style: 'cancel' },
+          ]
+        );
+        return;
+      }
+      // React Navigation's onPress emits tabPress and navigates — required for reliable tab switching on iPad.
+      if (typeof onPress === 'function') {
+        onPress(event);
+      } else if (!isFocused) {
+        (navigation as any).navigate(route.name);
+      }
+      setTimeout(() => {
+        try {
+          if (Platform.OS === 'ios') Vibration.vibrate([0, 30]);
+          else Vibration.vibrate(30);
+        } catch (_) {}
+      }, 0);
+    },
+    [requiresProfile, refs, isFocused, navigation, route.name, onPress]
+  );
 
   return (
     <Pressable {...rest} onPress={handlePress} style={style as any} accessibilityState={accessibilityState}>
@@ -211,6 +217,8 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const { mode: connectShellMode } = useConnectShellTheme();
   const shellMidnight = connectShellMode === 'midnight';
+  // Floating absolute tab bar on iPhone only — on iPad it lets scene content steal touches (App Review 2.1a).
+  const useFloatingIosTabBar = Platform.OS === 'ios' && !Platform.isPad;
 
   // Stable tab bar button factory — same reference always so options are stable
   const createTabBarButton = React.useCallback((requiresProfile: boolean) => (buttonProps: any) => (
@@ -368,12 +376,13 @@ function MainTabs() {
       // Keep iOS rounded aesthetic; gentler radius with Admin tab so first label isn't clipped.
       borderTopLeftRadius: Platform.OS === 'ios' ? (isAdmin ? 18 : 24) : 0,
       borderTopRightRadius: Platform.OS === 'ios' ? (isAdmin ? 18 : 24) : 0,
-      // On Android, keep the tab bar in normal layout flow so it docks flush to the bottom.
-      // iOS keeps absolute positioning for the glassy floating style.
-      position: Platform.OS === 'ios' ? ('absolute' as const) : ('relative' as const),
-      left: Platform.OS === 'ios' ? 0 : undefined,
-      right: Platform.OS === 'ios' ? 0 : undefined,
-      bottom: Platform.OS === 'ios' ? 0 : undefined,
+      // On Android and iPad, keep the tab bar in normal layout flow so it docks flush to the bottom.
+      // iPhone keeps absolute positioning for the glassy floating style.
+      width: '100%',
+      position: useFloatingIosTabBar ? ('absolute' as const) : ('relative' as const),
+      left: useFloatingIosTabBar ? 0 : undefined,
+      right: useFloatingIosTabBar ? 0 : undefined,
+      bottom: useFloatingIosTabBar ? 0 : undefined,
       marginBottom: 0,
       zIndex: 1000,
       elevation: shellMidnight ? 14 : 16,
@@ -408,7 +417,7 @@ function MainTabs() {
     },
     tabBarShowLabel: true,
     tabBarHideOnKeyboard: true,
-  }), [insets.bottom, shellMidnight, isAdmin]);
+  }), [insets.bottom, shellMidnight, isAdmin, useFloatingIosTabBar]);
 
   return (
     <View style={{ flex: 1 }}>
@@ -698,7 +707,11 @@ export default function AppNavigator() {
           </Stack.Navigator>
         </NavigationContainer>
         {showAuthOverlay ? (
-          <View style={styles.loadingOverlay} pointerEvents="auto">
+          <View
+            style={styles.loadingOverlay}
+            // After login, never block tab bar / screen touches during background profile refresh.
+            pointerEvents={user ? 'none' : 'auto'}
+          >
             <ActivityIndicator size="small" color="#8B1538" />
           </View>
         ) : null}
