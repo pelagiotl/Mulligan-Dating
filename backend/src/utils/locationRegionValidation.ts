@@ -2,6 +2,7 @@ import {
   getActiveMatchingRegion,
   isLikelyInRegionByText,
   isWithinRegionServiceRadius,
+  lookupSouthernOregonCityCoordinates,
   milesFromServiceCenter,
   normalizeRegionLocationInput,
   REGION_MAX_DISTANCE_MILES,
@@ -37,9 +38,19 @@ async function geocodeWithinServiceArea(
   location: string,
   regionId: string,
 ): Promise<{ lat: number; lng: number } | null> {
+  const local = lookupSouthernOregonCityCoordinates(location);
+  if (local && isWithinRegionServiceRadius(local.lat, local.lng, regionId)) {
+    return local;
+  }
+
   let bestOutside: { lat: number; lng: number } | null = null;
 
   for (const query of geocodeQueriesForRegionCheck(location)) {
+    const localQuery = lookupSouthernOregonCityCoordinates(query);
+    if (localQuery && isWithinRegionServiceRadius(localQuery.lat, localQuery.lng, regionId)) {
+      return localQuery;
+    }
+
     const geo = await geocodeLocation(query);
     if (!geo.coordinates) continue;
     if (isWithinRegionServiceRadius(geo.coordinates.lat, geo.coordinates.lng, regionId)) {
@@ -64,6 +75,11 @@ export async function validateLocationForActiveRegion(
 
   const text = location.trim();
   if (isLikelyInRegionByText(text, regionId)) return { ok: true };
+
+  const local = lookupSouthernOregonCityCoordinates(text);
+  if (local && isWithinRegionServiceRadius(local.lat, local.lng, regionId)) {
+    return { ok: true };
+  }
 
   const geo = await geocodeWithinServiceArea(text, regionId);
   if (geo) {

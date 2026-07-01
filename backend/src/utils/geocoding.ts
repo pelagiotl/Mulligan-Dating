@@ -3,12 +3,14 @@
  * Supports multiple providers: Mapbox, Google Maps, and Nominatim (free fallback)
  */
 
-import { lookupSouthernOregonCityCoordinates } from '../config/regions.js';
+import { lookupSouthernOregonCityCoordinates, SOUTHERN_OREGON_SERVICE_CENTER } from '../config/regions.js';
 
 interface Coordinates {
   lat: number;
   lng: number;
 }
+
+const SOUTHERN_OREGON_GEOCODE_BIAS = SOUTHERN_OREGON_SERVICE_CENTER;
 
 interface GeocodeResult {
   coordinates: Coordinates | null;
@@ -28,15 +30,9 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult> 
     return { coordinates: null, formatted: null };
   }
 
-  // Check cache first
   const cacheKey = location.toLowerCase().trim();
-  const cached = geocodeCache.get(cacheKey);
-  const cacheTime = cacheTimestamps.get(cacheKey);
-  
-  if (cached && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
-    return cached;
-  }
 
+  // Known Rogue Valley cities always win — avoids bad Mapbox/Nominatim hits (e.g. Gold Hill, AU).
   const localCoords = lookupSouthernOregonCityCoordinates(location);
   if (localCoords) {
     const result = { coordinates: localCoords, formatted: location.trim() };
@@ -44,6 +40,13 @@ export async function geocodeLocation(location: string): Promise<GeocodeResult> 
     cacheTimestamps.set(cacheKey, Date.now());
     console.log(`✅ Geocoded "${location}" using local Southern Oregon lookup:`, localCoords);
     return result;
+  }
+
+  const cached = geocodeCache.get(cacheKey);
+  const cacheTime = cacheTimestamps.get(cacheKey);
+
+  if (cached && cacheTime && Date.now() - cacheTime < CACHE_TTL) {
+    return cached;
   }
 
   // Try providers in order of preference
@@ -119,7 +122,10 @@ async function geocodeWithMapbox(location: string): Promise<GeocodeResult> {
   }
 
   const encodedLocation = encodeURIComponent(location);
-  const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedLocation}.json?access_token=${apiKey}&limit=1`;
+  const { lat: biasLat, lng: biasLng } = SOUTHERN_OREGON_GEOCODE_BIAS;
+  const url =
+    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodedLocation}.json` +
+    `?access_token=${apiKey}&limit=5&country=US&proximity=${biasLng},${biasLat}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -133,7 +139,16 @@ async function geocodeWithMapbox(location: string): Promise<GeocodeResult> {
     }>;
   };
   if (data.features && data.features.length > 0) {
-    const feature = data.features[0];
+    const inOregonOrNearby = data.features.find((feature) => {
+      const [lng, lat] = feature.center;
+      return (
+        lat >= 41 &&
+        lat <= 46 &&
+        lng <= -116 &&
+        lng >= -125
+      );
+    });
+    const feature = inOregonOrNearby ?? data.features[0];
     const [lng, lat] = feature.center;
     return {
       coordinates: { lat, lng },
@@ -155,7 +170,9 @@ async function geocodeWithGoogle(location: string): Promise<GeocodeResult> {
   }
 
   const encodedLocation = encodeURIComponent(location);
-  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}&key=${apiKey}`;
+  const url =
+    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodedLocation}` +
+    `&components=country:US&region=us&key=${apiKey}`;
 
   const response = await fetch(url);
   if (!response.ok) {
@@ -187,7 +204,9 @@ async function geocodeWithGoogle(location: string): Promise<GeocodeResult> {
  */
 async function geocodeWithNominatim(location: string): Promise<GeocodeResult> {
   const encodedLocation = encodeURIComponent(location);
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodedLocation}&format=json&limit=1&addressdetails=1`;
+  const url =
+    `https://nominatim.openstreetmap.org/search?q=${encodedLocation}` +
+    `&format=json&limit=5&addressdetails=1&countrycodes=us`;
 
   // Add a small delay to respect rate limits (1 request per second)
   await new Promise(resolve => setTimeout(resolve, 1100));
@@ -208,7 +227,12 @@ async function geocodeWithNominatim(location: string): Promise<GeocodeResult> {
     display_name: string;
   }>;
   if (data && data.length > 0) {
-    const result = data[0];
+    const inPacificNorthwest = data.find((row) => {
+      const lat = parseFloat(row.lat);
+      const lng = parseFloat(row.lon);
+      return lat >= 41 && lat <= 46 && lng <= -116 && lng >= -125;
+    });
+    const result = inPacificNorthwest ?? data[0];
     return {
       coordinates: {
         lat: parseFloat(result.lat),

@@ -93,9 +93,21 @@ const SOUTHERN_OREGON_CITY_PATTERNS: RegExp[] = [
   /\bwolf creek\b/,
 ];
 
+const SOUTHERN_OREGON_KNOWN_CITIES = new Set(
+  SOUTHERN_OREGON_CITY_PATTERNS.map((re) => {
+    const source = re.source.replace(/\\b/g, '');
+    return source.trim();
+  }),
+);
+
 export function isLikelyInSouthernOregonByText(location: string | null | undefined): boolean {
   if (!location?.trim()) return false;
   const normalized = normalizeRegionLocationInput(location);
+
+  const city = normalized.split(',')[0]?.trim().toLowerCase() ?? '';
+  if (city && SOUTHERN_OREGON_KNOWN_CITIES.has(city)) {
+    return true;
+  }
 
   const hasRegionalCity = SOUTHERN_OREGON_CITY_PATTERNS.some((re) => re.test(normalized));
   const hasOregonMarker = /\b(or|oregon)\b/.test(normalized);

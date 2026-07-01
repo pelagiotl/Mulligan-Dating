@@ -15,18 +15,16 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  INTRO_VIDEO_ENCOURAGEMENT,
   INTRO_VIDEO_PROMPT,
   INTRO_VIDEO_TIPS,
-  INTRO_VIDEO_UPLOAD_ANY,
-  INTRO_VIDEO_UPLOAD_ANY_HEADLINE,
   INTRO_VIDEO_MAX_DURATION_MS,
   INTRO_VIDEO_MAX_DURATION_SEC,
   introVideoDurationError,
 } from '../constants/introVideoCopy';
 import IntroVideoExamplePlayer from './IntroVideoExamplePlayer';
+import IntroVideoUploadCallout from './IntroVideoUploadCallout';
 import IntroVideoPreview from './IntroVideoPreview';
-import { resolveIntroVideoUrl, uploadProfileIntroVideo, type IntroVideoUploadStage } from '../utils/introVideo';
+import { resolveIntroVideoUrl, uploadProfileIntroVideo, prefetchIntroVideoUpload, prefetchIntroVideoUploadParams, clearIntroVideoUploadPrefetch, type IntroVideoUploadStage } from '../utils/introVideo';
 
 const UPLOAD_STAGE_LABEL: Record<IntroVideoUploadStage, string> = {
   preparing: 'Preparing video…',
@@ -67,8 +65,17 @@ export default function IntroVideoRecordModal({
       setLocalDurationMs(null);
       setUploading(false);
       setUploadStage(null);
+      clearIntroVideoUploadPrefetch();
+      return;
     }
+    prefetchIntroVideoUploadParams();
   }, [visible]);
+
+  useEffect(() => {
+    if (localUri) {
+      prefetchIntroVideoUpload(localUri);
+    }
+  }, [localUri]);
 
   const setPickedVideo = useCallback((asset: { uri: string; duration?: number | null }) => {
     const uri = acceptPickedVideo(asset);
@@ -91,10 +98,10 @@ export default function IntroVideoRecordModal({
       const result = await ImagePicker.launchCameraAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         videoMaxDuration: INTRO_VIDEO_MAX_DURATION_SEC,
-        quality: 0.7,
+        quality: 0.5,
         cameraType: ImagePicker.CameraType.front,
         ...(Platform.OS === 'ios'
-          ? { videoExportPreset: ImagePicker.VideoExportPreset.Medium }
+          ? { videoExportPreset: ImagePicker.VideoExportPreset.H264_640x480 }
           : {}),
       });
       if (!result.canceled && result.assets[0]?.uri) {
@@ -115,9 +122,9 @@ export default function IntroVideoRecordModal({
       const result = await ImagePicker.launchImageLibraryAsync({
         mediaTypes: ImagePicker.MediaTypeOptions.Videos,
         videoMaxDuration: INTRO_VIDEO_MAX_DURATION_SEC,
-        quality: 0.7,
+        quality: 0.5,
         ...(Platform.OS === 'ios'
-          ? { videoExportPreset: ImagePicker.VideoExportPreset.Medium }
+          ? { videoExportPreset: ImagePicker.VideoExportPreset.H264_640x480 }
           : {}),
       });
       if (!result.canceled && result.assets[0]?.uri) {
@@ -167,16 +174,9 @@ export default function IntroVideoRecordModal({
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
           <Text style={styles.lead}>{INTRO_VIDEO_PROMPT}</Text>
 
-          <View style={styles.uploadAnyCallout}>
-            <Text style={styles.uploadAnyHeadline}>{INTRO_VIDEO_UPLOAD_ANY_HEADLINE}</Text>
-            <Text style={styles.uploadAnyBody}>{INTRO_VIDEO_UPLOAD_ANY}</Text>
-          </View>
+          <IntroVideoUploadCallout />
 
           <IntroVideoExamplePlayer />
-
-          <View style={styles.encourageBox}>
-            <Text style={styles.encourageText}>{INTRO_VIDEO_ENCOURAGEMENT}</Text>
-          </View>
 
           <View style={styles.playerWrap}>
             {previewSource ? (
@@ -253,44 +253,6 @@ const styles = StyleSheet.create({
   headerTitle: { color: '#fff', fontSize: 17, fontWeight: '700' },
   scroll: { paddingHorizontal: 20, paddingBottom: 24 },
   lead: { color: 'rgba(255,255,255,0.88)', fontSize: 15, lineHeight: 22, marginBottom: 12 },
-  uploadAnyCallout: {
-    backgroundColor: 'rgba(255, 255, 255, 0.12)',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.35)',
-  },
-  uploadAnyHeadline: {
-    color: '#fff',
-    fontSize: 15,
-    lineHeight: 21,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: 6,
-  },
-  uploadAnyBody: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-    fontWeight: '500',
-  },
-  encourageBox: {
-    backgroundColor: 'rgba(245, 87, 108, 0.12)',
-    borderRadius: 12,
-    padding: 12,
-    marginBottom: 14,
-    borderWidth: 1,
-    borderColor: 'rgba(245, 87, 108, 0.28)',
-  },
-  encourageText: {
-    color: 'rgba(255,255,255,0.92)',
-    fontSize: 13,
-    lineHeight: 19,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
   playerWrap: {
     marginBottom: 16,
     alignSelf: 'center',

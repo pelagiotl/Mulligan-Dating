@@ -19,6 +19,83 @@ type UploadOptions = {
   knownDurationMs?: number | null;
 };
 
+type PreparedIntroVideo = { uri: string; mimeType: string; name: string };
+
+let prefetchedUploadParams: CloudinaryDirectUploadParams | null = null;
+let uploadParamsPromise: Promise<CloudinaryDirectUploadParams | null> | null = null;
+let preparedIntroVideo: { sourceUri: string; prepared: PreparedIntroVideo } | null = null;
+let prepareIntroPromise: Promise<PreparedIntroVideo> | null = null;
+
+/** Fetch signed Cloudinary params early (modal open) so "Use this video" skips a round trip. */
+export function prefetchIntroVideoUploadParams(): void {
+  if (uploadParamsPromise || prefetchedUploadParams) return;
+  uploadParamsPromise = api
+    .post<CloudinaryDirectUploadParams>('/profile/intro-video/upload-params', {})
+    .then((params) => {
+      prefetchedUploadParams = params;
+      return params;
+    })
+    .catch((err) => {
+      if (err instanceof ApiError && (err.status === 503 || err.status === 404)) {
+        return null;
+      }
+      throw formatUploadError(err);
+    });
+}
+
+/** Warm upload-params + file prep while the user previews their clip. */
+export function prefetchIntroVideoUpload(localUri: string): void {
+  prefetchIntroVideoUploadParams();
+  if (preparedIntroVideo?.sourceUri !== localUri || !prepareIntroPromise) {
+    preparedIntroVideo = null;
+    prepareIntroPromise = prepareIntroVideoUri(localUri).then((prepared) => {
+      preparedIntroVideo = { sourceUri: localUri, prepared };
+      return prepared;
+    });
+  }
+
+  if (!uploadParamsPromise && !prefetchedUploadParams) {
+    prefetchIntroVideoUploadParams();
+  }
+}
+
+export function clearIntroVideoUploadPrefetch(): void {
+  prefetchedUploadParams = null;
+  uploadParamsPromise = null;
+  preparedIntroVideo = null;
+  prepareIntroPromise = null;
+}
+
+async function resolvePreparedIntroVideo(localUri: string): Promise<PreparedIntroVideo> {
+  if (preparedIntroVideo?.sourceUri === localUri) {
+    return prepareIntroPromise ?? preparedIntroVideo.prepared;
+  }
+  return prepareIntroVideoUri(localUri);
+}
+
+async function resolveUploadParams(): Promise<CloudinaryDirectUploadParams | null> {
+  if (prefetchedUploadParams) return prefetchedUploadParams;
+  if (uploadParamsPromise) {
+    return uploadParamsPromise;
+  }
+  try {
+    const params = await api.post<CloudinaryDirectUploadParams>(
+      '/profile/intro-video/upload-params',
+      {},
+    );
+    prefetchedUploadParams = params;
+    return params;
+  } catch (paramsErr) {
+    if (
+      paramsErr instanceof ApiError &&
+      (paramsErr.status === 503 || paramsErr.status === 404)
+    ) {
+      return null;
+    }
+    throw formatUploadError(paramsErr);
+  }
+}
+
 type CloudinaryDirectUploadParams = {
   cloudName: string;
   apiKey: string;
@@ -66,6 +143,13 @@ async function prepareIntroVideoUri(localUri: string): Promise<{ uri: string; mi
   }
 
   if (FileSystem.cacheDirectory && localUri.startsWith(FileSystem.cacheDirectory)) {
+    return { uri: localUri, mimeType, name };
+  }
+
+  // file:// paths without spaces/special chars upload reliably — skip slow copy step.
+  const safeFileUri =
+    localUri.startsWith('file://') && !/[#\s?]/.test(localUri.slice('file://'.length));
+  if (safeFileUri) {
     return { uri: localUri, mimeType, name };
   }
 
@@ -283,33 +367,34 @@ export async function uploadProfileIntroVideo(
   }
 
   options?.onStage?.('preparing');
-  const { uri, mimeType, name } = await prepareIntroVideoUri(localUri);
-  if (options?.knownDurationMs != null) {
-    if (options.knownDurationMs > INTRO_VIDEO_MAX_DURATION_MS + DURATION_TOLERANCE_MS) {
-      throw new Error(introVideoDurationError(options.knownDurationMs));
-    }
-  } else {
-    await assertIntroVideoDuration(uri);
-  }
 
-  let params: CloudinaryDirectUploadParams | null = null;
-  try {
-    params = await api.post<CloudinaryDirectUploadParams>('/profile/intro-video/upload-params', {});
-  } catch (paramsErr) {
-    if (
-      paramsErr instanceof ApiError &&
-      (paramsErr.status === 503 || paramsErr.status === 404)
-    ) {
-      options?.onStage?.('uploading');
-      return uploadViaBackendProxy(uri, mimeType, name, token);
-    }
-    throw formatUploadError(paramsErr);
+  const durationCheck =
+    options?.knownDurationMs != null
+      ? options.knownDurationMs > INTRO_VIDEO_MAX_DURATION_MS + DURATION_TOLERANCE_MS
+        ? Promise.reject(new Error(introVideoDurationError(options.knownDurationMs)))
+        : Promise.resolve()
+      : assertIntroVideoDuration(localUri);
+
+  const [prepared, params] = await Promise.all([
+    resolvePreparedIntroVideo(localUri),
+    resolveUploadParams(),
+    durationCheck,
+  ]).then(([resolvedPrepared, resolvedParams]) => [resolvedPrepared, resolvedParams] as const);
+
+  const { uri, mimeType, name } = prepared;
+
+  if (!params) {
+    options?.onStage?.('uploading');
+    clearIntroVideoUploadPrefetch();
+    return uploadViaBackendProxy(uri, mimeType, name, token);
   }
 
   options?.onStage?.('uploading');
   const uploaded = await uploadDirectToCloudinary(uri, mimeType, params);
   options?.onStage?.('finishing');
-  return confirmIntroVideoOnServer(uploaded.secureUrl, uploaded.durationSec);
+  const introVideoUrl = await confirmIntroVideoOnServer(uploaded.secureUrl, uploaded.durationSec);
+  clearIntroVideoUploadPrefetch();
+  return introVideoUrl;
 }
 
 /** Bundled founder/example clip for onboarding Step 3. */

@@ -219,6 +219,10 @@ export function isLikelyInRegionByText(location: string | null | undefined, regi
   if (!location || !regionId) return false;
   const normalized = normalizeRegionLocationInput(location);
 
+  if (regionId === 'southern_oregon' && lookupSouthernOregonCityCoordinates(normalized)) {
+    return true;
+  }
+
   if (regionId !== 'southern_oregon') return false;
 
   const hasRegionalCity = SOUTHERN_OREGON_CITY_PATTERNS.some((re) => re.test(normalized));

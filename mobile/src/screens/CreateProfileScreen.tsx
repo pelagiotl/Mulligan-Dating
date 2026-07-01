@@ -67,7 +67,8 @@ import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '..
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
 import IntroVideoExamplePlayer from '../components/IntroVideoExamplePlayer';
-import { INTRO_VIDEO_ENCOURAGEMENT, INTRO_VIDEO_PROMPT, INTRO_VIDEO_UPLOAD_ANY, INTRO_VIDEO_UPLOAD_ANY_HEADLINE, INTRO_VIDEO_UPLOAD_ANY_SHORT } from '../constants/introVideoCopy';
+import IntroVideoUploadCallout from '../components/IntroVideoUploadCallout';
+import { INTRO_VIDEO_PROMPT } from '../constants/introVideoCopy';
 import { hasIntroVideo } from '../utils/connectSetup';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import {
@@ -461,7 +462,9 @@ export default function CreateProfileScreen() {
     const scaleH = Math.min(Math.max(h / 812, 0.85), 1.1);
     // Fit three onboarding cards in the viewport without scrolling (name, location, intro video).
     const isOnboardingLayout = isOnboardingWizard && step === 1;
-    const headerBudget = Platform.OS === 'android' ? 82 : 94;
+    const headerBudget = Platform.OS === 'android' ? 82 : 96;
+    const stepIndicatorBudget = 40;
+    const onboardingHintBudget = isOnboardingLayout ? 28 : 0;
     // Footer stays mounted during onboarding (compact while keyboard open) so layout does not jump.
     const footerBudget = isOnboardingLayout
       ? keyboardHeight > 0
@@ -470,7 +473,7 @@ export default function CreateProfileScreen() {
           : 76
         : Platform.OS === 'android'
           ? 108
-          : 110
+          : 112
       : Platform.OS === 'android'
         ? 96
         : 98;
@@ -479,57 +482,73 @@ export default function CreateProfileScreen() {
         ? Math.max(0, keyboardHeight - insets.bottom)
         : 0;
     const bodyBudget =
-      h - insets.top - insets.bottom - headerBudget - footerBudget - keyboardOverlap;
+      h -
+      insets.top -
+      insets.bottom -
+      headerBudget -
+      stepIndicatorBudget -
+      onboardingHintBudget -
+      footerBudget -
+      keyboardOverlap;
     // Name ~84, location ~68–96, intro chrome ~84–104 (excl. player), gaps — player height filled dynamically.
-    const threeCardStackEstimate = 84 + 96 + 220 + 72 + 12;
+    const threeCardStackEstimate = 84 + 96 + 200 + 68 + 12;
     const rawSqueeze = bodyBudget / threeCardStackEstimate;
     const minSqueeze = isOnboardingLayout && keyboardHeight > 0 ? 0.52 : 0.58;
     const onboardingSqueeze = Math.min(1, Math.max(minSqueeze, rawSqueeze));
     const sq = (n: number) => Math.round(n * onboardingSqueeze);
     const onboardingTight = onboardingSqueeze < 0.88;
     const onboardingVeryTight = onboardingSqueeze < 0.76;
+    const showOnboardingIntroExample = onboardingSqueeze >= 0.95;
+    const onboardingUseIntroActionRow = isOnboardingLayout;
     const locationStackEstimate = onboardingVeryTight ? 68 : onboardingTight ? 78 : 96;
     const locationStack = sq(locationStackEstimate);
     const nameLocStack = sq(84) + locationStack + sq(6) * 2;
     const introVideoSaved =
       isOnboardingLayout && typeof introVideoUrl === 'string' && introVideoUrl.trim().length > 0;
     const showIntroBadge = isOnboardingLayout && onboardingSqueeze >= 0.76;
-    const showIntroEncourage = isOnboardingLayout && !onboardingTight;
-    const showIntroLibrary = isOnboardingLayout;
+    const showIntroLibrary = false;
     const introCardPadding = sq(Math.round(14 * scaleW)) * 2;
+    const showIntroPromptLine = isOnboardingLayout && onboardingVeryTight;
+    const introCalloutEstimate = sq(onboardingVeryTight ? 38 : onboardingTight ? 48 : 62);
+    const introExampleEstimate = showOnboardingIntroExample
+      ? sq(onboardingVeryTight ? 72 : onboardingTight ? 84 : 96) + sq(8)
+      : sq(34);
+    const introActionsEstimate = onboardingUseIntroActionRow ? sq(44) : sq(44) + sq(onboardingTight ? 36 : 40);
     const introChromeFixed =
       introCardPadding +
       (onboardingSqueeze >= 0.78 ? sq(22) : 0) +
-      sq(onboardingVeryTight ? 28 : onboardingTight ? 34 : 44) +
-      (showIntroBadge ? sq(30) : 0) +
-      sq(onboardingVeryTight ? 36 : onboardingTight ? 44 : 56) +
-      (showIntroEncourage ? sq(34) : 0) +
-      sq(48) +
-      (showIntroLibrary ? sq(44) : 0) +
-      (introVideoSaved ? sq(onboardingVeryTight ? 46 : 54) : 0) +
-      sq(10);
-    const layoutSafetyMargin = 28;
-    const introPlayerMinHeight = onboardingVeryTight ? 68 : 76;
-    const introPlayerMaxCap = onboardingVeryTight ? 84 : onboardingTight ? 96 : 112;
-    const introPlayerMaxHeight = Math.max(
-      introPlayerMinHeight,
-      Math.min(
-        introPlayerMaxCap,
-        Math.floor(
-          bodyBudget -
-            nameLocStack -
-            introChromeFixed -
-            layoutSafetyMargin -
-            sq(18),
-        ),
-      ),
-    );
+      (showIntroPromptLine ? sq(28) : 0) +
+      introCalloutEstimate +
+      introExampleEstimate +
+      introActionsEstimate +
+      (introVideoSaved ? sq(onboardingVeryTight ? 40 : 48) : 0) +
+      sq(8);
+    const layoutSafetyMargin = 56;
+    const introPlayerMinHeight = onboardingVeryTight ? 56 : 64;
+    const introPlayerMaxCap = onboardingVeryTight ? 68 : onboardingTight ? 76 : 88;
+    const introPlayerMaxHeight = showOnboardingIntroExample
+      ? Math.max(
+          introPlayerMinHeight,
+          Math.min(
+            introPlayerMaxCap,
+            Math.floor(
+              bodyBudget -
+                nameLocStack -
+                introChromeFixed +
+                introExampleEstimate -
+                layoutSafetyMargin -
+                sq(18),
+            ),
+          ),
+        )
+      : 0;
     const estimatedStackHeight =
-      nameLocStack + introChromeFixed + introPlayerMaxHeight + sq(18);
+      nameLocStack + introChromeFixed + (showOnboardingIntroExample ? introPlayerMaxHeight : 0) + sq(18);
     const onboardingFitsWithoutScroll =
       estimatedStackHeight <= bodyBudget - layoutSafetyMargin;
     const onboardingOverflow = !onboardingFitsWithoutScroll;
-    const onboardingScrollBottomInset = onboardingFitsWithoutScroll ? sq(8) : sq(24);
+    const onboardingScrollBottomInset = sq(20);
+    const onboardingIntroSectionMarginBottom = sq(12);
     return {
       sectionMinHeight: h * 0.62,
       sectionPaddingH: Math.round(20 * scaleW),
@@ -555,13 +574,16 @@ export default function CreateProfileScreen() {
       onboardingSubtitleSize: sq(Math.round(10 * scaleW)),
       onboardingSubtitleLineHeight: sq(Math.round(13 * scaleW)),
       onboardingSubtitleMargin: sq(Math.round(4 * scaleH)),
-      onboardingSectionsGap: sq(6),
+      onboardingSectionsGap: sq(onboardingVeryTight ? 4 : 6),
       showOnboardingStepPill: onboardingSqueeze >= 0.78,
       showOnboardingCardEmoji: onboardingSqueeze >= 0.86,
       onboardingTight,
       onboardingVeryTight,
+      showOnboardingIntroExample,
+      onboardingUseIntroActionRow,
       onboardingIntroPlayerMaxHeight: introPlayerMaxHeight,
       onboardingScrollBottomInset,
+      onboardingIntroSectionMarginBottom,
       onboardingFitsWithoutScroll,
       onboardingOverflow,
       onboardingSqueeze,
@@ -775,7 +797,7 @@ export default function CreateProfileScreen() {
 
     const profileBody: Record<string, unknown> = {
       displayName,
-      location,
+      location: compactCityState(location),
       bio,
       lookingFor: null,
     };
@@ -1110,7 +1132,7 @@ export default function CreateProfileScreen() {
               await api.post('/profile', {
                 displayName,
                 ...(ageNum == null ? {} : { age: ageNum }),
-                location,
+                location: compactCityState(location),
                 bio,
                 lookingFor: null,
               });
@@ -1717,7 +1739,7 @@ export default function CreateProfileScreen() {
   const renderStepIndicator = () => {
     const steps = Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1);
     return (
-      <View style={styles.stepIndicator}>
+      <View style={[styles.stepIndicator, isOnboardingWizard && styles.stepIndicatorOnboarding]}>
         {steps.map((s) => (
           <View
             key={s}
@@ -1733,14 +1755,8 @@ export default function CreateProfileScreen() {
   };
 
   // Steps 1–2: compact onboarding layout (name, location)
-  const introSavedForLayout = hasIntroVideo({ intro_video_url: introVideoUrl });
-  const onboardingScrollLocked =
-    Platform.OS === 'ios' &&
-    isOnboardingWizard &&
-    rs.onboardingFitsWithoutScroll &&
-    !rs.onboardingOverflow &&
-    !introSavedForLayout &&
-    keyboardHeight === 0;
+  // Never lock scroll — layout estimates can underestimate real card height and clip Step 3 corners.
+  const onboardingScrollLocked = false;
   const onboardingStepContentStyle = [
     styles.onboardingStepScrollContent,
     styles.onboardingStepScrollContentAndroidIdle,
@@ -1984,6 +2000,7 @@ export default function CreateProfileScreen() {
           { transform: [{ scale: genderScale }], opacity: genderOpacity },
           styles.onboardingSectionCardWrap,
           styles.onboardingIntroSectionWrap,
+          { marginBottom: rs.onboardingIntroSectionMarginBottom },
         ]}
       >
         <LinearGradient
@@ -2001,63 +2018,87 @@ export default function CreateProfileScreen() {
             rs.onboardingVeryTight ? 'Step 3' : 'Step 3 · Intro video',
             rs.onboardingTight,
           )}
-          <Text
-            style={[
-              styles.focusedSubtitle,
-              {
-                fontSize: rs.onboardingSubtitleSize,
-                lineHeight: rs.onboardingSubtitleLineHeight,
-                marginBottom: rs.onboardingSubtitleMargin,
-                opacity: 0.92,
-              },
-            ]}
-            numberOfLines={rs.onboardingVeryTight ? 2 : 3}
-          >
-            {rs.onboardingVeryTight
-              ? '10–15 sec: name, Southern Oregon, what you want.'
-              : INTRO_VIDEO_PROMPT}
-          </Text>
-
-          <View
-            style={[
-              styles.onboardingIntroUploadAnyCallout,
-              rs.onboardingVeryTight && styles.onboardingIntroUploadAnyCalloutCompact,
-            ]}
-          >
+          {rs.onboardingVeryTight ? (
             <Text
               style={[
-                styles.onboardingIntroUploadAnyHeadline,
-                rs.onboardingVeryTight && styles.onboardingIntroUploadAnyHeadlineCompact,
+                styles.focusedSubtitle,
+                {
+                  fontSize: rs.onboardingSubtitleSize,
+                  lineHeight: rs.onboardingSubtitleLineHeight,
+                  marginBottom: rs.onboardingSubtitleMargin,
+                  opacity: 0.92,
+                },
               ]}
-              numberOfLines={rs.onboardingVeryTight ? 3 : 2}
+              numberOfLines={2}
             >
-              {rs.onboardingVeryTight
-                ? INTRO_VIDEO_UPLOAD_ANY_SHORT
-                : INTRO_VIDEO_UPLOAD_ANY_HEADLINE}
+              {INTRO_VIDEO_PROMPT}
             </Text>
-            {!rs.onboardingVeryTight ? (
-              <Text style={styles.onboardingIntroUploadAnyBody} numberOfLines={4}>
-                {INTRO_VIDEO_UPLOAD_ANY}
-              </Text>
-            ) : null}
-          </View>
-
-          <View style={styles.onboardingIntroExampleWrap}>
-            <IntroVideoExamplePlayer
-              compact
-              showCaption={false}
-              hideBadge={rs.onboardingVeryTight}
-              maxPlayerHeight={rs.onboardingIntroPlayerMaxHeight}
-              centerBadge
-            />
-          </View>
-
-          {!rs.onboardingTight ? (
-            <View style={styles.onboardingIntroEncourage}>
-              <Text style={styles.onboardingIntroEncourageText}>{INTRO_VIDEO_ENCOURAGEMENT}</Text>
-            </View>
           ) : null}
 
+          <IntroVideoUploadCallout
+            compact={rs.onboardingTight}
+            veryCompact={rs.onboardingVeryTight}
+          />
+
+          {rs.showOnboardingIntroExample ? (
+            <View style={styles.onboardingIntroExampleWrap}>
+              <IntroVideoExamplePlayer
+                compact
+                showCaption={false}
+                hideBadge={rs.onboardingVeryTight}
+                maxPlayerHeight={rs.onboardingIntroPlayerMaxHeight}
+                centerBadge
+              />
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.onboardingIntroWatchExampleBtn}
+              onPress={() => setShowIntroVideoModal(true)}
+              activeOpacity={0.88}
+            >
+              <Text style={styles.onboardingIntroWatchExampleText}>▶ Watch Luke&apos;s example</Text>
+            </TouchableOpacity>
+          )}
+
+          {rs.onboardingUseIntroActionRow ? (
+            <View style={styles.onboardingIntroActionRow}>
+              <TouchableOpacity
+                style={styles.onboardingIntroActionHalf}
+                onPress={() => setShowIntroVideoModal(true)}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={
+                    introVideoValid
+                      ? ['rgba(255,255,255,0.5)', 'rgba(255,255,255,0.18)', 'rgba(167,139,250,0.45)']
+                      : ['#ff6b8a', '#f093fb', '#7c6cf0']
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.onboardingIntroActionHalfGrad}
+                >
+                  <Text style={styles.onboardingIntroActionHalfText}>
+                    {introVideoValid ? '↻ Re-record' : '📹 Record'}
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.onboardingIntroActionHalf}
+                onPress={() => setShowIntroVideoModal(true)}
+                activeOpacity={0.88}
+              >
+                <LinearGradient
+                  colors={['rgba(255,255,255,0.22)', 'rgba(255,255,255,0.08)']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.onboardingIntroActionHalfGrad}
+                >
+                  <Text style={styles.onboardingIntroActionHalfText}>🎞 Upload</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <>
           <TouchableOpacity
             style={styles.onboardingIntroRecordButton}
             onPress={() => setShowIntroVideoModal(true)}
@@ -2130,6 +2171,8 @@ export default function CreateProfileScreen() {
                 <Text style={styles.onboardingIntroLibraryTextCompact}>🎞 Upload from camera roll</Text>
               </LinearGradient>
             </TouchableOpacity>
+          )}
+            </>
           )}
           {introVideoValid && showIntroSavedToast ? (
             <Animated.View
@@ -3371,6 +3414,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     gap: 8,
+  },
+  stepIndicatorOnboarding: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
   },
   stepDot: {
     width: 12,
@@ -4883,13 +4930,13 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   onboardingStepScrollContent: {
-    flexGrow: 1,
+    flexGrow: 0,
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
     paddingTop: 4,
   },
   onboardingStepScrollContentAndroidIdle: {
-    flexGrow: 1,
+    flexGrow: 0,
     justifyContent: 'flex-start',
     paddingTop: 4,
   },
@@ -4920,7 +4967,7 @@ const styles = StyleSheet.create({
     marginTop: 0,
   },
   onboardingIntroSectionWrap: {
-    marginBottom: Platform.OS === 'ios' ? 8 : 6,
+    marginBottom: Platform.OS === 'ios' ? 10 : 8,
   },
   onboardingIntroCard: {
     overflow: 'hidden',
@@ -4929,6 +4976,48 @@ const styles = StyleSheet.create({
     width: '100%',
     alignItems: 'center',
     marginBottom: 4,
+  },
+  onboardingIntroWatchExampleBtn: {
+    alignSelf: 'stretch',
+    marginBottom: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+    alignItems: 'center',
+  },
+  onboardingIntroWatchExampleText: {
+    color: 'rgba(255,255,255,0.95)',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  onboardingIntroActionRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  onboardingIntroActionHalf: {
+    flex: 1,
+    borderRadius: 14,
+    overflow: 'hidden',
+  },
+  onboardingIntroActionHalfGrad: {
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 42,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.28)',
+  },
+  onboardingIntroActionHalfText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '800',
+    textAlign: 'center',
   },
   headerOnboardingCompact: {
     paddingTop: 4,
@@ -5026,11 +5115,11 @@ const styles = StyleSheet.create({
         }),
   },
   onboardingIntroRecordGradient: {
-    paddingVertical: 12,
+    paddingVertical: 10,
     paddingHorizontal: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    minHeight: 46,
+    minHeight: 42,
   },
   onboardingIntroRecordRow: {
     flexDirection: 'row',
@@ -5087,63 +5176,6 @@ const styles = StyleSheet.create({
     minHeight: 46,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  onboardingIntroEncourage: {
-    backgroundColor: 'rgba(255,255,255,0.14)',
-    borderRadius: 10,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    marginBottom: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.22)',
-  },
-  onboardingIntroUploadAnyCallout: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    marginBottom: 8,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255, 255, 255, 0.45)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.12,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  onboardingIntroUploadAnyCalloutCompact: {
-    paddingVertical: 7,
-    paddingHorizontal: 10,
-    marginBottom: 6,
-    borderRadius: 10,
-  },
-  onboardingIntroUploadAnyHeadline: {
-    color: '#fff',
-    fontSize: 12,
-    lineHeight: 17,
-    textAlign: 'center',
-    fontWeight: '700',
-    letterSpacing: 0.15,
-  },
-  onboardingIntroUploadAnyHeadlineCompact: {
-    fontSize: 10,
-    lineHeight: 14,
-    fontWeight: '700',
-  },
-  onboardingIntroUploadAnyBody: {
-    color: 'rgba(255,255,255,0.95)',
-    fontSize: 11,
-    lineHeight: 15,
-    textAlign: 'center',
-    fontWeight: '500',
-    marginTop: 4,
-  },
-  onboardingIntroEncourageText: {
-    color: 'rgba(255,255,255,0.95)',
-    fontSize: 10,
-    lineHeight: 14,
-    textAlign: 'center',
-    fontWeight: '600',
   },
   onboardingIntroLibraryBtn: {
     alignSelf: 'stretch',
