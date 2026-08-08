@@ -62,18 +62,16 @@ interface ProfileCompleteCelebrationProps {
   onClose: () => void;
 }
 
-/** Android: 💰 falling particles. iOS: sparse 🔥 only behind the pulsing 😊 hero. */
-const IOS_FALLING_EMOJI = '🔥';
-const IOS_FALLING_EMOJI_COUNT = 8;
-const FALLING_EMOJI_POOL = isAndroidMidnightCelebration ? (['💰'] as const) : ([IOS_FALLING_EMOJI] as const);
-const FALLING_EMOJI_COUNT = isAndroidMidnightCelebration ? 22 : IOS_FALLING_EMOJI_COUNT;
+/** Falling celebration particles behind the hero emoji. */
+const FALLING_EMOJI_POOL = (['⛳', '🏌️', '⛳', '🏌️‍♀️', '⛳'] as const);
+const FALLING_EMOJI_COUNT = isAndroidMidnightCelebration ? 22 : 10;
 
 // Single emoji that falls continuously in a loop (resets to top when it reaches bottom)
-function FallingFire({ index, visible }: { index: number; visible: boolean }) {
+function FallingGolfEmoji({ index, visible }: { index: number; visible: boolean }) {
   const translateY = useRef(new Animated.Value(0)).current;
   const leftPercent = useRef(5 + Math.random() * 90).current;
   const duration = useRef(3500 + Math.random() * 2500).current;
-  const fireEmoji = useRef(FALLING_EMOJI_POOL[0]).current;
+  const emoji = useRef(FALLING_EMOJI_POOL[index % FALLING_EMOJI_POOL.length]).current;
   const delay = useRef(Math.random() * 2000).current;
   const fontSize = useRef(22 + (index % 7) * 4).current; // 22–46px variety
   const running = useRef(true);
@@ -117,7 +115,7 @@ function FallingFire({ index, visible }: { index: number; visible: boolean }) {
       ]}
       pointerEvents="none"
     >
-      <Text style={[styles.fallingFireEmoji, { fontSize }]}>{fireEmoji}</Text>
+      <Text style={[styles.fallingFireEmoji, { fontSize }]}>{emoji}</Text>
     </Animated.View>
   );
 }
@@ -134,7 +132,6 @@ export default function ProfileCompleteCelebration({
   const opacity = useRef(new Animated.Value(0)).current;
   const emojiScale = useRef(new Animated.Value(0)).current;
   const titleOpacity = useRef(new Animated.Value(0)).current;
-  const subtitleOpacity = useRef(new Animated.Value(0)).current;
 
   // Start Connecting button animations (pulse + shimmer, same as Connect button)
   const buttonPulse = useRef(new Animated.Value(1)).current;
@@ -187,7 +184,6 @@ export default function ProfileCompleteCelebration({
       opacity.setValue(0);
       emojiScale.setValue(0);
       titleOpacity.setValue(0);
-      subtitleOpacity.setValue(0);
       setShowContent(false);
       setShowFloatingFires(false);
       setShowButton(false);
@@ -231,19 +227,10 @@ export default function ProfileCompleteCelebration({
           }).start();
         }, 400);
 
-        // Subtitle animation
-        setTimeout(() => {
-          Animated.timing(subtitleOpacity, {
-            toValue: 1,
-            duration: 400,
-            useNativeDriver: true,
-          }).start();
-        }, 600);
-
         // Show button
         setTimeout(() => {
           setShowButton(true);
-        }, 1000);
+        }, 800);
       }, 100);
     } else {
       stopButtonAnimations();
@@ -303,7 +290,7 @@ export default function ProfileCompleteCelebration({
         {showFloatingFires && (
           <View style={styles.firesContainer} pointerEvents="none">
             {Array.from({ length: FALLING_EMOJI_COUNT }, (_, i) => (
-              <FallingFire key={i} index={i} visible={visible} />
+              <FallingGolfEmoji key={i} index={i} visible={visible} />
             ))}
           </View>
         )}
@@ -343,7 +330,7 @@ export default function ProfileCompleteCelebration({
               >
                 {isAndroidMidnightCelebration ? (
                   <ProfileCardAnimatedEmoji
-                    emoji="🤑"
+                    emoji="⛳"
                     variant="celebrate"
                     fontSize={80}
                     containerStyle={styles.emojiAnimatedWrap}
@@ -351,7 +338,7 @@ export default function ProfileCompleteCelebration({
                   />
                 ) : (
                   <ProfileCardAnimatedEmoji
-                    emoji="😊"
+                    emoji="⛳"
                     variant="pulse"
                     fontSize={80}
                     delay={400}
@@ -364,13 +351,6 @@ export default function ProfileCompleteCelebration({
               {/* Title */}
               <Animated.View style={{ opacity: titleOpacity }}>
                 <Text style={[styles.title, { color: CELEBRATION_THEME.titleColor }]}>Nice work.</Text>
-              </Animated.View>
-
-              {/* Subtitle */}
-              <Animated.View style={{ opacity: subtitleOpacity }}>
-                <Text style={[styles.subtitle, { color: CELEBRATION_THEME.subtitleColor }]}>
-                  Have fun & be cool
-                </Text>
               </Animated.View>
 
               {/* Continue button - pulse + shimmer like Connect button */}
@@ -412,8 +392,13 @@ export default function ProfileCompleteCelebration({
                         ]}
                         pointerEvents="none"
                       />
-                      <Text style={styles.buttonText}>
-                        {isAndroidMidnightCelebration ? "Let's get it" : 'Start Connecting →'}
+                      <Text
+                        style={styles.buttonText}
+                        numberOfLines={1}
+                        adjustsFontSizeToFit
+                        minimumFontScale={0.72}
+                      >
+                        Find Your Next Golf Date →
                       </Text>
                     </LinearGradient>
                   </Animated.View>
@@ -481,7 +466,7 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#fff',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 28,
     letterSpacing: -0.5,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
@@ -507,7 +492,7 @@ const styles = StyleSheet.create({
   },
   buttonGradient: {
     paddingVertical: 18,
-    paddingHorizontal: 32,
+    paddingHorizontal: 14,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
@@ -527,10 +512,12 @@ const styles = StyleSheet.create({
     transform: [{ skewX: '-20deg' }],
   },
   buttonText: {
-    fontSize: 18,
+    width: '100%',
+    textAlign: 'center',
+    fontSize: 16,
     fontWeight: '900',
     color: '#fff',
-    letterSpacing: 0.5,
+    letterSpacing: 0,
     textShadowColor: 'rgba(0, 0, 0, 0.2)',
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,

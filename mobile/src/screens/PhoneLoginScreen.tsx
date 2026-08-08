@@ -341,6 +341,9 @@ export default function PhoneLoginScreen() {
           <View style={styles.contentColumn}>
             <View style={styles.header}>
               <AuthLoginBrandRow />
+              <Text style={styles.golfEmoji} accessibilityRole="image" accessibilityLabel="Golf">
+                ⛳
+              </Text>
               <Text
               style={styles.title}
               numberOfLines={1}
@@ -486,6 +489,13 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: Platform.OS === 'android' ? 28 : 40,
+  },
+  golfEmoji: {
+    fontSize: 36,
+    lineHeight: 42,
+    textAlign: 'center',
+    marginBottom: 10,
+    marginTop: -4,
   },
   title: {
     fontSize: 28,

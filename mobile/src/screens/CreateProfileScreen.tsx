@@ -3214,6 +3214,7 @@ export default function CreateProfileScreen() {
         visible={showIntroVideoModal}
         onClose={() => setShowIntroVideoModal(false)}
         existingVideoUrl={introVideoUrl}
+        ensureProfileReady={ensureProfileSavedForPhotos}
         onSaved={(url, localPreviewUri) => {
           setIntroVideoUrl(url);
           if (localPreviewUri) setIntroVideoPreviewUri(localPreviewUri);

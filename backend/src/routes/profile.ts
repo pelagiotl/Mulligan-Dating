@@ -909,13 +909,8 @@ profileRouter.post('/intro-video/upload-params', authenticateToken, rateLimitAPI
       return res.status(503).json({ error: 'Direct video upload is not configured on this server.' });
     }
     const userId = req.userId!;
-    const profileResult = db.prepare('SELECT id FROM profiles WHERE user_id = ?').get([userId]);
-    const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
-      | { id: string }
-      | undefined;
-    if (!profile) {
-      return res.status(404).json({ error: 'Profile not found. Complete name and location first.' });
-    }
+    // Onboarding can upload intro video before/during profile save — ensure a row exists.
+    await ensureStubProfile(userId);
     res.json(createIntroVideoDirectUploadParams());
   } catch (error) {
     console.error('Intro video upload-params error:', error);
@@ -937,12 +932,14 @@ profileRouter.post('/intro-video/confirm', authenticateToken, rateLimitAPI, asyn
       return res.status(400).json({ error: 'Invalid intro video URL.' });
     }
 
+    await ensureStubProfile(userId);
+
     const profileResult = db.prepare('SELECT id, intro_video_url FROM profiles WHERE user_id = ?').get([userId]);
     const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
       | { id: string; intro_video_url: string | null }
       | undefined;
     if (!profile) {
-      return res.status(404).json({ error: 'Profile not found. Complete name and location first.' });
+      return res.status(500).json({ error: 'Failed to create profile for intro video.' });
     }
 
     if (durationSec != null && !isIntroVideoDurationValid(durationSec)) {
@@ -978,11 +975,12 @@ profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRe
     const file = (req as AuthRequest & { file?: Express.Multer.File }).file;
     if (!file) return res.status(400).json({ error: 'No video file received' });
 
+    await ensureStubProfile(userId);
     const profileResult = db.prepare('SELECT id, intro_video_url FROM profiles WHERE user_id = ?').get([userId]);
     const profile = (profileResult instanceof Promise ? await profileResult : profileResult) as
       | { id: string; intro_video_url: string | null }
       | undefined;
-    if (!profile) return res.status(404).json({ error: 'Profile not found. Complete name and location first.' });
+    if (!profile) return res.status(500).json({ error: 'Failed to create profile for intro video.' });
 
     let introVideoUrl: string;
     if (isCloudinaryConfigured() && file.buffer) {

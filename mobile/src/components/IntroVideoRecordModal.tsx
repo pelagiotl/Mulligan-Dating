@@ -36,6 +36,8 @@ type Props = {
   onClose: () => void;
   onSaved: (introVideoUrl: string, localPreviewUri?: string) => void;
   existingVideoUrl?: string | null;
+  /** Ensure profile row exists before upload (onboarding may not have saved yet). */
+  ensureProfileReady?: () => Promise<void>;
 };
 
 function acceptPickedVideo(asset: { uri: string; duration?: number | null }): string | null {
@@ -51,6 +53,7 @@ export default function IntroVideoRecordModal({
   onClose,
   onSaved,
   existingVideoUrl,
+  ensureProfileReady,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [localUri, setLocalUri] = useState<string | null>(null);
@@ -139,6 +142,12 @@ export default function IntroVideoRecordModal({
     setUploading(true);
     setUploadStage('preparing');
     try {
+      if (ensureProfileReady) {
+        await ensureProfileReady();
+      }
+      // Drop any failed prefetch from before the profile existed.
+      clearIntroVideoUploadPrefetch();
+      prefetchIntroVideoUpload(localUri);
       const introVideoUrl = await uploadProfileIntroVideo(localUri, {
         knownDurationMs: localDurationMs,
         onStage: setUploadStage,
@@ -151,7 +160,7 @@ export default function IntroVideoRecordModal({
       setUploading(false);
       setUploadStage(null);
     }
-  }, [localUri, localDurationMs, onClose, onSaved]);
+  }, [localUri, localDurationMs, onClose, onSaved, ensureProfileReady]);
 
   const previewSource = localUri
     ? { uri: localUri }
