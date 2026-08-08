@@ -1069,7 +1069,7 @@ profileRouter.put('/sober-circle', authenticateToken, rateLimitAPI, async (req: 
   }
 });
 
-/** Opt into Golf Dates (Play tab) — activity-first matching for golf dates. */
+/** Opt into Golf Dates (Play tab) — golf-first matching. */
 profileRouter.put('/golf-dates', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;

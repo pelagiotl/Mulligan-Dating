@@ -1,13 +1,17 @@
 /**
  * Cold-start brand moment: golf ball misses the cup, flag reads "Mulligan".
- * Short (~2.5s) — reinforces activity-first / do-over brand on launch.
+ * Short (~2.5s) — reinforces golf-first / do-over brand on launch.
  */
 
 import React, { useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { playMulliganBootSound } from '../utils/sounds';
 
 const { width: SCREEN_W } = Dimensions.get('window');
+
+/** Swing whoosh builds through the putt; impact (~380ms into SFX) lands at the lip-out. */
+const MISS_SOUND_AT_MS = 280 + 900 - 380;
 
 type Props = {
   onFinished: () => void;
@@ -30,6 +34,10 @@ export default function MulliganBootSplash({ onFinished }: Props) {
       finishedRef.current = true;
       onFinished();
     };
+
+    const soundTimer = setTimeout(() => {
+      void playMulliganBootSound().catch(() => {});
+    }, MISS_SOUND_AT_MS);
 
     const sequence = Animated.sequence([
       Animated.delay(280),
@@ -114,6 +122,7 @@ export default function MulliganBootSplash({ onFinished }: Props) {
     return () => {
       sequence.stop();
       clearTimeout(safety);
+      clearTimeout(soundTimer);
     };
   }, [ballX, ballY, ballScale, flagOpacity, flagScale, flagWave, missLabelOpacity, opacity, onFinished]);
 
@@ -128,7 +137,7 @@ export default function MulliganBootSplash({ onFinished }: Props) {
 
       <View style={styles.skyline} pointerEvents="none">
         <View style={styles.brandBlock}>
-          <Text style={styles.brandEyebrow}>Activity-first dating</Text>
+          <Text style={styles.brandEyebrow}>Golf-first dating</Text>
           <Text style={styles.brandTitle}>Mulligan</Text>
         </View>
       </View>

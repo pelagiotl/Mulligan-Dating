@@ -5,6 +5,7 @@ import Constants from 'expo-constants';
 let matchSoundModule: number | null = null;
 let messageSoundModule: number | null = null;
 let tokenClaimSoundModule: number | null = null;
+let mulliganBootSoundModule: number | null = null;
 
 const isExpoGo =
   typeof Constants !== 'undefined' && Constants?.executionEnvironment === 'storeClient';
@@ -39,6 +40,15 @@ try {
   tokenClaimSoundModule = null;
   if (!isExpoGo) {
     console.warn('🎵 Token claim sound not found — run: node scripts/generate-token-claim-sound.js');
+  }
+}
+
+try {
+  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound.wav');
+} catch {
+  mulliganBootSoundModule = null;
+  if (!isExpoGo) {
+    console.warn('🎵 Mulligan boot sound not found — run: node scripts/generate-mulligan-boot-sound.js');
   }
 }
 
@@ -145,6 +155,7 @@ async function playBundledSound(
 const matchSoundHolder: SoundHolder = { sound: null };
 const messageSoundHolder: SoundHolder = { sound: null };
 const tokenClaimSoundHolder: SoundHolder = { sound: null };
+const mulliganBootSoundHolder: SoundHolder = { sound: null };
 
 export async function playMatchSound(): Promise<void> {
   await playBundledSound(matchSoundModule, matchSoundHolder, 'match');
@@ -157,4 +168,9 @@ export async function playMessageSound(): Promise<void> {
 /** Cash-register cha-ching when weekly tokens are claimed. */
 export async function playTokenClaimSound(): Promise<void> {
   await playBundledSound(tokenClaimSoundModule, tokenClaimSoundHolder, 'token-claim');
+}
+
+/** Golf swing whoosh for cold-start Mulligan boot splash. */
+export async function playMulliganBootSound(): Promise<void> {
+  await playBundledSound(mulliganBootSoundModule, mulliganBootSoundHolder, 'mulligan-boot');
 }
