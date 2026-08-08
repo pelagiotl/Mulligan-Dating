@@ -57,6 +57,7 @@ import TruthOrDare, {
   TRUTH_OR_DARE_MIN_EACH,
 } from '../components/TruthOrDare';
 import TruthOrDareMessageGateModal from '../components/TruthOrDareMessageGateModal';
+import GolfHolePrompts from '../components/GolfHolePrompts';
 import ChatMediaLockedGateModal from '../components/ChatMediaLockedGateModal';
 import NeverHaveIEver from '../components/NeverHaveIEver';
 import OptimizedImage from '../components/OptimizedImage';
@@ -125,7 +126,7 @@ interface Match {
   stage1At: string | null;
   stage2At: string | null;
   expiresAt: string | null;
-  connectedVia?: 'connect' | 'sober_circle';
+  connectedVia?: 'connect' | 'sober_circle' | 'golf_date';
   isInitiator: boolean;
   userWantsReveal?: boolean;
   otherWantsReveal?: boolean;
@@ -959,6 +960,11 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                   style={styles.matchSoberBadge}
                 />
               ) : null}
+              {(item.connectedVia === 'golf_date') ? (
+                <View style={styles.date2ReadyBadge}>
+                  <Text style={styles.date2ReadyBadgeText}>⛳ Golf Date</Text>
+                </View>
+              ) : null}
               {item.profileCompatibility != null && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityInline}>
                   <Text style={styles.matchCardCompatibilityIcon}>🎯</Text>
@@ -1187,7 +1193,7 @@ function EmptyStateAnimated({
               pointerEvents="none"
             />
             <Text style={styles.browseButtonText}>
-              {soberCircleMode ? '🌿 Find a Sober Circle match' : '✨ Browse People'}
+              {soberCircleMode ? '🌿 Find a Sober Circle match' : '⛳ Find a Golf Date'}
             </Text>
           </View>
         </Animated.View>
@@ -3607,6 +3613,15 @@ export default function MatchesScreen() {
             </View>
             {selectedMatch.stage !== 'pending' && (
               <View style={styles.chatHeaderActionsRow}>
+                {selectedMatch.connectedVia === 'golf_date' ? (
+                  <GolfHolePrompts
+                    matchId={selectedMatch.id}
+                    headerMode
+                    onPromptShared={() => {
+                      void fetchMessages(selectedMatch.id);
+                    }}
+                  />
+                ) : null}
                 <TruthOrDare
                     matchId={selectedMatch.id}
                     messages={messages}

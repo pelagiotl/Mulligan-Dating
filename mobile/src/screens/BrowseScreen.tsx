@@ -89,6 +89,23 @@ import {
   type ConnectSetupMissing,
 } from '../utils/connectSetup';
 import {
+  PLAY_LANDING_BUTTON,
+  PLAY_LANDING_HERO_TITLE,
+  PLAY_PROFILE_CONNECT_BUTTON,
+} from '../constants/connectLanding';
+
+const GOLF_BROWSE_PATH = '/users/browse?pool=golf&offset=';
+
+function isGolfDatesOptedIn(profile: unknown): boolean {
+  if (!profile || typeof profile !== 'object') return false;
+  const p = profile as {
+    golf_dates_opt_in?: number | boolean | string | null;
+    golfDatesOptIn?: number | boolean | string | null;
+  };
+  const v = p.golf_dates_opt_in ?? p.golfDatesOptIn;
+  return v === true || v === 1 || v === '1';
+}
+import {
   DEV_DATE_PLAN_PREVIEW_MATCH_ID,
   subscribeDatePlanPreview,
 } from '../utils/datePlanPreviewDemo';
@@ -420,7 +437,7 @@ export default function BrowseScreen() {
         hasMore: boolean;
         offset: number;
         total: number;
-      }>(`/users/browse?offset=0`);
+      }>(`${GOLF_BROWSE_PATH}0`);
       
       console.log('📊 Browse API response:', { 
         hasProfile: !!data.profile, 
@@ -601,7 +618,7 @@ export default function BrowseScreen() {
         offset: number;
         total: number;
         poolSummary?: { hint?: string | null };
-      }>(`/users/browse?offset=0`, false);
+      }>(`${GOLF_BROWSE_PATH}0`, false);
 
           if (data.profile) {
             // Connect immediately — skip photos fetch to speed up match; celebration shows placeholder if no photo
@@ -681,7 +698,7 @@ export default function BrowseScreen() {
             offset: number;
             total: number;
             poolSummary?: { hint?: string | null };
-          }>(`/users/browse?offset=0`, false);
+          }>(`${GOLF_BROWSE_PATH}0`, false);
 
           console.log('📊 Browse API response:', { 
             hasProfile: !!data.profile, 
@@ -800,7 +817,7 @@ export default function BrowseScreen() {
         hasMore: boolean;
         offset: number;
         total: number;
-      }>(`/users/browse?offset=${offset}`);
+      }>(`${GOLF_BROWSE_PATH}${offset}`);
 
       console.log('📊 Browse API response:', { 
         hasProfile: !!data.profile, 
@@ -1349,6 +1366,18 @@ export default function BrowseScreen() {
         openMatchmakingPausedModal();
         return;
       }
+      if (!isGolfDatesOptedIn(userProfile)) {
+        try {
+          await api.put('/profile/golf-dates', { optIn: true });
+          await refreshProfile();
+        } catch (e: unknown) {
+          Alert.alert(
+            'Golf Dates',
+            e instanceof Error ? e.message : 'Could not join Golf Dates. Please try again.',
+          );
+          return;
+        }
+      }
       void handleUnlockBrowse();
     })();
   }, [
@@ -1357,6 +1386,8 @@ export default function BrowseScreen() {
     openMatchmakingPausedModal,
     ensureReadyToConnect,
     handleUnlockBrowse,
+    userProfile,
+    refreshProfile,
   ]);
 
   const [launchTick, setLaunchTick] = useState(0);
@@ -1636,7 +1667,7 @@ export default function BrowseScreen() {
       <ActivityIndicator color="#fff" size="large" />
     ) : (
       <Text style={labelStyle} numberOfLines={1}>
-        Connect
+        {PLAY_LANDING_BUTTON}
       </Text>
     );
 
@@ -1757,7 +1788,11 @@ export default function BrowseScreen() {
     };
 
     api
-      .post<ConnectResult>('/matches/connect', { targetUserId: profile.userId, expandSlot: expandSlot || false })
+      .post<ConnectResult>('/matches/connect', {
+        targetUserId: profile.userId,
+        expandSlot: expandSlot || false,
+        source: 'golf_date',
+      })
       .then((result) => {
         connectRequestedRef.current = false;
         connectSpinnerOpacity.setValue(0);
@@ -2205,7 +2240,7 @@ export default function BrowseScreen() {
                   },
                 ]}
               >
-                Discover People
+                {PLAY_LANDING_HERO_TITLE}
               </Animated.Text>
               <ConnectLandingTagline style={styles.midnightSubtitle} />
 
@@ -2254,23 +2289,23 @@ export default function BrowseScreen() {
                         },
                       ]}
                     >
-                      Discover People
+                      {PLAY_LANDING_HERO_TITLE}
                     </Animated.Text>
                     <ConnectLandingTagline style={styles.sunnySubtitle} />
 
                     {isAuthenticated ? (
                       <View style={styles.sunnyFeaturesRow} accessibilityRole="summary">
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="✨" fontSize={26} />
-                          <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.sunnyFeatureText} />
+                          <ConnectLandingFeatureEmoji emoji="⛳" fontSize={26} />
+                          <ConnectFeatureLabel lines={['Golf', 'Dates']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="🎯" fontSize={26} />
-                          <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.sunnyFeatureText} />
+                          <ConnectLandingFeatureEmoji emoji="💬" fontSize={26} />
+                          <ConnectFeatureLabel lines={['Hole', 'Prompts']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="💝" fontSize={26} />
-                          <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.sunnyFeatureText} />
+                          <ConnectLandingFeatureEmoji emoji="💚" fontSize={26} />
+                          <ConnectFeatureLabel lines={['Real', 'Chemistry']} style={styles.sunnyFeatureText} />
                         </View>
                       </View>
                     ) : null}
@@ -2316,23 +2351,23 @@ export default function BrowseScreen() {
                         },
                       ]}
                     >
-                      Discover People
+                      {PLAY_LANDING_HERO_TITLE}
                     </Animated.Text>
                     <ConnectLandingTagline style={styles.softSubtitle} />
 
                     {isAuthenticated ? (
                       <View style={styles.softFeaturesRow} accessibilityRole="summary">
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="✨" fontSize={26} />
-                          <ConnectFeatureLabel lines={['Quality', 'Matches']} style={styles.softFeatureText} />
+                          <ConnectLandingFeatureEmoji emoji="⛳" fontSize={26} />
+                          <ConnectFeatureLabel lines={['Golf', 'Dates']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="🎯" fontSize={26} />
-                          <ConnectFeatureLabel lines={['Shared', 'Interests']} style={styles.softFeatureText} />
+                          <ConnectLandingFeatureEmoji emoji="💬" fontSize={26} />
+                          <ConnectFeatureLabel lines={['Hole', 'Prompts']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="💝" fontSize={26} />
-                          <ConnectFeatureLabel lines={['Meaningful', 'Connections']} style={styles.softFeatureText} />
+                          <ConnectLandingFeatureEmoji emoji="💚" fontSize={26} />
+                          <ConnectFeatureLabel lines={['Real', 'Chemistry']} style={styles.softFeatureText} />
                         </View>
                       </View>
                     ) : null}
@@ -2384,7 +2419,7 @@ export default function BrowseScreen() {
                 },
               ]}
             >
-              Discover People
+              {PLAY_LANDING_HERO_TITLE}
             </Animated.Text>
           </Animated.View>
 
@@ -3027,7 +3062,7 @@ export default function BrowseScreen() {
                     <ActivityIndicator color="#fff" />
                   </Animated.View>
                   <Animated.View style={{ opacity: connectTextOpacity }} pointerEvents="none">
-                    <Text style={styles.connectButtonText} numberOfLines={1}>Connect & Match 🎟️</Text>
+                    <Text style={styles.connectButtonText} numberOfLines={1}>{PLAY_PROFILE_CONNECT_BUTTON}</Text>
                   </Animated.View>
                 </View>
               </LinearGradient>

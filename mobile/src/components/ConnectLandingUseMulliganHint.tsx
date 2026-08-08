@@ -6,7 +6,7 @@ type Props = {
   textStyle: TextStyle;
 };
 
-/** “⛳ Use a Mulligan” below the Connect CTA — flag pulses to draw the eye. */
+/** “⛳ Use a Mulligan” below the Play CTA — flag pulses to draw the eye. */
 export default function ConnectLandingUseMulliganHint({ textStyle }: Props) {
   return (
     <View style={styles.row}>
@@ -16,7 +16,7 @@ export default function ConnectLandingUseMulliganHint({ textStyle }: Props) {
         variant="prominent"
         containerStyle={styles.emojiWrap}
       />
-      <Text style={textStyle}>Use a Mulligan</Text>
+      <Text style={textStyle}>Use a Mulligan · golf date</Text>
     </View>
   );
 }

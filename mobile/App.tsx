@@ -15,6 +15,7 @@ import { AuthProvider } from './src/context/AuthContext';
 import { ConnectShellThemeProvider } from './src/context/ConnectShellThemeContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import MatchCelebrationDemoLinkHandler from './src/components/MatchCelebrationDemoLinkHandler';
+import MulliganBootSplash from './src/components/MulliganBootSplash';
 import { initSentry, captureException, captureMessage } from './src/utils/sentry';
 import { safeClearTimeout } from './src/utils/safeTimers';
 import { ensurePurchasesConfigured } from './src/utils/purchasesReady';
@@ -189,6 +190,7 @@ if (typeof global !== 'undefined') {
 
 export default function App() {
   const [isMounted, setIsMounted] = React.useState(false);
+  const [showBootSplash, setShowBootSplash] = React.useState(true);
 
   // NOBRIDGE can install JSI timers after `index.js` first patch — re-wrap once the root is up.
   React.useEffect(() => {
@@ -217,14 +219,19 @@ export default function App() {
     return () => safeClearTimeout(timer);
   }, []);
 
+  const dismissBootSplash = React.useCallback(() => {
+    setShowBootSplash(false);
+  }, []);
+
   return (
-    <View style={{ flex: 1, backgroundColor: '#f8f9ff' }}>
+    <View style={{ flex: 1, backgroundColor: '#0b3d2e' }}>
       <SafeAreaProvider>
         <ErrorBoundary>
           <AuthProvider>
             <ConnectShellThemeProvider>
               {__DEV__ ? <MatchCelebrationDemoLinkHandler /> : null}
               <AppNavigator />
+              {showBootSplash ? <MulliganBootSplash onFinished={dismissBootSplash} /> : null}
             </ConnectShellThemeProvider>
           </AuthProvider>
         </ErrorBoundary>

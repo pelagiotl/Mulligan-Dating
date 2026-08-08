@@ -66,7 +66,6 @@ import {
 import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '../utils/connectSetup';
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
-import IntroVideoExamplePlayer from '../components/IntroVideoExamplePlayer';
 import IntroVideoUploadCallout from '../components/IntroVideoUploadCallout';
 import { INTRO_VIDEO_PROMPT } from '../constants/introVideoCopy';
 import { hasIntroVideo } from '../utils/connectSetup';
@@ -498,7 +497,6 @@ export default function CreateProfileScreen() {
     const sq = (n: number) => Math.round(n * onboardingSqueeze);
     const onboardingTight = onboardingSqueeze < 0.88;
     const onboardingVeryTight = onboardingSqueeze < 0.76;
-    const showOnboardingIntroExample = onboardingSqueeze >= 0.95;
     const onboardingUseIntroActionRow = isOnboardingLayout;
     const locationStackEstimate = onboardingVeryTight ? 68 : onboardingTight ? 78 : 96;
     const locationStack = sq(locationStackEstimate);
@@ -510,45 +508,36 @@ export default function CreateProfileScreen() {
     const introCardPadding = sq(Math.round(14 * scaleW)) * 2;
     const showIntroPromptLine = isOnboardingLayout && onboardingVeryTight;
     const introCalloutEstimate = sq(onboardingVeryTight ? 38 : onboardingTight ? 48 : 62);
-    const introExampleEstimate = showOnboardingIntroExample
-      ? sq(onboardingVeryTight ? 72 : onboardingTight ? 84 : 96) + sq(8)
-      : sq(34);
     const introActionsEstimate = onboardingUseIntroActionRow ? sq(44) : sq(44) + sq(onboardingTight ? 36 : 40);
     const introChromeFixed =
       introCardPadding +
       (onboardingSqueeze >= 0.78 ? sq(22) : 0) +
       (showIntroPromptLine ? sq(28) : 0) +
       introCalloutEstimate +
-      introExampleEstimate +
       introActionsEstimate +
       (introVideoSaved ? sq(onboardingVeryTight ? 40 : 48) : 0) +
       sq(8);
     const layoutSafetyMargin = 56;
-    const introPlayerMinHeight = onboardingVeryTight ? 56 : 64;
-    const introPlayerMaxCap = onboardingVeryTight ? 68 : onboardingTight ? 76 : 88;
-    const introPlayerMaxHeight = showOnboardingIntroExample
-      ? Math.max(
-          introPlayerMinHeight,
-          Math.min(
-            introPlayerMaxCap,
-            Math.floor(
-              bodyBudget -
-                nameLocStack -
-                introChromeFixed +
-                introExampleEstimate -
-                layoutSafetyMargin -
-                sq(18),
-            ),
-          ),
-        )
-      : 0;
-    const estimatedStackHeight =
-      nameLocStack + introChromeFixed + (showOnboardingIntroExample ? introPlayerMaxHeight : 0) + sq(18);
+    const estimatedStackHeight = nameLocStack + introChromeFixed + sq(18);
     const onboardingFitsWithoutScroll =
       estimatedStackHeight <= bodyBudget - layoutSafetyMargin;
     const onboardingOverflow = !onboardingFitsWithoutScroll;
-    const onboardingScrollBottomInset = sq(20);
-    const onboardingIntroSectionMarginBottom = sq(12);
+    const onboardingScrollBottomInset = onboardingVeryTight ? 16 : 24;
+    // Prefer even breathing room between the 3 cards; use leftover viewport height when available.
+    const baseSectionsGap = onboardingVeryTight ? 12 : onboardingTight ? 16 : 20;
+    const leftoverForGaps = Math.max(
+      0,
+      bodyBudget - layoutSafetyMargin - estimatedStackHeight - baseSectionsGap * 2,
+    );
+    const onboardingSectionsGap = Math.min(
+      32,
+      baseSectionsGap + Math.floor(leftoverForGaps / 2),
+    );
+    const onboardingIntroSectionMarginBottom = 0;
+    const onboardingBodyMinHeight = Math.max(
+      0,
+      Math.floor(bodyBudget - onboardingScrollBottomInset - 8),
+    );
     return {
       sectionMinHeight: h * 0.62,
       sectionPaddingH: Math.round(20 * scaleW),
@@ -574,14 +563,15 @@ export default function CreateProfileScreen() {
       onboardingSubtitleSize: sq(Math.round(10 * scaleW)),
       onboardingSubtitleLineHeight: sq(Math.round(13 * scaleW)),
       onboardingSubtitleMargin: sq(Math.round(4 * scaleH)),
-      onboardingSectionsGap: sq(onboardingVeryTight ? 4 : 6),
+      onboardingSectionsGap,
+      onboardingBodyMinHeight,
       showOnboardingStepPill: onboardingSqueeze >= 0.78,
       showOnboardingCardEmoji: onboardingSqueeze >= 0.86,
       onboardingTight,
       onboardingVeryTight,
-      showOnboardingIntroExample,
+      showOnboardingIntroExample: false,
       onboardingUseIntroActionRow,
-      onboardingIntroPlayerMaxHeight: introPlayerMaxHeight,
+      onboardingIntroPlayerMaxHeight: 0,
       onboardingScrollBottomInset,
       onboardingIntroSectionMarginBottom,
       onboardingFitsWithoutScroll,
@@ -1760,7 +1750,11 @@ export default function CreateProfileScreen() {
   const onboardingStepContentStyle = [
     styles.onboardingStepScrollContent,
     styles.onboardingStepScrollContentAndroidIdle,
-    { paddingBottom: rs.onboardingScrollBottomInset },
+    {
+      paddingBottom: rs.onboardingScrollBottomInset,
+      flexGrow: 1,
+      justifyContent: rs.onboardingFitsWithoutScroll ? ('center' as const) : ('flex-start' as const),
+    },
     onboardingScrollLocked && styles.onboardingStepScrollContentAndroidLocked,
   ];
   const onboardingStepWrapper = (content: React.ReactNode) => (
@@ -1781,7 +1775,11 @@ export default function CreateProfileScreen() {
   );
   const onboardingFieldWrapStyle = [
     styles.onboardingFieldWrap,
-    { paddingHorizontal: rs.sectionPaddingH },
+    {
+      paddingHorizontal: rs.sectionPaddingH,
+      minHeight: rs.onboardingFitsWithoutScroll ? rs.onboardingBodyMinHeight : undefined,
+      justifyContent: 'flex-start' as const,
+    },
   ];
   const renderOnboardingStepPill = (label: string, compact = false) =>
     rs.showOnboardingStepPill ? (
@@ -1831,7 +1829,7 @@ export default function CreateProfileScreen() {
           ]}
         >
           {renderOnboardingStepPill('Step 1 · Your name')}
-          {renderOnboardingCardEmoji('👋', 0)}
+          {renderOnboardingCardEmoji('⛳', 0)}
           <Text
             style={[
               styles.focusedTitle,
@@ -2039,26 +2037,6 @@ export default function CreateProfileScreen() {
             compact={rs.onboardingTight}
             veryCompact={rs.onboardingVeryTight}
           />
-
-          {rs.showOnboardingIntroExample ? (
-            <View style={styles.onboardingIntroExampleWrap}>
-              <IntroVideoExamplePlayer
-                compact
-                showCaption={false}
-                hideBadge={rs.onboardingVeryTight}
-                maxPlayerHeight={rs.onboardingIntroPlayerMaxHeight}
-                centerBadge
-              />
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.onboardingIntroWatchExampleBtn}
-              onPress={() => setShowIntroVideoModal(true)}
-              activeOpacity={0.88}
-            >
-              <Text style={styles.onboardingIntroWatchExampleText}>▶ Watch Luke&apos;s example</Text>
-            </TouchableOpacity>
-          )}
 
           {rs.onboardingUseIntroActionRow ? (
             <View style={styles.onboardingIntroActionRow}>
@@ -4930,15 +4908,15 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   onboardingStepScrollContent: {
-    flexGrow: 0,
+    flexGrow: 1,
     justifyContent: 'flex-start',
     paddingHorizontal: 10,
-    paddingTop: 4,
+    paddingTop: 8,
   },
   onboardingStepScrollContentAndroidIdle: {
-    flexGrow: 0,
+    flexGrow: 1,
     justifyContent: 'flex-start',
-    paddingTop: 4,
+    paddingTop: 8,
   },
   onboardingStepScrollContentAndroidLocked: {
     // bottom inset comes from rs.onboardingScrollBottomInset
@@ -4954,7 +4932,7 @@ const styles = StyleSheet.create({
   onboardingFieldWrap: {
     width: '100%',
     justifyContent: 'flex-start',
-    paddingVertical: 0,
+    paddingVertical: 4,
   },
   onboardingFieldWrapKeyboard: {
     paddingVertical: 4,
@@ -4962,12 +4940,13 @@ const styles = StyleSheet.create({
   onboardingSectionsWrap: {
     paddingTop: 0,
     paddingBottom: 0,
+    width: '100%',
   },
   onboardingSectionCardWrap: {
     marginTop: 0,
   },
   onboardingIntroSectionWrap: {
-    marginBottom: Platform.OS === 'ios' ? 10 : 8,
+    marginBottom: 0,
   },
   onboardingIntroCard: {
     overflow: 'hidden',

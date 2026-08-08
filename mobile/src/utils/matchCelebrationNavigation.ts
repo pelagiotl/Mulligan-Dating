@@ -1,7 +1,7 @@
 import { navigationRef } from '../navigation/navigationRef';
 import { isConnectInitiatorMatch } from './currentMatchView';
 
-export type MatchCelebrationPool = 'connect' | 'sober_circle';
+export type MatchCelebrationPool = 'connect' | 'sober_circle' | 'golf_date';
 
 export function navigateToNewMatchCelebration(
   matchId: string,
@@ -61,5 +61,7 @@ export function attemptNavigateToNewMatchCelebration(
 export function parseMatchCelebrationPool(
   connectedVia: unknown,
 ): MatchCelebrationPool {
-  return connectedVia === 'sober_circle' ? 'sober_circle' : 'connect';
+  if (connectedVia === 'sober_circle') return 'sober_circle';
+  if (connectedVia === 'golf_date') return 'golf_date';
+  return 'connect';
 }

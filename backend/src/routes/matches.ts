@@ -16,7 +16,7 @@ import {
   profileHasMinPhotosForConnect,
 } from "../utils/connectRequirements.js";
 import { checkDealbreakers } from "../utils/dealbreakers.js";
-import { MATCH_POOL_CONNECT, sqlMatchesInPool, normalizeConnectSource } from "../utils/matchPools.js";
+import { MATCH_POOL_CONNECT, MATCH_POOL_GOLF_DATE, sqlMatchesInPool, normalizeConnectSource, formatConnectedVia } from "../utils/matchPools.js";
 import { getMutualSecondDateFlagsByMatchIds } from "../services/dateReflections.js";
 
 function datePlanSnapshotFromJoin(m: Record<string, unknown>) {
@@ -510,7 +510,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         stage1At: m.stage1_at,
         stage2At: m.stage2_at,
         expiresAt: m.expires_at || null,
-        connectedVia: m.connected_via === 'sober_circle' ? 'sober_circle' : 'connect',
+        connectedVia: formatConnectedVia(m.connected_via),
         isInitiator: isUser1,
         userWantsReveal: m.userWantsReveal === 1,
         otherWantsReveal: m.otherWantsReveal === 1,
@@ -613,6 +613,18 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     if (!userProfile) {
       return res.status(400).json({ error: "Please complete your profile first" });
+    }
+
+    if (connectedVia === MATCH_POOL_GOLF_DATE) {
+      const golfRow = (await db
+        .prepare('SELECT golf_dates_opt_in FROM profiles WHERE user_id = ?')
+        .get([userId])) as { golf_dates_opt_in?: number | null } | undefined;
+      if (Number(golfRow?.golf_dates_opt_in ?? 0) !== 1) {
+        return res.status(403).json({
+          error: 'Join Golf Dates on the Play tab before matching for a golf date.',
+          code: 'GOLF_DATES_OPT_IN_REQUIRED',
+        });
+      }
     }
 
     const connectViolations = await getConnectSetupViolationsForUser(userId);
@@ -909,6 +921,32 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       await insertMatchResult;
     }
 
+    if (connectedVia === MATCH_POOL_GOLF_DATE) {
+      // Ensure both players are marked as Golf Dates members after a golf match.
+      const optInResult = db
+        .prepare(
+          `UPDATE profiles
+           SET golf_dates_opt_in = 1,
+               golf_dates_joined_at = COALESCE(golf_dates_joined_at, CURRENT_TIMESTAMP),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE user_id IN (?, ?)`,
+        )
+        .run([userId, targetUserId]);
+      if (optInResult instanceof Promise) await optInResult;
+
+      try {
+        const sessionResult = db
+          .prepare(
+            `INSERT INTO golf_hole_prompt_sessions (match_id, current_hole, started_at, updated_at)
+             VALUES (?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          )
+          .run([matchId]);
+        if (sessionResult instanceof Promise) await sessionResult;
+      } catch {
+        /* session may already exist */
+      }
+    }
+
     // Use the token (first token - for the match)
     const updateTokenResult = db.prepare(
       `UPDATE mulligan_tokens SET used_at = CURRENT_TIMESTAMP, match_id = ? WHERE id = ?`
@@ -934,10 +972,13 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
 
     // Send HTTP response immediately so the client feels instant; run notifications after
     res.json({
-      message: "You're connected! You can chat now.",
+      message: connectedVia === MATCH_POOL_GOLF_DATE
+        ? "You're matched for a Golf Date! Plan the round, then use hole prompts on the course."
+        : "You're connected! You can chat now.",
       matchId,
       stage: "stage1",
       isMutual: true,
+      connectedVia,
       explanation: null, // Generated in background; client can refetch if needed
       partnerIntroVideoUrl: targetProfile.intro_video_url ?? null,
     });
@@ -2681,6 +2722,65 @@ matchesRouter.post("/:matchId/game-request/:requestId/respond", authenticateToke
 });
 
 // Get Truth or Dare game state — PG-13 / Rated R / Spicy (effective = more conservative of both picks).
+matchesRouter.get("/:matchId/hole-prompts", authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const { getOrCreateGolfHolePromptSession } = await import('../services/golfHolePrompts.js');
+    const state = await getOrCreateGolfHolePromptSession(req.params.matchId, req.userId!);
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to load hole prompts' });
+    console.error('Hole prompts GET error:', error);
+    res.status(500).json({ error: 'Failed to load hole prompts' });
+  }
+});
+
+matchesRouter.post("/:matchId/hole-prompts/advance", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { advanceGolfHolePrompt, sendHolePromptToChat } = await import('../services/golfHolePrompts.js');
+    const matchId = req.params.matchId;
+    const userId = req.userId!;
+    const state = await advanceGolfHolePrompt(matchId, userId);
+    const shareToChat = req.body?.shareToChat !== false;
+    if (shareToChat) {
+      try {
+        await sendHolePromptToChat(matchId, userId, state.currentHole);
+      } catch (e) {
+        console.warn('Failed to share hole prompt to chat:', e);
+      }
+    }
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${matchId}`).emit('golf_hole_prompt_updated', state);
+    }
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to advance hole' });
+    console.error('Hole prompts advance error:', error);
+    res.status(500).json({ error: 'Failed to advance hole' });
+  }
+});
+
+matchesRouter.post("/:matchId/hole-prompts/share", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { shareCurrentGolfHolePrompt } = await import('../services/golfHolePrompts.js');
+    const state = await shareCurrentGolfHolePrompt(req.params.matchId, req.userId!);
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${req.params.matchId}`).emit('golf_hole_prompt_updated', state);
+    }
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to share hole prompt' });
+    console.error('Hole prompts share error:', error);
+    res.status(500).json({ error: 'Failed to share hole prompt' });
+  }
+});
+
 matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;

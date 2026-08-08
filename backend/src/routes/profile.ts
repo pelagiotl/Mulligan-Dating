@@ -16,7 +16,7 @@ import { uploadChatVideo } from '../middleware/upload.js';
 import { uploadToCloudinaryMedia, isCloudinaryConfigured, deleteFromCloudinary, createIntroVideoDirectUploadParams, isAllowedIntroVideoCloudinaryUrl } from '../services/cloudinary.js';
 import {
   moderateIntroVideoAtUrl,
-  handleModerationRouteError,
+  ContentModerationError,
 } from '../services/contentModeration.js';
 import {
   introVideoDurationError,
@@ -26,6 +26,47 @@ import path from 'path';
 import fs from 'fs';
 
 export const profileRouter = Router();
+
+/**
+ * Persist intro video first for fast onboarding UX; scan frames in the background.
+ * If rejected, clear the profile URL and delete the Cloudinary asset.
+ */
+function moderateIntroVideoInBackground(
+  userId: string,
+  introVideoUrl: string,
+  fallback?: { buffer: Buffer; mimeType: string },
+): void {
+  void (async () => {
+    try {
+      await moderateIntroVideoAtUrl(introVideoUrl, fallback);
+    } catch (modError) {
+      if (!(modError instanceof ContentModerationError)) {
+        console.error('Background intro video moderation failed (video kept):', modError);
+        return;
+      }
+      console.warn(`Intro video rejected for user ${userId}; clearing saved clip.`);
+      try {
+        const row = (await db
+          .prepare('SELECT intro_video_url FROM profiles WHERE user_id = ?')
+          .get([userId])) as { intro_video_url?: string | null } | undefined;
+        const current = row?.intro_video_url?.trim() || '';
+        if (current && current === introVideoUrl) {
+          await (db
+            .prepare(
+              'UPDATE profiles SET intro_video_url = NULL, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?',
+            )
+            .run([userId]) as Promise<unknown>);
+          notifyPartnersProfileChanged(userId);
+        }
+        if (introVideoUrl.includes('res.cloudinary.com')) {
+          await deleteFromCloudinary(introVideoUrl, 'video');
+        }
+      } catch (cleanupErr) {
+        console.error('Failed to clear rejected intro video:', cleanupErr);
+      }
+    }
+  })();
+}
 
 /** Match PostgreSQL column limits after initDatabase widen migrations. */
 const DB_PHOTO_URL_MAX = 2000;
@@ -882,7 +923,7 @@ profileRouter.post('/intro-video/upload-params', authenticateToken, rateLimitAPI
   }
 });
 
-/** After direct Cloudinary upload — validate duration, moderate, save profile URL. */
+/** After direct Cloudinary upload — validate duration, save immediately, moderate in background. */
 profileRouter.post('/intro-video/confirm', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -909,19 +950,13 @@ profileRouter.post('/intro-video/confirm', authenticateToken, rateLimitAPI, asyn
       return res.status(400).json({ error: introVideoDurationError(durationSec) });
     }
 
-    try {
-      await moderateIntroVideoAtUrl(secureUrl);
-    } catch (modError) {
-      await deleteFromCloudinary(secureUrl, 'video');
-      if (handleModerationRouteError(modError, res)) return;
-      throw modError;
-    }
-
     await (db
       .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
       .run([secureUrl, userId]) as Promise<unknown>);
 
     notifyPartnersProfileChanged(userId);
+    // Don't block onboarding on Sightengine — scan after the user continues.
+    moderateIntroVideoInBackground(userId, secureUrl);
     res.json({ introVideoUrl: secureUrl, message: 'Intro video saved' });
   } catch (error) {
     console.error('Intro video confirm error:', error);
@@ -970,26 +1005,25 @@ profileRouter.post('/intro-video', authenticateToken, rateLimitAPI, (req: AuthRe
     try {
       const fallbackBuffer =
         file.buffer ?? (file.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
-      await moderateIntroVideoAtUrl(
+      await (db
+        .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
+        .run([introVideoUrl, userId]) as Promise<unknown>);
+
+      notifyPartnersProfileChanged(userId);
+      moderateIntroVideoInBackground(
+        userId,
         introVideoUrl,
         fallbackBuffer ? { buffer: fallbackBuffer, mimeType: file.mimetype } : undefined,
       );
-    } catch (modError) {
+      res.json({ introVideoUrl, message: 'Intro video saved' });
+    } catch (saveError) {
       if (introVideoUrl.includes('res.cloudinary.com')) {
         await deleteFromCloudinary(introVideoUrl, 'video');
       } else if (file.path && fs.existsSync(file.path)) {
         fs.unlinkSync(file.path);
       }
-      if (handleModerationRouteError(modError, res)) return;
-      throw modError;
+      throw saveError;
     }
-
-    await (db
-      .prepare('UPDATE profiles SET intro_video_url = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?')
-      .run([introVideoUrl, userId]) as Promise<unknown>);
-
-    notifyPartnersProfileChanged(userId);
-    res.json({ introVideoUrl, message: 'Intro video saved' });
   } catch (error) {
     console.error('Intro video upload error:', error);
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to upload intro video' });
@@ -1034,6 +1068,32 @@ profileRouter.put('/sober-circle', authenticateToken, rateLimitAPI, async (req: 
   } catch (error) {
     console.error('Sober circle update error:', error);
     res.status(500).json({ error: 'Failed to save Sober Circle level' });
+  }
+});
+
+/** Opt into Golf Dates (Play tab) — activity-first matching for golf dates. */
+profileRouter.put('/golf-dates', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const optIn = req.body?.optIn !== false && req.body?.optIn !== 0 && req.body?.optIn !== '0';
+    if (optIn) {
+      await (db
+        .prepare(
+          `UPDATE profiles SET golf_dates_opt_in = 1, golf_dates_joined_at = COALESCE(golf_dates_joined_at, CURRENT_TIMESTAMP), updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
+        )
+        .run([userId]) as Promise<unknown>);
+    } else {
+      await (db
+        .prepare(
+          `UPDATE profiles SET golf_dates_opt_in = 0, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`,
+        )
+        .run([userId]) as Promise<unknown>);
+    }
+    notifyPartnersProfileChanged(userId);
+    res.json({ golfDatesOptIn: !!optIn, message: optIn ? 'Joined Golf Dates' : 'Left Golf Dates' });
+  } catch (error) {
+    console.error('Golf dates update error:', error);
+    res.status(500).json({ error: 'Failed to save Golf Dates preference' });
   }
 });
 

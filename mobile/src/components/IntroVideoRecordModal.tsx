@@ -21,7 +21,6 @@ import {
   INTRO_VIDEO_MAX_DURATION_SEC,
   introVideoDurationError,
 } from '../constants/introVideoCopy';
-import IntroVideoExamplePlayer from './IntroVideoExamplePlayer';
 import IntroVideoUploadCallout from './IntroVideoUploadCallout';
 import IntroVideoPreview from './IntroVideoPreview';
 import { resolveIntroVideoUrl, uploadProfileIntroVideo, prefetchIntroVideoUpload, prefetchIntroVideoUploadParams, clearIntroVideoUploadPrefetch, type IntroVideoUploadStage } from '../utils/introVideo';
@@ -175,8 +174,6 @@ export default function IntroVideoRecordModal({
           <Text style={styles.lead}>{INTRO_VIDEO_PROMPT}</Text>
 
           <IntroVideoUploadCallout />
-
-          <IntroVideoExamplePlayer />
 
           <View style={styles.playerWrap}>
             {previewSource ? (

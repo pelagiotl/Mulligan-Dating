@@ -54,7 +54,7 @@ export type ResolveBrowsePoolResult =
 /** Shared browse funnel — used by GET /users/browse and admin browse-pool diagnostic. */
 export async function resolveBrowseCandidatePool(
   userId: string,
-  options?: { soberCircleOnly?: boolean },
+  options?: { soberCircleOnly?: boolean; golfDatesOnly?: boolean },
 ): Promise<ResolveBrowsePoolResult> {
   const userProfile = await (db
     .prepare('SELECT * FROM profiles WHERE user_id = ?')
@@ -65,12 +65,24 @@ export async function resolveBrowseCandidatePool(
   }
 
   const soberCircleOnly = options?.soberCircleOnly === true;
+  const golfDatesOnly = options?.golfDatesOnly === true;
   const userSoberLevel = (userProfile as BrowseProfileRow & { sober_circle_level?: string | null })
     .sober_circle_level;
   if (soberCircleOnly && !(userSoberLevel && String(userSoberLevel).trim())) {
     return {
       ok: false,
       error: 'Select your sobriety level in Sober Circle before connecting here.',
+      status: 403,
+    };
+  }
+
+  const golfOptIn = Number(
+    (userProfile as BrowseProfileRow & { golf_dates_opt_in?: number | null }).golf_dates_opt_in ?? 0,
+  );
+  if (golfDatesOnly && golfOptIn !== 1) {
+    return {
+      ok: false,
+      error: 'Join Golf Dates on the Play tab before matching for a golf date.',
       status: 403,
     };
   }
@@ -129,6 +141,9 @@ export async function resolveBrowseCandidatePool(
     query += ` AND p.sober_circle_level IS NOT NULL AND TRIM(p.sober_circle_level) != ''`;
   }
 
+  // Prefer other Golf Dates members; if none exist yet, fall through without this filter later.
+  const preferGolfOptIn = golfDatesOnly;
+
   const params: unknown[] = [userId];
 
   const excludedUserIds = [...new Set([...matchedUserIds, ...blockedUserIds, ...hiddenFromBrowseIds])];
@@ -166,7 +181,11 @@ export async function resolveBrowseCandidatePool(
     }
   }
 
-  query += ` ORDER BY p.created_at DESC`;
+  if (preferGolfOptIn) {
+    query += ` ORDER BY CASE WHEN COALESCE(p.golf_dates_opt_in, 0) = 1 THEN 0 ELSE 1 END, p.created_at DESC`;
+  } else {
+    query += ` ORDER BY p.created_at DESC`;
+  }
 
   const allProfilesResult = db.prepare(query).all(params);
   const allProfiles = (allProfilesResult instanceof Promise

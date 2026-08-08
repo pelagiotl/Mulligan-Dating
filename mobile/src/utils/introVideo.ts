@@ -8,7 +8,7 @@ import {
 } from '../constants/introVideoCopy';
 
 const UPLOAD_TIMEOUT_MS = 180_000;
-const CONFIRM_TIMEOUT_MS = 90_000;
+const CONFIRM_TIMEOUT_MS = 30_000;
 const MAX_INTRO_VIDEO_BYTES = 28 * 1024 * 1024;
 const DURATION_TOLERANCE_MS = 500;
 
@@ -397,8 +397,8 @@ export async function uploadProfileIntroVideo(
   return introVideoUrl;
 }
 
-/** Bundled founder/example clip for onboarding Step 3. */
+/** Bundled founder/example clip (unused in UI; kept for optional future use). */
 export const INTRO_VIDEO_EXAMPLE_SOURCE = require('../../assets/intro-video/intro-example.mp4');
 
-/** Matches Luke's example clip (1080×720 landscape, same framing as the original recording). */
+/** Matches the bundled example clip framing (1080×720 landscape). */
 export const INTRO_VIDEO_EXAMPLE_ASPECT = 1080 / 720;

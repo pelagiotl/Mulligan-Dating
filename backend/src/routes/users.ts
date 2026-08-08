@@ -102,6 +102,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
     const pool = (req.query.pool as string) || 'main';
     const soberPool = pool === 'sober';
+    const golfPool = pool === 'golf' || pool === 'golf_date';
 
     if (!soberPool) {
       const userResult = await (db.prepare('SELECT browse_unlocked_at FROM users WHERE id = ?').get([req.userId]) as Promise<{ browse_unlocked_at: string | null } | undefined>);
@@ -125,6 +126,7 @@ usersRouter.get('/browse', authenticateToken, async (req: AuthRequest, res) => {
 
     const poolResult = await resolveBrowseCandidatePool(req.userId!, {
       soberCircleOnly: soberPool,
+      golfDatesOnly: golfPool,
     });
     if (!poolResult.ok) {
       const code =

@@ -415,6 +415,41 @@ export async function initDatabase() {
     }
   }
 
+  try {
+    await execSQL(
+      `ALTER TABLE profiles ADD COLUMN golf_dates_opt_in ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 0`,
+    );
+    console.log('✅ Added profiles.golf_dates_opt_in');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add profiles.golf_dates_opt_in:', msg);
+    }
+  }
+
+  try {
+    await execSQL(
+      `ALTER TABLE profiles ADD COLUMN golf_dates_joined_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'}`,
+    );
+    console.log('✅ Added profiles.golf_dates_joined_at');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add profiles.golf_dates_joined_at:', msg);
+    }
+  }
+
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS golf_hole_prompt_sessions (
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      current_hole ${usePostgres ? 'INT' : 'INTEGER'} DEFAULT 1,
+      started_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      completed_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
   // Photos table - multiple photos per profile
   await execSQL(`
     CREATE TABLE IF NOT EXISTS photos (
