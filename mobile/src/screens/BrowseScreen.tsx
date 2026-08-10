@@ -2304,7 +2304,7 @@ export default function BrowseScreen() {
                           <ConnectFeatureLabel lines={['Hole', 'Prompts']} style={styles.sunnyFeatureText} />
                         </View>
                         <View style={styles.sunnyFeature}>
-                          <ConnectLandingFeatureEmoji emoji="💚" fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="✨" fontSize={26} />
                           <ConnectFeatureLabel lines={['Real', 'Chemistry']} style={styles.sunnyFeatureText} />
                         </View>
                       </View>
@@ -2366,7 +2366,7 @@ export default function BrowseScreen() {
                           <ConnectFeatureLabel lines={['Hole', 'Prompts']} style={styles.softFeatureText} />
                         </View>
                         <View style={styles.softFeature}>
-                          <ConnectLandingFeatureEmoji emoji="💚" fontSize={26} />
+                          <ConnectLandingFeatureEmoji emoji="✨" fontSize={26} />
                           <ConnectFeatureLabel lines={['Real', 'Chemistry']} style={styles.softFeatureText} />
                         </View>
                       </View>

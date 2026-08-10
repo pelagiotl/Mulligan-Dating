@@ -1442,7 +1442,6 @@ export default function MatchesScreen() {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [profileCompatibility, setProfileCompatibility] = useState<number | null>(null);
   const [compatibilityDetails, setCompatibilityDetails] = useState<{ reasons: string[]; sharedInterests: string[] } | null>(null);
-  const [showAgeCardModal, setShowAgeCardModal] = useState(false);
   const [showCompatibilityCardModal, setShowCompatibilityCardModal] = useState(false);
   const [messageReactionToast, setMessageReactionToast] = useState<string | null>(null);
   /** Mulligan-styled explainer (replaces system Alert on photo-unlock banner tap). */
@@ -3525,24 +3524,9 @@ export default function MatchesScreen() {
               </View>
             </TouchableOpacity>
           </View>
-          {/* Bottom row: age, photo visibility, compatibility + game icons */}
+          {/* Bottom row: stage/compatibility + game icons */}
           <View style={[styles.chatHeaderBottomRow, isSmallScreen && { gap: 6 }]}>
             <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 4 }]}>
-              <TouchableOpacity
-                activeOpacity={0.85}
-                onPress={() => setShowAgeCardModal(true)}
-              >
-                <LinearGradient
-                  colors={['#667eea', '#764ba2', '#8b5cf6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.chatHeaderAgePill}
-                >
-                  <Text style={styles.chatHeaderAgePillIcon}>🎂</Text>
-                  <Text style={styles.chatHeaderAgePillText}>{selectedMatch.otherUser.age}</Text>
-                  <Text style={styles.chatHeaderAgePillLabel}>yrs</Text>
-                </LinearGradient>
-              </TouchableOpacity>
               {selectedMatch.stage === 'pending' ? (
                 <View style={styles.chatHeaderStagePillWrap}>
                   <LinearGradient
@@ -3672,36 +3656,6 @@ export default function MatchesScreen() {
         subtitle={CHAT_MEDIA_LOCKED_SUBTITLE}
         moderationWarning={CHAT_MEDIA_LOCKED_MODERATION}
       />
-
-      {/* Age card popup - fun message when tapping the age pill */}
-      <Modal
-        visible={showAgeCardModal}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowAgeCardModal(false)}
-      >
-        <TouchableOpacity
-          activeOpacity={1}
-          style={styles.ageCardOverlay}
-          onPress={() => setShowAgeCardModal(false)}
-        >
-          <TouchableOpacity activeOpacity={1} onPress={() => setShowAgeCardModal(false)} style={styles.ageCardTouchable}>
-            <LinearGradient
-              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.ageCardGradient}
-            >
-              <Text style={styles.ageCardEmoji}>✨</Text>
-              <Text style={styles.ageCardTitle}>Age is one piece of the picture</Text>
-              <Text style={styles.ageCardBody}>
-                Mulligan shows age so you have context—what matters more is shared interests, respect, and whether you actually want to meet up. Keep things kind, honest, and public when you first connect.
-              </Text>
-              <Text style={styles.ageCardHint}>Tap anywhere to close</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
 
       {/* Compatibility card popup - tap the % badge to see why you match; scrollable so user can read all info */}
       <Modal
@@ -4505,7 +4459,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
-    overflow: 'hidden',
+    overflow: 'visible',
   },
   loadingContainer: {
     flex: 1,
@@ -5069,11 +5023,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    overflow: 'visible',
   },
   chatHeader: {
     flexDirection: 'column',
     padding: 16,
     paddingBottom: 14,
+    overflow: 'visible',
+    zIndex: 6,
   },
   chatHeaderTopRow: {
     flexDirection: 'row',
@@ -5285,12 +5242,16 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     gap: 10,
     justifyContent: 'space-between',
+    overflow: 'visible',
+    zIndex: 6,
   },
   chatHeaderActionsRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     flexShrink: 0,
+    overflow: 'visible',
+    zIndex: 5,
   },
   chatHeaderPillRow: {
     flexDirection: 'column',
@@ -5298,42 +5259,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     flex: 0,
-  },
-  chatHeaderAgePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 14,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.5)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 3,
-    minWidth: 80,
-  },
-  chatHeaderAgePillIcon: {
-    fontSize: 12,
-    marginRight: 4,
-  },
-  chatHeaderAgePillText: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: '#fff',
-    marginRight: 2,
-    textShadowColor: 'rgba(0,0,0,0.3)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  chatHeaderAgePillLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.95)',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   ageCardOverlay: {
     flex: 1,

@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
 import GameUnlockPlayModal from './GameUnlockPlayModal';
+import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 import {
   MATCH_CHAT_DEPTH_MIN_EACH,
   matchChatDepthCounts,
@@ -318,29 +319,6 @@ export default function NeverHaveIEver({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
   const emojiRotate = useRef(new Animated.Value(0)).current;
-  const headerPulseAnim = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    if (!headerMode) return;
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(headerPulseAnim, {
-          toValue: 1.08,
-          duration: 1400,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerPulseAnim, {
-          toValue: 1,
-          duration: 1400,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
-    return () => { pulse.stop(); headerPulseAnim.setValue(1); };
-  }, [headerMode]);
 
   useEffect(() => {
     // Monkey wiggle + bounce: tilt -8deg to 8deg, scale 1 to 1.15
@@ -1055,18 +1033,26 @@ export default function NeverHaveIEver({
   };
 
   const headerButton = (
-    <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
-      <TouchableOpacity
-        onPress={handleMonkeyPress}
-        activeOpacity={0.8}
-        style={[
-          styles.headerIconButton,
-          (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
-        ]}
-      >
-        <Text style={styles.headerIconEmoji}>🙊</Text>
-      </TouchableOpacity>
-    </Animated.View>
+    <ChatHeaderFeatureHint
+      storageKey="mulligan_chat_hint_never_have_i_ever_v1"
+      label="Never Have I Ever"
+      priority={30}
+      glowColor="rgba(52, 211, 153, 0.45)"
+    >
+      {({ onPressWithHintDismiss }) => (
+        <TouchableOpacity
+          onPress={() => onPressWithHintDismiss(handleMonkeyPress)}
+          activeOpacity={0.8}
+          style={[
+            styles.headerIconButton,
+            (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
+          ]}
+          accessibilityLabel="Never Have I Ever"
+        >
+          <Text style={styles.headerIconEmoji}>🙊</Text>
+        </TouchableOpacity>
+      )}
+    </ChatHeaderFeatureHint>
   );
 
   // Modal is shared - needed for headerMode when User B accepts (openForAccept)

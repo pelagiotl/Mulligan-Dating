@@ -49,7 +49,7 @@ const featureLabelStyles = StyleSheet.create({
   },
 });
 
-const LANDING_FEATURE_TILES = ['⛳', '💬', '💚'] as const;
+const LANDING_FEATURE_TILES = ['⛳', '💬', '✨'] as const;
 
 const LANDING_FEATURE_LABELS: readonly [readonly [string, string], readonly [string, string], readonly [string, string]] = [
   ['Golf', 'Dates'],
@@ -66,7 +66,7 @@ const landingFeatureEmojiWrap = {
 const LANDING_FEATURE_PULSE_DELAYS: Record<(typeof LANDING_FEATURE_TILES)[number], number> = {
   '⛳': 0,
   '💬': 220,
-  '💚': 440,
+  '✨': 440,
 };
 
 /** Gentle pulsing emoji for Connect landing feature row (BrowseScreen + value props card). */

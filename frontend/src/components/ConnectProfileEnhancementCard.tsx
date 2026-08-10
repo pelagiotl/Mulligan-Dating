@@ -34,7 +34,7 @@ export function ConnectProfileEnhancementRestoreLink({
         className="connect-enhancement-restore__icon connect-enhancement__icon--pulse"
         aria-hidden
       >
-        ✨
+        📈
       </span>
       <span className="connect-enhancement-restore__copy">
         <span className="connect-enhancement-restore__title">Show Better matches tips</span>
@@ -65,7 +65,7 @@ export default function ConnectProfileEnhancementCard({
       <div className="connect-enhancement__head">
         <div className="connect-enhancement__title-wrap">
           <span className="connect-enhancement__icon connect-enhancement__icon--pulse" aria-hidden>
-            ✨
+            📈
           </span>
           <p className="connect-enhancement__eyebrow">Better matches</p>
         </div>

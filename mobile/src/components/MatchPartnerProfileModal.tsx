@@ -160,6 +160,7 @@ export default function MatchPartnerProfileModal({
   const { user } = useAuth();
   const insets = useSafeAreaInsets();
   const [currentUserInterests, setCurrentUserInterests] = useState<string[]>([]);
+  const [showAgeCard, setShowAgeCard] = useState(false);
 
   const allPhotos = useMemo((): MatchPartnerPhoto[] => {
     if (match.stage === 'stage1') {
@@ -183,6 +184,10 @@ export default function MatchPartnerProfileModal({
 
   const primaryPhoto = sortedPhotos.find((p) => p.isPrimary) || sortedPhotos[0];
   const primaryPhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
+
+  useEffect(() => {
+    if (!visible) setShowAgeCard(false);
+  }, [visible]);
 
   useEffect(() => {
     if (!visible || !user) {
@@ -324,6 +329,24 @@ export default function MatchPartnerProfileModal({
             </View>
 
             <View style={[styles.metaChips, androidCompactHero.metaChips]}>
+              {otherUser.age ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={() => setShowAgeCard(true)}
+                  accessibilityLabel={`Age ${otherUser.age}`}
+                >
+                  <LinearGradient
+                    colors={['rgba(255,255,255,0.28)', 'rgba(255,255,255,0.12)']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.metaChip, androidCompactHero.metaChip, ageChipStyles.pill]}
+                  >
+                    <Text style={[styles.metaChipText, androidCompactHero.metaChipText]}>
+                      🎂 {otherUser.age} yrs
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : null}
               {otherUser.gender ? (
                 <View style={[styles.metaChip, androidCompactHero.metaChip]}>
                   <Text style={[styles.metaChipText, androidCompactHero.metaChipText]}>⚧️ {otherUser.gender}</Text>
@@ -636,6 +659,41 @@ export default function MatchPartnerProfileModal({
           )}
         </ScrollView>
       </View>
+
+      <Modal
+        visible={showAgeCard}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowAgeCard(false)}
+      >
+        <TouchableOpacity
+          activeOpacity={1}
+          style={ageChipStyles.overlay}
+          onPress={() => setShowAgeCard(false)}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => setShowAgeCard(false)}
+            style={ageChipStyles.card}
+          >
+            <LinearGradient
+              colors={['#667eea', '#764ba2', '#f093fb', '#f5576c']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+              style={ageChipStyles.cardInner}
+            >
+              <Text style={ageChipStyles.emoji}>🎂</Text>
+              <Text style={ageChipStyles.title}>
+                {otherUser.displayName.split(' ')[0] || otherUser.displayName}, {otherUser.age}
+              </Text>
+              <Text style={ageChipStyles.body}>
+                Mulligan shows age so you have context—what matters more is shared interests, respect, and whether you actually want to meet up. Keep things kind, honest, and public when you first connect.
+              </Text>
+              <Text style={ageChipStyles.hint}>Tap anywhere to close</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 
@@ -736,5 +794,57 @@ const introVideoStyles = StyleSheet.create({
   player: {
     width: '100%',
     height: '100%',
+  },
+});
+
+const ageChipStyles = StyleSheet.create({
+  pill: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.45)',
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  card: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 20,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  cardInner: {
+    padding: 28,
+    alignItems: 'center',
+  },
+  emoji: {
+    fontSize: 36,
+    marginBottom: 10,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: 'rgba(255,255,255,0.95)',
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  hint: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.75)',
   },
 });

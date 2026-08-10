@@ -1,5 +1,6 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity } from 'react-native';
+import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 
 type Props = {
   onPress: () => void;
@@ -7,43 +8,24 @@ type Props = {
 
 /** Chat header entry point for Smart Intentional Date Planner — always available. */
 export default function HangoutPlanHeaderButton({ onPress }: Props) {
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const anim = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1.08,
-          duration: 1300,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1300,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    anim.start();
-    return () => {
-      anim.stop();
-      pulse.setValue(1);
-    };
-  }, [pulse]);
-
   return (
-    <Animated.View style={{ transform: [{ scale: pulse }] }}>
-      <TouchableOpacity
-        onPress={onPress}
-        activeOpacity={0.8}
-        style={styles.button}
-        accessibilityLabel="Smart hangout ideas"
-      >
-        <Text style={styles.emoji}>📅</Text>
-      </TouchableOpacity>
-    </Animated.View>
+    <ChatHeaderFeatureHint
+      storageKey="mulligan_chat_hint_hangout_plan_v1"
+      label="Smart date ideas"
+      priority={40}
+      glowColor="rgba(251, 191, 36, 0.4)"
+    >
+      {({ onPressWithHintDismiss }) => (
+        <TouchableOpacity
+          onPress={() => onPressWithHintDismiss(onPress)}
+          activeOpacity={0.8}
+          style={styles.button}
+          accessibilityLabel="Smart hangout ideas"
+        >
+          <Text style={styles.emoji}>📅</Text>
+        </TouchableOpacity>
+      )}
+    </ChatHeaderFeatureHint>
   );
 }
 

@@ -61,7 +61,7 @@ export function ConnectProfileEnhancementRestoreLink({
         end={{ x: 1, y: 0 }}
         style={styles.accent}
       />
-      <SmoothPulsingEmoji emoji="✨" fontSize={16} variant="prominent" />
+      <SmoothPulsingEmoji emoji="📈" fontSize={16} variant="prominent" />
       <View style={styles.restoreCopy}>
         <Text style={[styles.restoreTitle, { color: palette.eyebrow }]}>Show Better matches tips</Text>
         <Text style={[styles.restoreMeta, { color: palette.lead }]}>
@@ -333,7 +333,7 @@ export default function ConnectProfileEnhancementCard({
       />
       <View style={styles.head}>
         <View style={styles.titleWrap}>
-          <SmoothPulsingEmoji emoji="✨" fontSize={14} />
+          <SmoothPulsingEmoji emoji="📈" fontSize={14} />
           <Text style={[styles.eyebrow, { color: palette.eyebrow }]}>Better matches</Text>
         </View>
         <Text style={[styles.progressBadge, { color: palette.progress, borderColor: palette.rowBorder }]}>

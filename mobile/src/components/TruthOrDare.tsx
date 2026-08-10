@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import { filterBannedGamePrompts } from '../utils/gamePromptGuards';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
+import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
@@ -266,7 +267,6 @@ export default function TruthOrDare({
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const emojiScale = useRef(new Animated.Value(1)).current;
   const emojiRotate = useRef(new Animated.Value(0)).current;
-  const headerPulseAnim = useRef(new Animated.Value(1)).current;
   const stepRef = useRef(step);
   stepRef.current = step;
 
@@ -591,38 +591,27 @@ export default function TruthOrDare({
     handleOpen();
   };
 
-  useEffect(() => {
-    if (!headerMode) return;
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(headerPulseAnim, {
-          toValue: 1.08,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(headerPulseAnim, {
-          toValue: 1,
-          duration: 1200,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
-    return () => { pulse.stop(); headerPulseAnim.setValue(1); };
-  }, [headerMode]);
-
   const headerButton = (
-    <Animated.View style={{ transform: [{ scale: headerPulseAnim }] }}>
-      <TouchableOpacity
-        onPress={isUnlocked ? handleOpen : handleLockedPress}
-        activeOpacity={0.8}
-        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-      >
-        <Text style={styles.headerIconEmoji}>🎲</Text>
-      </TouchableOpacity>
-    </Animated.View>
+    <ChatHeaderFeatureHint
+      storageKey="mulligan_chat_hint_truth_or_dare_v1"
+      label="Truth or Dare"
+      priority={20}
+      glowColor="rgba(167, 139, 250, 0.45)"
+      alwaysPulse
+    >
+      {({ onPressWithHintDismiss }) => (
+        <TouchableOpacity
+          onPress={() =>
+            onPressWithHintDismiss(isUnlocked ? handleOpen : handleLockedPress)
+          }
+          activeOpacity={0.8}
+          style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+          accessibilityLabel="Truth or Dare"
+        >
+          <Text style={styles.headerIconEmoji}>🎲</Text>
+        </TouchableOpacity>
+      )}
+    </ChatHeaderFeatureHint>
   );
 
   if (headerMode) {

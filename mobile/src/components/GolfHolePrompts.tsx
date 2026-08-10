@@ -22,6 +22,7 @@ import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { api } from '../utils/api';
+import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 
 type HolePromptState = {
   matchId: string;
@@ -568,14 +569,30 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }:
 
   return (
     <>
-      <TouchableOpacity
-        onPress={open}
-        activeOpacity={0.85}
-        style={headerMode ? styles.headerBtn : styles.btn}
-        accessibilityLabel="Golf hole prompts"
-      >
-        <Text style={headerMode ? styles.headerBtnText : styles.btnText}>⛳</Text>
-      </TouchableOpacity>
+      {headerMode ? (
+        <ChatHeaderFeatureHint
+          storageKey="mulligan_chat_hint_hole_prompts_v1"
+          label="Tap for hole prompts"
+          priority={10}
+          glowColor="rgba(45, 212, 191, 0.4)"
+        >
+          {({ onPressWithHintDismiss }) => (
+            <TouchableOpacity
+              onPress={() => onPressWithHintDismiss(open)}
+              activeOpacity={0.85}
+              style={styles.headerBtn}
+              accessibilityLabel="Golf hole prompts — tap for shared questions on the course"
+              accessibilityHint="Opens hole prompts you can share in chat"
+            >
+              <Text style={styles.headerBtnText}>⛳</Text>
+            </TouchableOpacity>
+          )}
+        </ChatHeaderFeatureHint>
+      ) : (
+        <TouchableOpacity onPress={open} activeOpacity={0.85} style={styles.btn} accessibilityLabel="Golf hole prompts">
+          <Text style={styles.btnText}>⛳</Text>
+        </TouchableOpacity>
+      )}
 
       <Modal visible={visible} animationType="none" transparent onRequestClose={close}>
         <View style={styles.modalRoot}>
@@ -818,6 +835,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15, 118, 110, 0.25)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(45, 212, 191, 0.45)',
   },
   headerBtnText: { fontSize: 18 },
   btn: {
