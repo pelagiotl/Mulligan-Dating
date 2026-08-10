@@ -44,7 +44,8 @@ try {
 }
 
 try {
-  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound.wav');
+  // v3 — celebration-forward boot SFX (filename busts Metro asset cache)
+  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v3.wav');
 } catch {
   mulliganBootSoundModule = null;
   if (!isExpoGo) {

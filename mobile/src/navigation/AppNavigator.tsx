@@ -62,7 +62,7 @@ export type MainTabParamList = {
 const MAIN_TAB_SCREEN_NAMES = new Set<string>(['Browse', 'Matches', 'LiveDates', 'SoberCircle', 'MyProfile', 'Settings', 'Admin']);
 
 /**
- * Floating 🎟️+count (web navbar parity) on Matches / Profile / Settings / Admin.
+ * Floating 🏌️+count (web navbar parity) on Matches / Profile / Settings / Admin.
  * Browse uses its own top-right token overlay; hide here to avoid duplicate controls.
  * Only when the stack is showing MainTabs (not CreateProfile / modals on top).
  */

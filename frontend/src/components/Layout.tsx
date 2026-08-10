@@ -128,7 +128,7 @@ export default function Layout() {
                 aria-controls="navbar-token-dialog"
               >
                 <span className="navbar-token-badge-emoji" aria-hidden>
-                  🎟️
+                  🏌️
                 </span>
                 <span>{tokenCount}</span>
                 <span className="sr-only">Open token details</span>

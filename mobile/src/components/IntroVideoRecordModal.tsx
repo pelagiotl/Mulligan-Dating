@@ -15,7 +15,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  INTRO_VIDEO_PROMPT,
   INTRO_VIDEO_TIPS,
   INTRO_VIDEO_MAX_DURATION_MS,
   INTRO_VIDEO_MAX_DURATION_SEC,
@@ -180,8 +179,6 @@ export default function IntroVideoRecordModal({
         </View>
 
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
-          <Text style={styles.lead}>{INTRO_VIDEO_PROMPT}</Text>
-
           <IntroVideoUploadCallout />
 
           <View style={styles.playerWrap}>

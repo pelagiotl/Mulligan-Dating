@@ -10,8 +10,8 @@ import { playMulliganBootSound } from '../utils/sounds';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-/** Swing whoosh builds through the putt; impact (~380ms into SFX) lands at the lip-out. */
-const MISS_SOUND_AT_MS = 280 + 900 - 380;
+/** Reward peak of boot SFX (~340ms) lands on the lip-out / “Just missed…”. */
+const MISS_SOUND_AT_MS = 280 + 900 - 340;
 
 type Props = {
   onFinished: () => void;

@@ -15,7 +15,7 @@ import {
   INTRO_VIDEO_UPLOAD_ANY_SHORT,
 } from '../constants/introVideoCopy';
 
-const CLIP_EMOJIS = ['🎬', '🏂', '🎧', '⛳', '💃', '📱'] as const;
+const CLIP_EMOJIS = ['⛳', '🎬', '🏂', '🎧', '💃', '📱'] as const;
 
 type Props = {
   compact?: boolean;

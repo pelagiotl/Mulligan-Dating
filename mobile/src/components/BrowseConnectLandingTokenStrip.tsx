@@ -85,7 +85,7 @@ export default function BrowseConnectLandingTokenStrip({
       accessibilityLabel="Mulligan tokens"
     >
       <LinearGradient colors={headerColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <SmoothPulsingEmoji emoji="🎟️" fontSize={22} containerStyle={styles.headerEmojiWrap} />
+        <SmoothPulsingEmoji emoji="🏌️" fontSize={22} containerStyle={styles.headerEmojiWrap} />
         <View style={styles.countRow}>
           <Text style={styles.headerNumber}>{availableTokens}</Text>
           <Text style={styles.headerCap}>/ {TOKEN_MAX}</Text>

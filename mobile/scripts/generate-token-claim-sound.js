@@ -1,5 +1,5 @@
 /**
- * Cash-register style "cha-ching" for weekly token claim.
+ * Warm coin / reward chime for weekly token claim.
  * Run: node scripts/generate-token-claim-sound.js
  * Output: mobile/assets/token-claim-sound.wav (copy to frontend/public for web).
  */
@@ -17,7 +17,7 @@ function encodeWav(rawFloat, sampleRate = 44100) {
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
   const blockAlign = numChannels * (bitsPerSample / 8);
 
-  const tailLen = 0.12;
+  const tailLen = 0.14;
   const tailStart = duration - tailLen;
   const samples = [];
   for (let i = 0; i < numSamples; i++) {
@@ -27,7 +27,9 @@ function encodeWav(rawFloat, sampleRate = 44100) {
       const x = (duration - t) / tailLen;
       master = x * x;
     }
-    let sample = Math.max(-1, Math.min(1, rawFloat[i] * master));
+    // Soft saturation — round, not robotic square edges
+    let sample = Math.tanh(rawFloat[i] * 1.05) * master;
+    sample = Math.max(-1, Math.min(1, sample));
     const int16 = Math.floor(sample * 32767);
     samples.push(int16 & 0xff);
     samples.push((int16 >> 8) & 0xff);
@@ -52,54 +54,82 @@ function encodeWav(rawFloat, sampleRate = 44100) {
   return Buffer.concat([header, Buffer.from(samples)]);
 }
 
-/** Short register click + two bright coin strikes. */
-function generateChaChing(sampleRate = 44100, duration = 0.38) {
+/**
+ * Soft body thud + two warm mid-range coin tones (no bright digital ping).
+ * Tuned for phone speakers — cozy reward, not arcade cha-ching.
+ */
+function generateWarmClaim(sampleRate = 44100, duration = 0.52) {
   const numSamples = Math.floor(sampleRate * duration);
   const raw = new Float32Array(numSamples);
-  let noiseSeed = 12345;
+  let noiseSeed = 90210;
+  let lp = 0;
+
+  const noise = () => {
+    noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff;
+    return (noiseSeed / 0x7fffffff) * 2 - 1;
+  };
+
+  // Soft bell partials (fundamental-heavy, muted overtones)
+  const bell = (freq, t, env, weight = 1) => {
+    const p = TAU * freq * t;
+    return (
+      Math.sin(p) * 0.72 +
+      Math.sin(p * 2.01) * 0.18 +
+      Math.sin(p * 2.76) * 0.06
+    ) * env * weight;
+  };
 
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
+    const n = noise();
+    lp += 0.18 * (n - lp);
     let sample = 0;
 
-    // Drawer / latch click
-    if (t < 0.028) {
-      noiseSeed = (noiseSeed * 1103515245 + 12345) & 0x7fffffff;
-      const n = (noiseSeed / 0x7fffffff) * 2 - 1;
-      const env = Math.exp(-t * 120) * (1 - Math.exp(-t * 400));
-      sample += n * env * 0.22;
+    // Soft leather / drawer body — low, not clicky plastic
+    if (t < 0.045) {
+      const env = Math.exp(-t * 55) * (1 - Math.exp(-t * 280));
+      sample += Math.sin(TAU * 110 * t) * env * 0.35;
+      sample += lp * env * 0.2;
     }
 
-    // "Cha" — lower metallic ping
-    const chaFreq = 987.77;
-    const chaStart = 0.02;
-    const chaLen = 0.1;
-    if (t >= chaStart && t < chaStart + chaLen) {
-      const local = t - chaStart;
-      const attack = 1 - Math.exp(-local * 120);
-      const decay = Math.exp(-local * 28);
-      const env = attack * decay * 0.38;
-      const phase = TAU * chaFreq * t;
-      sample += (Math.sin(phase) + 0.35 * Math.sin(phase * 2.76)) * env;
+    // First coin — warm G4 (~392 Hz)
+    const c1Start = 0.018;
+    if (t >= c1Start && t < c1Start + 0.28) {
+      const local = t - c1Start;
+      const env =
+        (1 - Math.exp(-local * 90)) * Math.exp(-local * 9) * 0.42;
+      sample += bell(392.0, t, env);
+      sample += bell(493.88, t, env, 0.35); // soft B4 under
+      sample += lp * Math.exp(-local * 60) * 0.08;
     }
 
-    // "Ching" — bright coin pair (major third)
-    const c1 = 1567.98;
-    const c2 = 1975.53;
-    const chingStart = 0.09;
-    const chingLen = 0.26;
-    if (t >= chingStart && t < chingStart + chingLen) {
-      const local = t - chingStart;
-      const attack = 1 - Math.exp(-local * 95);
-      const decay = Math.exp(-local * 11);
-      const env = attack * decay * 0.44;
-      sample += Math.sin(TAU * c1 * t) * env;
-      sample += Math.sin(TAU * c2 * t) * env * 0.85;
-      sample += Math.sin(TAU * c2 * 2 * t) * env * 0.08;
+    // Second coin — warmer lift to C5/E5, slightly delayed
+    const c2Start = 0.11;
+    if (t >= c2Start && t < c2Start + 0.38) {
+      const local = t - c2Start;
+      const env =
+        (1 - Math.exp(-local * 75)) * Math.exp(-local * 7.5) * 0.48;
+      sample += bell(523.25, t, env);
+      sample += bell(659.25, t, env, 0.55);
+      // Tiny shimmer — still mid, not piercing
+      sample += Math.sin(TAU * 784 * t) * env * 0.08;
+      sample += lp * Math.exp(-local * 45) * 0.06;
     }
 
-    raw[i] = Math.max(-1, Math.min(1, sample * 0.92));
+    // Soft low “reward” settle under the chime
+    if (t >= 0.05 && t < 0.4) {
+      const local = t - 0.05;
+      const env = Math.exp(-local * 5) * (1 - Math.exp(-local * 25)) * 0.16;
+      sample += Math.sin(TAU * (165 - local * 40) * t) * env;
+    }
+
+    raw[i] = sample;
   }
+
+  let peak = 0;
+  for (let i = 0; i < numSamples; i++) peak = Math.max(peak, Math.abs(raw[i]));
+  const gain = peak > 0 ? 0.86 / peak : 1;
+  for (let i = 0; i < numSamples; i++) raw[i] *= gain;
 
   return encodeWav(raw, sampleRate);
 }
@@ -108,7 +138,7 @@ const assetsDir = path.join(__dirname, '../assets');
 const publicDir = path.join(__dirname, '../../frontend/public');
 
 try {
-  const wav = generateChaChing();
+  const wav = generateWarmClaim();
   const mobilePath = path.join(assetsDir, 'token-claim-sound.wav');
   fs.writeFileSync(mobilePath, wav);
   console.log('✅ Token claim sound →', mobilePath);

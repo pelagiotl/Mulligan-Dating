@@ -67,7 +67,6 @@ import { CONNECT_PHOTOS_REQUIRED_MESSAGE, computeConnectSetupComplete } from '..
 import ProfileCompleteCelebration from '../components/ProfileCompleteCelebration';
 import IntroVideoRecordModal from '../components/IntroVideoRecordModal';
 import IntroVideoUploadCallout from '../components/IntroVideoUploadCallout';
-import { INTRO_VIDEO_PROMPT } from '../constants/introVideoCopy';
 import { hasIntroVideo } from '../utils/connectSetup';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import {
@@ -2016,22 +2015,6 @@ export default function CreateProfileScreen() {
             rs.onboardingVeryTight ? 'Step 3' : 'Step 3 · Intro video',
             rs.onboardingTight,
           )}
-          {rs.onboardingVeryTight ? (
-            <Text
-              style={[
-                styles.focusedSubtitle,
-                {
-                  fontSize: rs.onboardingSubtitleSize,
-                  lineHeight: rs.onboardingSubtitleLineHeight,
-                  marginBottom: rs.onboardingSubtitleMargin,
-                  opacity: 0.92,
-                },
-              ]}
-              numberOfLines={2}
-            >
-              {INTRO_VIDEO_PROMPT}
-            </Text>
-          ) : null}
 
           <IntroVideoUploadCallout
             compact={rs.onboardingTight}

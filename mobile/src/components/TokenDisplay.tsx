@@ -531,7 +531,7 @@ function WebNavbarTokenBadge({
           <ActivityIndicator size="small" color={textColor} />
         ) : (
           <>
-            <SmoothPulsingEmoji emoji="🎟️" fontSize={16} />
+            <SmoothPulsingEmoji emoji="🏌️" fontSize={16} />
             <Text
               style={{
                 fontSize: 14,
@@ -715,7 +715,7 @@ function PremiumTokenDisplay({
             style={[styles.premiumGradient, { shadowColor: chrome.shadowColor, elevation: 6 }]}
           >
             <View style={styles.premiumContent} collapsable={false}>
-              <Text style={styles.premiumIcon}>🎟️</Text>
+              <Text style={styles.premiumIcon}>🏌️</Text>
               <Text style={[styles.premiumCount, styles.premiumCountAndroid]}>{count}</Text>
             </View>
           </LinearGradient>
@@ -735,7 +735,7 @@ function PremiumTokenDisplay({
               ]}
             />
             <View style={styles.premiumContent}>
-              <Text style={styles.premiumIcon}>🎟️</Text>
+              <Text style={styles.premiumIcon}>🏌️</Text>
               <Text style={styles.premiumCount}>{count}</Text>
             </View>
           </LinearGradient>
@@ -1484,7 +1484,7 @@ export default function TokenDisplay({
           }}
           style={[styles.compactContainer, compactContainerShell]}
         >
-          <Text style={styles.tokenIcon}>🎟️</Text>
+          <Text style={styles.tokenIcon}>🏌️</Text>
           <Text style={[styles.compactTokenNumber, compactNumberShell]}>
             {data.availableTokens}
           </Text>
@@ -1497,7 +1497,7 @@ export default function TokenDisplay({
   return (
     <View style={styles.container}>
       <View style={styles.tokenCount}>
-        <Text style={styles.tokenIcon}>🎟️</Text>
+        <Text style={styles.tokenIcon}>🏌️</Text>
         <Text style={styles.tokenNumber}>{data.availableTokens}</Text>
         <Text style={styles.tokenLabel}>
           Mulligan Token{data.availableTokens !== 1 ? 's' : ''}

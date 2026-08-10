@@ -12,9 +12,6 @@ export const INTRO_VIDEO_UPLOAD_ANY =
 export const INTRO_VIDEO_UPLOAD_ANY_SHORT =
   'Record or upload any clip from your roll — TikTok reel, hobbies, activities — 3–15 sec.';
 
-export const INTRO_VIDEO_PROMPT =
-  '10–15 seconds: your name, something you love in Southern Oregon, and what you\'re hoping to find.';
-
 export const INTRO_VIDEO_TIPS = [
   'Keep it under 15 seconds',
 ] as const;

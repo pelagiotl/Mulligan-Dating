@@ -1,13 +1,22 @@
 /**
- * Golf swing whoosh for Mulligan boot splash.
+ * Mulligan boot splash SFX — addictive “reward” sting (golf nod + celebration).
+ * Inspired by short dating-app match celebrations: whoosh → hit → ascending sparkle.
+ *
  * Run: node scripts/generate-mulligan-boot-sound.js
- * Output: mobile/assets/mulligan-boot-sound.wav
+ * Output: mobile/assets/mulligan-boot-sound-v3.wav
+ *
+ * Rollback options:
+ *   v2: assets/sound-archive/mulligan-boot-sound-v2.wav
+ *   pre: assets/sound-archive/mulligan-boot-sound.pre-addictive.wav
  */
 
 const fs = require('fs');
 const path = require('path');
 
 const TAU = 2 * Math.PI;
+
+/** Peak of the reward (sync splash timing to this). */
+const REWARD_PEAK_SEC = 0.34;
 
 function encodeWav(rawFloat, sampleRate = 44100) {
   const numChannels = 1;
@@ -17,7 +26,7 @@ function encodeWav(rawFloat, sampleRate = 44100) {
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
   const blockAlign = numChannels * (bitsPerSample / 8);
 
-  const tailLen = 0.09;
+  const tailLen = 0.12;
   const tailStart = duration - tailLen;
   const samples = [];
   for (let i = 0; i < numSamples; i++) {
@@ -27,8 +36,7 @@ function encodeWav(rawFloat, sampleRate = 44100) {
       const x = (duration - t) / tailLen;
       master = x * x;
     }
-    // Soft saturation keeps the thwack punchy without harsh digital clip
-    let s = Math.tanh(rawFloat[i] * 1.15) * master;
+    let s = Math.tanh(rawFloat[i] * 1.18) * master;
     s = Math.max(-1, Math.min(1, s));
     const int16 = Math.floor(s * 32767);
     samples.push(int16 & 0xff);
@@ -54,126 +62,137 @@ function encodeWav(rawFloat, sampleRate = 44100) {
   return Buffer.concat([header, Buffer.from(samples)]);
 }
 
+function softReverb(raw, sampleRate) {
+  const d1 = Math.floor(0.022 * sampleRate);
+  const d2 = Math.floor(0.031 * sampleRate);
+  const buf1 = new Float32Array(d1);
+  const buf2 = new Float32Array(d2);
+  let i1 = 0;
+  let i2 = 0;
+  const out = new Float32Array(raw.length);
+  const g = 0.32;
+  const wet = 0.18;
+  for (let i = 0; i < raw.length; i++) {
+    const x = raw[i];
+    const r1 = buf1[i1];
+    const r2 = buf2[i2];
+    buf1[i1] = x + g * r1;
+    buf2[i2] = x + g * r2;
+    i1 = (i1 + 1) % d1;
+    i2 = (i2 + 1) % d2;
+    out[i] = (1 - wet) * x + wet * ((r1 + r2) * 0.5);
+  }
+  return out;
+}
+
 /**
- * Takeaway → accelerating club whoosh → soft compression thwack → follow-through.
- * Tuned for phone speakers: clear motion, warm impact, no shrill ring.
+ * Brief golf whoosh → soft thwack → ascending celebration sparkle.
+ * Built to feel rewarding on every cold start (Tinder-match energy, Mulligan DNA).
  */
-function generateGolfSwing(sampleRate = 44100, duration = 0.78) {
+function generateBootReward(sampleRate = 44100, duration = 0.82) {
   const numSamples = Math.floor(sampleRate * duration);
   const raw = new Float32Array(numSamples);
 
-  let seed = 271828;
+  let seed = 777001;
   const noise = () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 0xffffffff * 2 - 1;
+    return (seed / 0xffffffff) * 2 - 1;
   };
 
-  // One-pole filters for air bands
   let slow = 0;
   let mid = 0;
   let bright = 0;
-  let hiss = 0;
 
-  const impact = 0.38;
+  const impact = 0.2;
 
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     const n = noise();
 
-    // Dynamic filter coeffs — open up as clubhead speeds (brighter air)
-    let speed = 0;
-    if (t < impact) {
-      speed = Math.pow(t / impact, 2.2);
-    } else {
-      speed = Math.exp(-(t - impact) * 7);
-    }
-
-    const aSlow = 0.03 + speed * 0.02;
-    const aMid = 0.1 + speed * 0.08;
-    const aBright = 0.22 + speed * 0.2;
-    const aHiss = 0.45 + speed * 0.25;
-
-    slow += aSlow * (n - slow);
-    mid += aMid * (n - mid);
-    bright += aBright * (n - bright);
-    hiss += aHiss * (n - hiss);
-
-    // Envelope: quiet takeaway, hard crescendo into impact, fast release
-    let env = 0;
-    if (t < impact) {
-      const x = t / impact;
-      // Most of the drama in the last ~30% of the downswing
-      env = Math.pow(x, 3.1) * 0.72;
-      // Extra surge right before contact
-      if (x > 0.7) {
-        const surge = (x - 0.7) / 0.3;
-        env += Math.pow(surge, 1.6) * 0.28;
-      }
-    } else if (t < impact + 0.32) {
-      const local = t - impact;
-      env = Math.exp(-local * 10) * 0.85;
-    }
-
-    // Doppler-ish whoosh tone: rises hard, falls after strike
-    let tone;
-    if (t < impact) {
-      tone = 95 + Math.pow(t / impact, 2.4) * 520;
-    } else {
-      tone = Math.max(70, 615 - (t - impact) * 1100);
-    }
-
-    // Subtle turbulence flutter
-    const flutter = 1 + 0.08 * Math.sin(TAU * (18 + speed * 40) * t);
+    let speed = t < impact ? Math.pow(t / impact, 1.7) : Math.exp(-(t - impact) * 10);
+    slow += (0.04 + speed * 0.03) * (n - slow);
+    mid += (0.14 + speed * 0.1) * (n - mid);
+    bright += (0.32 + speed * 0.25) * (n - bright);
 
     let sample = 0;
-    sample += slow * env * 0.5 * flutter;
-    sample += mid * env * 0.95 * flutter;
-    sample += bright * env * (0.28 + speed * 0.25);
-    sample += hiss * env * speed * 0.12;
-    sample += Math.sin(TAU * tone * t) * env * 0.2;
-    sample += Math.sin(TAU * tone * 1.35 * t) * env * 0.07;
 
-    // Clubhead / shaft body rumble under the air
+    // 1) Short addictive whoosh into the hit
+    let whoosh = 0;
     if (t < impact + 0.12) {
-      const rumbleEnv = t < impact ? env * 0.55 : Math.exp(-(t - impact) * 14) * 0.35;
-      sample += Math.sin(TAU * (55 + speed * 40) * t) * rumbleEnv * 0.22;
+      const x = Math.min(1, t / impact);
+      const env =
+        t < impact
+          ? Math.pow(x, 2.2) * 0.7 + (x > 0.5 ? Math.pow((x - 0.5) / 0.5, 1.3) * 0.45 : 0)
+          : Math.exp(-(t - impact) * 14) * 0.55;
+      const tone = 120 + Math.pow(Math.min(1, t / impact), 1.8) * 580;
+      whoosh += slow * env * 0.55;
+      whoosh += mid * env * 0.95;
+      whoosh += bright * env * speed * 0.35;
+      whoosh += Math.sin(TAU * tone * t) * env * 0.2;
+      sample += whoosh;
     }
 
-    // Ball compression thwack — warm, short, satisfying
-    if (t >= impact && t < impact + 0.07) {
+    // 2) Soft satisfying body hit (not metallic)
+    if (t >= impact && t < impact + 0.08) {
       const local = t - impact;
-      const hitBody =
-        (1 - Math.exp(-local * 520)) * Math.exp(-local * 48);
-      const hitClick = Math.exp(-local * 220) * (1 - Math.exp(-local * 900));
-      sample += Math.sin(TAU * 195 * t) * hitBody * 0.55;
-      sample += Math.sin(TAU * 320 * t) * hitBody * 0.28;
-      sample += Math.sin(TAU * 480 * t) * hitBody * 0.1;
-      sample += mid * hitClick * 0.35;
-      sample += bright * hitClick * 0.1;
+      const hit = (1 - Math.exp(-local * 650)) * Math.exp(-local * 40);
+      sample += Math.sin(TAU * 150 * t) * hit * 0.55;
+      sample += Math.sin(TAU * 240 * t) * hit * 0.28;
+      sample += mid * Math.exp(-local * 160) * 0.25;
     }
 
-    // Soft ball-flight air after contact
-    if (t > impact + 0.02 && t < impact + 0.28) {
-      const local = t - (impact + 0.02);
-      const flight = Math.exp(-local * 8) * 0.1;
-      sample += slow * flight;
-      sample += Math.sin(TAU * (140 - local * 120) * t) * flight * 0.35;
+    // 3) Ascending celebration — the dopamine (C5 → E5 → G5)
+    // Staggered like a tiny match fanfare; warm + slightly detuned for organic feel
+    const notes = [
+      { f: 523.25, start: impact + 0.05, len: 0.32, amp: 0.34 },
+      { f: 659.25, start: impact + 0.12, len: 0.34, amp: 0.3 },
+      { f: 783.99, start: impact + 0.19, len: 0.38, amp: 0.26 },
+    ];
+    for (const note of notes) {
+      if (t >= note.start && t < note.start + note.len) {
+        const local = t - note.start;
+        const env =
+          (1 - Math.exp(-local * 55)) * Math.exp(-local * 5.5) * note.amp;
+        const detune = note.f * 1.003;
+        sample += Math.sin(TAU * note.f * t) * env;
+        sample += Math.sin(TAU * detune * t) * env * 0.35;
+        sample += Math.sin(TAU * note.f * 2 * t) * env * 0.08;
+      }
+    }
+
+    // 4) Soft shimmer / sparkle dust on top of the resolve
+    const shimmerStart = impact + 0.22;
+    if (t >= shimmerStart && t < shimmerStart + 0.4) {
+      const local = t - shimmerStart;
+      const env = Math.exp(-local * 6) * (1 - Math.exp(-local * 40)) * 0.1;
+      sample += Math.sin(TAU * 1046.5 * t) * env;
+      sample += bright * env * 0.45;
+    }
+
+    // 5) Low “warmth” under the celebration so it feels premium on phone speakers
+    if (t >= impact && t < impact + 0.45) {
+      const local = t - impact;
+      const env = Math.exp(-local * 4.5) * (1 - Math.exp(-local * 30)) * 0.22;
+      sample += Math.sin(TAU * 82 * t) * env;
+      sample += Math.sin(TAU * 110 * t) * env * 0.4;
     }
 
     raw[i] = sample;
   }
 
-  // Normalize to healthy phone level
-  let peak = 0;
-  for (let i = 0; i < numSamples; i++) peak = Math.max(peak, Math.abs(raw[i]));
-  const gain = peak > 0 ? 0.88 / peak : 1;
-  for (let i = 0; i < numSamples; i++) raw[i] *= gain;
+  const wet = softReverb(raw, sampleRate);
 
-  return encodeWav(raw, sampleRate);
+  let peak = 0;
+  for (let i = 0; i < wet.length; i++) peak = Math.max(peak, Math.abs(wet[i]));
+  const gain = peak > 0 ? 0.9 / peak : 1;
+  for (let i = 0; i < wet.length; i++) wet[i] *= gain;
+
+  return encodeWav(wet, sampleRate);
 }
 
 const assetsDir = path.join(__dirname, '../assets');
-const wav = generateGolfSwing();
-const mobilePath = path.join(assetsDir, 'mulligan-boot-sound.wav');
+const wav = generateBootReward();
+const mobilePath = path.join(assetsDir, 'mulligan-boot-sound-v3.wav');
 fs.writeFileSync(mobilePath, wav);
 console.log('✅ Mulligan boot sound →', mobilePath);
+console.log(`   Reward peak ~${REWARD_PEAK_SEC}s`);
