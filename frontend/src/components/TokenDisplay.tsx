@@ -4,6 +4,8 @@ import { TOKEN_MAX } from "../constants/tokens";
 import { emitTokenBalanceUpdated } from "../lib/tokenBalanceEvents";
 import WeeklyTokenClaimCelebration from "./WeeklyTokenClaimCelebration";
 import { playTokenClaimSound, unlockTokenClaimAudio } from "../utils/tokenClaimSound";
+import { useAuth } from "../context/AuthContext";
+import { golferEmojiForGender } from "../utils/golferEmoji";
 
 interface TokenData {
   availableTokens: number;
@@ -43,6 +45,8 @@ interface TokenDisplayProps {
 }
 
 export default function TokenDisplay({ variant = "default" }: TokenDisplayProps) {
+  const { profile } = useAuth();
+  const golferEmoji = golferEmojiForGender(profile?.gender);
   const [data, setData] = useState<TokenData | null>(null);
   const [claiming, setClaiming] = useState(false);
   const [error, setError] = useState("");
@@ -150,7 +154,7 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
               className={`token-display-header-emoji${compact ? " token-display-header-emoji--compact" : ""}`}
               aria-hidden
             >
-              🎟️
+              {golferEmoji}
             </span>
             <div className="token-display-header-count-row">
               <span className="token-display-header-number token-display-skeleton-bar" aria-hidden />
@@ -201,7 +205,7 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
             className={`token-display-header-emoji${compact ? " token-display-header-emoji--compact" : ""}`}
             aria-hidden
           >
-            🎟️
+            {golferEmoji}
           </span>
           <div className="token-display-header-count-row">
             <span className="token-display-header-number">{data.availableTokens}</span>

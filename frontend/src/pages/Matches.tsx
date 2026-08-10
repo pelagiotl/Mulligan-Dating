@@ -26,9 +26,6 @@ import InterestCompatibilityModal from "../components/InterestCompatibilityModal
 import CompatibilityPulseModal from "../components/CompatibilityPulseModal";
 import MatchPartnerProfileSheet from "../components/MatchPartnerProfileSheet";
 import { releaseAllBodyScrollLocks, useBodyScrollLock } from "../utils/bodyScrollLock";
-import { useConnectionLimits } from "../hooks/useConnectionLimits";
-import ConnectionLimitsPanel from "../components/ConnectionLimitsPanel";
-import MatchesSupportNote from "../components/MatchesSupportNote";
 import MatchExpiryHourglass from "../components/MatchExpiryHourglass";
 import MatchesHeaderHeartIcon from "../components/MatchesHeaderHeartIcon";
 import { useConnectShellTheme } from "../context/ConnectShellThemeContext";
@@ -217,7 +214,6 @@ export default function Matches() {
   const { mode: connectShellMode } = useConnectShellTheme();
   const location = useLocation();
   const navigate = useNavigate();
-  const connectionLimits = useConnectionLimits(!!user);
   const [matches, setMatches] = useState<Match[]>([]);
   const [selectedMatch, setSelectedMatch] = useState<Match | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -2196,24 +2192,8 @@ export default function Matches() {
         <header className="matches-sidebar-header">
           <div className="matches-title-row">
             <MatchesHeaderHeartIcon shell={connectShellMode} />
-            <h2 className="matches-title">Your Matches</h2>
+            <h2 className="matches-title">Your Golf Matches</h2>
           </div>
-          <ConnectionLimitsPanel
-            loading={connectionLimits.loading}
-            availableTokens={connectionLimits.availableTokens}
-            canClaimWeeklyToken={connectionLimits.canClaimWeeklyToken}
-            nextRefillDate={connectionLimits.nextRefillDate}
-            activeMatches={connectionLimits.activeMatches}
-            slotLimit={connectionLimits.slotLimit}
-          />
-          <MatchesSupportNote
-            userId={user?.id}
-            displayName={profile?.displayName}
-            phoneNumber={user?.phoneNumber}
-            availableTokens={connectionLimits.availableTokens}
-            activeMatches={connectionLimits.activeMatches}
-            slotLimit={connectionLimits.slotLimit}
-          />
         </header>
 
         {matches.length === 0 ? (
@@ -2223,15 +2203,6 @@ export default function Matches() {
             <Link to="/browse" className="matches-empty-cta">
               ✨ Browse People
             </Link>
-            <MatchesSupportNote
-              className="matches-support-note--empty"
-              userId={user?.id}
-              displayName={profile?.displayName}
-              phoneNumber={user?.phoneNumber}
-              availableTokens={connectionLimits.availableTokens}
-              activeMatches={connectionLimits.activeMatches}
-              slotLimit={connectionLimits.slotLimit}
-            />
           </div>
         ) : (
           <div className="matches-list" role="list">

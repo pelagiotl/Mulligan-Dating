@@ -7,6 +7,8 @@ type Props = Pick<
   'userId' | 'displayName' | 'phoneNumber' | 'availableTokens' | 'activeMatches' | 'slotLimit'
 > & {
   hintColor?: string;
+  /** Tighter spacing when nested in LegalFooter. */
+  embeddedInFooter?: boolean;
 };
 
 export default function MatchesSupportNote({
@@ -17,6 +19,7 @@ export default function MatchesSupportNote({
   activeMatches,
   slotLimit,
   hintColor,
+  embeddedInFooter = false,
 }: Props) {
   const onPress = () => {
     openMatchesSupportEmail({
@@ -33,7 +36,7 @@ export default function MatchesSupportNote({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.7}
-      style={styles.wrap}
+      style={[styles.wrap, embeddedInFooter && styles.wrapInFooter]}
       accessibilityRole="link"
       accessibilityLabel="Email Mulligan support"
     >
@@ -50,6 +53,10 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingHorizontal: 4,
     alignItems: 'center',
+  },
+  wrapInFooter: {
+    marginTop: 0,
+    marginBottom: 14,
   },
   text: {
     fontSize: 12,

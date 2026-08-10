@@ -169,7 +169,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
         <Text style={[styles.collapsedEyebrow, { color: colors.eyebrow }]}>Limits</Text>
         <View style={styles.collapsedStats}>
           <View style={styles.collapsedStatRow}>
-            <AnimatedLimitsMetricIcon kind="ticket" style={styles.collapsedStatIcon} />
+            <AnimatedLimitsMetricIcon kind="golf" style={styles.collapsedStatIcon} />
             <Text style={[styles.collapsedStat, { color: colors.collapsedStat }]}>
               {tokensCapped}/{MAX_MULLIGANS}
             </Text>
@@ -236,7 +236,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
             ]}
           >
             <View style={styles.metricIconSlot}>
-              <AnimatedLimitsMetricIcon kind="ticket" style={styles.iconEmoji} />
+              <AnimatedLimitsMetricIcon kind="golf" style={styles.iconEmoji} />
             </View>
             <View style={styles.metricContent}>
               <Text style={[styles.metricLabel, { color: colors.label }]}>Mulligans</Text>

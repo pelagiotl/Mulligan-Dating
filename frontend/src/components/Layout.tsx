@@ -16,11 +16,13 @@ import { TOKEN_MAX } from '../constants/tokens'
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext'
 import { releaseAllBodyScrollLocks } from '../utils/bodyScrollLock'
 import { hapticTabTap } from '../utils/hapticTap'
+import { getMatchesSupportMailtoUrl } from '../constants/support'
+import { golferEmojiForGender } from '../utils/golferEmoji'
 
 export default function Layout() {
   // Always call hooks at the top level, before any conditional logic
   // This ensures hooks are called in the same order on every render
-  const { logout, isAdmin, isAuthenticated, connectSetupComplete, loading: authLoading, user } = useAuth()
+  const { logout, isAdmin, isAuthenticated, connectSetupComplete, loading: authLoading, user, profile } = useAuth()
   const { mode: connectShellMode } = useConnectShellTheme()
   const location = useLocation()
   const navigate = useNavigate()
@@ -36,7 +38,16 @@ export default function Layout() {
   /** Match native MainTabs: hide top links + show bottom bar on phone (not during profile wizard). */
   const nativeMobileShell =
     isAuthenticated && !isCreateProfileWizard
-
+  const isMatchesRoute = normalizedPath === '/matches' || normalizedPath.startsWith('/matches/')
+  const matchesSupportMailto = isMatchesRoute
+    ? getMatchesSupportMailtoUrl({
+        userId: user?.id,
+        displayName: profile?.displayName,
+        phoneNumber: user?.phoneNumber,
+        surface: 'web',
+        availableTokens: tokenCount ?? undefined,
+      })
+    : null
   // Fetch token count when authenticated
   useEffect(() => {
     if (isAuthenticated) {
@@ -128,7 +139,7 @@ export default function Layout() {
                 aria-controls="navbar-token-dialog"
               >
                 <span className="navbar-token-badge-emoji" aria-hidden>
-                  🏌️
+                  {golferEmojiForGender(profile?.gender)}
                 </span>
                 <span>{tokenCount}</span>
                 <span className="sr-only">Open token details</span>
@@ -318,6 +329,21 @@ export default function Layout() {
           fontSize: '0.9rem',
           color: 'var(--text-secondary)'
         }}>
+          {matchesSupportMailto ? (
+            <>
+              <span>
+                Questions?{' '}
+                <a
+                  href={matchesSupportMailto}
+                  style={{ color: 'var(--text-secondary)', fontWeight: 700 }}
+                  aria-label="Email Mulligan support"
+                >
+                  Email support
+                </a>
+              </span>
+              <span>•</span>
+            </>
+          ) : null}
           <Link to="/terms" style={{ color: 'var(--text-secondary)', textDecoration: 'none' }}>
             Terms of Service
           </Link>

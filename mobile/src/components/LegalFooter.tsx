@@ -1,28 +1,48 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import MatchesSupportNote from './MatchesSupportNote';
+import type { MatchesSupportContext } from '../constants/support';
 
-export default function LegalFooter() {
+type SupportProps = Pick<
+  MatchesSupportContext,
+  'userId' | 'displayName' | 'phoneNumber' | 'availableTokens' | 'activeMatches' | 'slotLimit'
+> & {
+  hintColor?: string;
+};
+
+type Props = {
+  /** When set, shows “Questions? Email support” above Terms / Privacy. */
+  support?: SupportProps | null;
+};
+
+export default function LegalFooter({ support }: Props) {
   const navigation = useNavigation();
 
   return (
     <View style={styles.container}>
+      {support ? (
+        <MatchesSupportNote
+          userId={support.userId}
+          displayName={support.displayName}
+          phoneNumber={support.phoneNumber}
+          availableTokens={support.availableTokens}
+          activeMatches={support.activeMatches}
+          slotLimit={support.slotLimit}
+          hintColor={support.hintColor}
+          embeddedInFooter
+        />
+      ) : null}
       <View style={styles.links}>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Terms' as never)}
-        >
+        <TouchableOpacity onPress={() => navigation.navigate('Terms' as never)}>
           <Text style={styles.link}>Terms of Service</Text>
         </TouchableOpacity>
         <Text style={styles.separator}>•</Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('Privacy' as never)}
-        >
+        <TouchableOpacity onPress={() => navigation.navigate('Privacy' as never)}>
           <Text style={styles.link}>Privacy Policy</Text>
         </TouchableOpacity>
       </View>
-      <Text style={styles.copyright}>
-        © {new Date().getFullYear()} Mulligan Dating
-      </Text>
+      <Text style={styles.copyright}>© {new Date().getFullYear()} Mulligan Dating</Text>
     </View>
   );
 }
@@ -60,4 +80,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

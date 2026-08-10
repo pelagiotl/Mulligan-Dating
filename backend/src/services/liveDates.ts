@@ -3,18 +3,18 @@ import { db } from '../database.js';
 import { notifyLiveDateSignup } from './liveDateNotifications.js';
 import { liveEventAtForApi, liveEventAtForDb } from './liveDateTime.js';
 
-export const MULLIGAN_LIVE_DATES_EVENT_ID = '7c9e6679-7425-40de-944b-e07fc1f90ae7';
+export const MULLIGAN_LIVE_DATES_EVENT_ID = 'a4f2c8e1-9b3d-4e6a-8c1f-2d5e7a9b0c4d';
 
 const FEATURED_EVENT = {
   id: MULLIGAN_LIVE_DATES_EVENT_ID,
   title: 'Mulligan Live Dates',
   description: `Speed dating IRL — 5-minute rounds, then music, food trucks, and time to keep talking.
 
-Low pressure, gated venue, built for real connections. Only 25 spots for our first night.`,
+Low pressure, gated venue, built for real connections. Only 25 spots.`,
   venueName: 'Mulligan Live Dates',
   venueAddress: '812 S Riverside, Medford, OR 97501',
-  /** 5:30 PM Pacific — offset re-applied on API read (TIMESTAMP columns lose tz). */
-  eventAt: '2026-07-25T17:30:00-07:00',
+  /** Saturday Aug 29, 2026 — 5:30 PM Pacific (PDT). */
+  eventAt: '2026-08-29T17:30:00-07:00',
   foodTrucks: [] as string[],
   capacity: 25,
 };

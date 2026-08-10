@@ -74,8 +74,6 @@ import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import DateReflectionModal from '../components/DateReflectionModal';
 import BlockMatchConfirmModal from '../components/BlockMatchConfirmModal';
 import BlockMatchSuccessModal from '../components/BlockMatchSuccessModal';
-import ConnectLandingScarcity from '../components/ConnectLandingScarcity';
-import MatchesSupportNote from '../components/MatchesSupportNote';
 import AnimatedLaunchHourglass from '../components/AnimatedLaunchHourglass';
 import ProfileCardAnimatedEmoji from '../components/ProfileCardAnimatedEmoji';
 import { fetchMatchSlotStatus, type MatchSlotStatus } from '../utils/matchSlotStatus';
@@ -1198,16 +1196,17 @@ function EmptyStateAnimated({
           </View>
         </Animated.View>
       </TouchableOpacity>
-      <MatchesSupportNote
-        userId={supportUserId}
-        displayName={supportDisplayName}
-        phoneNumber={supportPhoneNumber}
-        availableTokens={supportAvailableTokens}
-        activeMatches={supportActiveMatches}
-        slotLimit={supportSlotLimit}
-        hintColor={supportHintColor}
+      <LegalFooter
+        support={{
+          userId: supportUserId,
+          displayName: supportDisplayName,
+          phoneNumber: supportPhoneNumber,
+          availableTokens: supportAvailableTokens ?? 0,
+          activeMatches: supportActiveMatches ?? 0,
+          slotLimit: supportSlotLimit ?? 10,
+          hintColor: supportHintColor,
+        }}
       />
-      <LegalFooter />
     </View>
   );
 }
@@ -1354,7 +1353,7 @@ export default function MatchesScreen() {
   const route = useRoute();
   const soberCircleMode =
     (route.params as { soberCircleMode?: boolean } | undefined)?.soberCircleMode === true;
-  const listHeaderTitle = soberCircleMode ? 'Sober Circle' : 'Your Matches';
+  const listHeaderTitle = soberCircleMode ? 'Sober Circle' : 'Your Golf Matches';
   const viewerSoberLevel =
     (profile as { sober_circle_level?: string; soberCircleLevel?: string } | null)?.sober_circle_level ??
     (profile as { soberCircleLevel?: string } | null)?.soberCircleLevel ??
@@ -1385,10 +1384,7 @@ export default function MatchesScreen() {
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [matchSlotStatus, setMatchSlotStatus] = useState<MatchSlotStatus | null>(null);
-  const [limitsLoading, setLimitsLoading] = useState(true);
   const [availableTokens, setAvailableTokens] = useState(0);
-  const [canClaimTokens, setCanClaimTokens] = useState(false);
-  const [nextRefillDate, setNextRefillDate] = useState<string | null>(null);
   const [sendingMessage, setSendingMessage] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
@@ -2442,31 +2438,22 @@ export default function MatchesScreen() {
     });
   }, [route.params, navigation, matches, openMatchChat, fetchMatches]);
 
-  const refreshConnectionLimits = useCallback(async () => {
+  const refreshSupportContext = useCallback(async () => {
     if (!isAuthenticated) {
       setMatchSlotStatus(null);
-      setLimitsLoading(false);
+      setAvailableTokens(0);
       return;
     }
-    setLimitsLoading(true);
     try {
       api.clearCache('/tokens');
       const [tokenData, slots] = await Promise.all([
-        api.get<{
-          availableTokens: number;
-          canClaimWeeklyToken: boolean;
-          nextRefillDate?: string | null;
-        }>('/tokens', false),
+        api.get<{ availableTokens: number }>('/tokens', false),
         fetchMatchSlotStatus(),
       ]);
       setAvailableTokens(tokenData.availableTokens ?? 0);
-      setCanClaimTokens(!!tokenData.canClaimWeeklyToken);
-      setNextRefillDate(tokenData.nextRefillDate ?? null);
       setMatchSlotStatus(slots);
     } catch {
       setMatchSlotStatus(null);
-    } finally {
-      setLimitsLoading(false);
     }
   }, [isAuthenticated]);
 
@@ -2629,8 +2616,8 @@ export default function MatchesScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void refreshConnectionLimits();
-    }, [refreshConnectionLimits])
+      void refreshSupportContext();
+    }, [refreshSupportContext])
   );
 
   const matchesSupportHintColor =
@@ -2640,29 +2627,15 @@ export default function MatchesScreen() {
         ? '#9a3412'
         : '#64748b';
 
-  const connectionLimitsHeader = (
-    <View style={styles.connectionLimitsHeader}>
-      <ConnectLandingScarcity
-        connectShell={connectShellMode}
-        embeddedInHeader={Platform.OS === 'android'}
-        loading={limitsLoading}
-        availableTokens={availableTokens}
-        canClaimWeeklyToken={canClaimTokens}
-        nextRefillDate={nextRefillDate}
-        activeMatches={matchSlotStatus?.count ?? 0}
-        slotLimit={matchSlotStatus?.slotLimit ?? 10}
-      />
-      <MatchesSupportNote
-        userId={user?.id}
-        displayName={profile?.display_name ?? profile?.displayName}
-        phoneNumber={user?.phoneNumber}
-        availableTokens={availableTokens}
-        activeMatches={matchSlotStatus?.count ?? 0}
-        slotLimit={matchSlotStatus?.slotLimit ?? 10}
-        hintColor={matchesSupportHintColor}
-      />
-    </View>
-  );
+  const matchesLegalSupport = {
+    userId: user?.id,
+    displayName: profile?.display_name ?? profile?.displayName,
+    phoneNumber: user?.phoneNumber,
+    availableTokens,
+    activeMatches: matchSlotStatus?.count ?? 0,
+    slotLimit: matchSlotStatus?.slotLimit ?? 10,
+    hintColor: matchesSupportHintColor,
+  };
 
   // When we landed with showMatchCelebration (e.g. User B opened app from "matched with you" push), force refresh
   // so the new match is in the list. useFocusEffect may not run if the tab was already focused.
@@ -3174,7 +3147,7 @@ export default function MatchesScreen() {
                 setSelectedMatch(null);
                 setMessages([]);
               }
-              void refreshConnectionLimits();
+              void refreshSupportContext();
             } catch (error: any) {
               Alert.alert('Error', error?.message || 'Failed to unmatch');
             }
@@ -3182,7 +3155,7 @@ export default function MatchesScreen() {
         },
       ]
     );
-  }, [selectedMatch, refreshConnectionLimits]);
+  }, [selectedMatch, refreshSupportContext]);
 
   const handleReportMatch = useCallback(() => {
     if (!selectedMatch) return;
@@ -3390,7 +3363,7 @@ export default function MatchesScreen() {
           gradientPos={headerGradientPos}
           shellBackdropColors={shellBackdropColors}
         >
-          <View style={[styles.header, Platform.OS === 'android' && styles.headerWithLimits]}>
+          <View style={styles.header}>
             {soberCircleMode ? (
               <TouchableOpacity
                 onPress={() => navigation.goBack()}
@@ -3403,21 +3376,14 @@ export default function MatchesScreen() {
             <View
               style={[
                 styles.headerTitleContainer,
-                Platform.OS === 'android' && styles.headerTitleContainerWithLimits,
                 soberCircleMode && styles.headerTitleContainerSober,
               ]}
             >
               <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
               <Text style={styles.headerTitle}>{listHeaderTitle}</Text>
             </View>
-            {Platform.OS === 'android' && !soberCircleMode ? (
-              <View style={styles.connectionLimitsInHeader}>{connectionLimitsHeader}</View>
-            ) : null}
           </View>
         </AnimatedHeaderGradient>
-        {Platform.OS !== 'android' && !soberCircleMode ? (
-          <View style={styles.connectionLimitsHeaderWrap}>{connectionLimitsHeader}</View>
-        ) : null}
         {visibleMatches.length === 0 ? (
           <EmptyStateAnimated
             navigation={navigation}
@@ -3438,7 +3404,7 @@ export default function MatchesScreen() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={[styles.matchesList, { paddingBottom: listBottomPad }]}
             style={{ backgroundColor: tabBodyBg }}
-            ListFooterComponent={<LegalFooter />}
+            ListFooterComponent={<LegalFooter support={matchesLegalSupport} />}
             // Performance optimizations
             removeClippedSubviews={true}
             maxToRenderPerBatch={10}
@@ -4568,10 +4534,6 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
     overflow: 'visible',
   },
-  headerTitleContainerWithLimits: {
-    marginBottom: 4,
-    paddingBottom: Platform.OS === 'android' ? 4 : 12,
-  },
   headerTitleContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -4796,21 +4758,6 @@ const styles = StyleSheet.create({
   matchesList: {
     padding: 16,
     paddingTop: 20,
-  },
-  headerWithLimits: {
-    paddingBottom: Platform.OS === 'android' ? 14 : 24,
-  },
-  connectionLimitsInHeader: {
-    width: '100%',
-    marginTop: 2,
-  },
-  connectionLimitsHeaderWrap: {
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 4,
-  },
-  connectionLimitsHeader: {
-    marginBottom: 0,
   },
   matchCardWrapper: {
     marginBottom: 12,

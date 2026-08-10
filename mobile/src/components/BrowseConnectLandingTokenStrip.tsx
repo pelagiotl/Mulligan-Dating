@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'rea
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import SmoothPulsingEmoji from './SmoothPulsingEmoji';
+import { useAuth } from '../context/AuthContext';
+import { golferEmojiForGender } from '../utils/golferEmoji';
 
 const TOKEN_MAX = 7;
 
@@ -33,6 +35,8 @@ export default function BrowseConnectLandingTokenStrip({
   onClaim,
   onBuyPress,
 }: BrowseConnectLandingTokenStripProps) {
+  const { profile } = useAuth();
+  const golferEmoji = golferEmojiForGender(profile?.gender);
   const meterPct = Math.min(100, (availableTokens / TOKEN_MAX) * 100);
   const shell = connectShell;
   const midnight = shell === 'midnight';
@@ -85,7 +89,7 @@ export default function BrowseConnectLandingTokenStrip({
       accessibilityLabel="Mulligan tokens"
     >
       <LinearGradient colors={headerColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <SmoothPulsingEmoji emoji="🏌️" fontSize={22} containerStyle={styles.headerEmojiWrap} />
+        <SmoothPulsingEmoji emoji={golferEmoji} fontSize={22} containerStyle={styles.headerEmojiWrap} />
         <View style={styles.countRow}>
           <Text style={styles.headerNumber}>{availableTokens}</Text>
           <Text style={styles.headerCap}>/ {TOKEN_MAX}</Text>

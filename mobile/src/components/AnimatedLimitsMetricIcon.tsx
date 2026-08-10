@@ -1,19 +1,19 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, type TextStyle } from 'react-native';
 
-export type LimitsMetricIconKind = 'ticket' | 'heart';
+export type LimitsMetricIconKind = 'golf' | 'heart';
 
 type Props = {
   kind: LimitsMetricIconKind;
   style?: TextStyle;
 };
 
-/** Animated 🎟 / 💞 on the Limits panel metric cards. */
+/** Animated ⛳ / 💞 on the Limits panel metric cards. */
 export default function AnimatedLimitsMetricIcon({ kind, style }: Props) {
   const anim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const duration = kind === 'ticket' ? 1400 : 1100;
+    const duration = kind === 'golf' ? 1400 : 1100;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(anim, {
@@ -35,7 +35,7 @@ export default function AnimatedLimitsMetricIcon({ kind, style }: Props) {
   }, [anim, kind]);
 
   const transform =
-    kind === 'ticket'
+    kind === 'golf'
       ? [
           {
             rotate: anim.interpolate({
@@ -65,7 +65,7 @@ export default function AnimatedLimitsMetricIcon({ kind, style }: Props) {
       allowFontScaling={false}
       accessibilityElementsHidden
     >
-      {kind === 'ticket' ? '🎟' : '💞'}
+      {kind === 'golf' ? '⛳' : '💞'}
     </Animated.Text>
   );
 }

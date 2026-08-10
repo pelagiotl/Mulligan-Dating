@@ -104,7 +104,7 @@ export default function ConnectionLimitsPanel({
           <span className="connection-limits-panel__reveal-stats" aria-hidden>
             <span className="connection-limits-panel__reveal-stat">
               <span className="connection-limits-panel__reveal-icon connection-limits-panel__reveal-icon--ticket">
-                🎟
+                ⛳
               </span>
               {tokensReady}/{TOKEN_MAX}
             </span>
@@ -158,7 +158,7 @@ export default function ConnectionLimitsPanel({
             className="connection-limits-panel__metric-icon-wrap connection-limits-panel__metric-icon-wrap--ticket"
             aria-hidden
           >
-            <span className="connection-limits-panel__metric-icon-emoji">🎟</span>
+            <span className="connection-limits-panel__metric-icon-emoji">⛳</span>
           </div>
           <div className="connection-limits-panel__metric-content">
             <span className="connection-limits-panel__metric-label">Mulligans</span>

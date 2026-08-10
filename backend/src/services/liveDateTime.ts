@@ -1,4 +1,4 @@
-/** Pacific offset for Mulligan Live Dates (Medford, OR — PDT in July). */
+/** Pacific offset for Mulligan Live Dates (Medford, OR — PDT in summer). */
 const LIVE_DATES_PACIFIC_OFFSET = '-07:00';
 
 /**

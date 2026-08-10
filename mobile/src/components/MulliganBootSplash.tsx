@@ -137,8 +137,8 @@ export default function MulliganBootSplash({ onFinished }: Props) {
 
       <View style={styles.skyline} pointerEvents="none">
         <View style={styles.brandBlock}>
-          <Text style={styles.brandEyebrow}>Golf-first dating</Text>
           <Text style={styles.brandTitle}>Mulligan</Text>
+          <Text style={styles.brandTagline}>Golf-first dating</Text>
         </View>
       </View>
 
@@ -202,19 +202,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   brandBlock: { alignItems: 'center' },
-  brandEyebrow: {
-    color: 'rgba(255,255,255,0.75)',
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: 1.2,
-    textTransform: 'uppercase',
-    marginBottom: 8,
-  },
   brandTitle: {
     color: '#fff',
     fontSize: 42,
     fontWeight: '800',
     letterSpacing: 0.5,
+  },
+  brandTagline: {
+    color: 'rgba(255,255,255,0.75)',
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+    marginTop: 8,
   },
   green: {
     width: '100%',
