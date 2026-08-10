@@ -16,7 +16,7 @@ export default function ConnectLandingUseMulliganHint({ textStyle }: Props) {
         variant="prominent"
         containerStyle={styles.emojiWrap}
       />
-      <Text style={textStyle}>Use a Mulligan · golf date</Text>
+      <Text style={textStyle}>Use a Mulligan</Text>
     </View>
   );
 }
