@@ -60,8 +60,8 @@ export default function BrowseConnectLandingTokenStrip({
     availableTokens >= TOKEN_MAX
       ? `You're at your maximum of ${TOKEN_MAX} tokens. Use them to match with people!`
       : refillFormatted
-        ? `Next weekly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
-        : "Weekly tokens aren't ready to claim yet. Check back after your refill date.";
+        ? `Next monthly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
+        : "Monthly tokens aren't ready to claim yet. Check back after your refill date.";
 
   const headerColors =
     shell === 'midnight'
@@ -131,7 +131,7 @@ export default function BrowseConnectLandingTokenStrip({
               {claiming ? (
                 <ActivityIndicator color="#fff" />
               ) : (
-                <Text style={styles.claimBtnText}>✨ Claim Weekly Tokens</Text>
+                <Text style={styles.claimBtnText}>✨ Claim Monthly Tokens</Text>
               )}
             </LinearGradient>
           </TouchableOpacity>

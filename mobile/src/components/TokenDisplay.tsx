@@ -812,7 +812,7 @@ export default function TokenDisplay({
       performClaimRef.current = async (opts?: { onSuccess?: () => void; successMessage?: string }) => {
         if (claiming || !data?.canClaimWeeklyToken) {
           if (!data?.canClaimWeeklyToken) {
-            Alert.alert('Not Yet', 'You cannot claim weekly tokens right now. Check back next week!');
+            Alert.alert('Not Yet', 'You cannot claim monthly tokens right now. Check back next month!');
           }
           return;
         }
@@ -1029,7 +1029,7 @@ export default function TokenDisplay({
   const handleClaim = async () => {
     if (claiming || !data?.canClaimWeeklyToken) {
       if (!data?.canClaimWeeklyToken) {
-        setError('You cannot claim weekly tokens right now.');
+        setError('You cannot claim monthly tokens right now.');
         setTimeout(() => setError(''), 5000);
       }
       return;
@@ -1141,14 +1141,14 @@ export default function TokenDisplay({
                     </LinearGradient>
                   </View>
 
-                  {/* Weekly Refill Info */}
+                  {/* Monthly Refill Info */}
                   <View style={styles.infoSection}>
-                    <Text style={styles.infoSectionTitle}>Weekly Refill</Text>
+                    <Text style={styles.infoSectionTitle}>Monthly Refill</Text>
                     {data.canClaimWeeklyToken ? (
                       <LinearGradient colors={['#f8f9ff', '#f0f4ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.refillCard}>
                         <Text style={styles.refillEmoji}>✨</Text>
                         <Text style={styles.refillText}>
-                          Your weekly tokens are ready! Claim them now to fill up to 7 tokens.
+                          Your monthly tokens are ready! Claim them now to fill up to 7 tokens.
                         </Text>
                         <TouchableOpacity
                           onPress={async () => {
@@ -1168,7 +1168,7 @@ export default function TokenDisplay({
                             {claiming ? (
                               <ActivityIndicator color="#fff" />
                             ) : (
-                              <Text style={styles.claimButtonText}>✨ Claim Weekly Tokens</Text>
+                              <Text style={styles.claimButtonText}>✨ Claim Monthly Tokens</Text>
                             )}
                           </LinearGradient>
                         </TouchableOpacity>
@@ -1177,7 +1177,7 @@ export default function TokenDisplay({
                       <LinearGradient colors={['#f8f9ff', '#f0f4ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.refillCard}>
                         <AnimatedHourglass />
                         <Text style={styles.refillText}>
-                          Next weekly refill available:
+                          Next monthly refill available:
                         </Text>
                         <Text style={styles.refillDate}>
                           {new Date(data.nextRefillDate).toLocaleDateString('en-US', {
@@ -1195,7 +1195,7 @@ export default function TokenDisplay({
                       <LinearGradient colors={['#f8f9ff', '#f0f4ff']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.refillCard}>
                         <Text style={styles.refillEmoji}>🎉</Text>
                         <Text style={styles.refillText}>
-                          Claim your first weekly tokens now!
+                          Claim your first monthly tokens now!
                         </Text>
                         <TouchableOpacity
                           onPress={async () => {
@@ -1215,7 +1215,7 @@ export default function TokenDisplay({
                             {claiming ? (
                               <ActivityIndicator color="#fff" />
                             ) : (
-                              <Text style={styles.claimButtonText}>✨ Claim Weekly Tokens</Text>
+                              <Text style={styles.claimButtonText}>✨ Claim Monthly Tokens</Text>
                             )}
                           </LinearGradient>
                         </TouchableOpacity>
@@ -1254,7 +1254,7 @@ export default function TokenDisplay({
                       <Text style={styles.tokenInfoText}>
                         💡 <Text style={styles.tokenInfoTextBold}>How tokens work:</Text>
                         {'\n'}• Use tokens to match with people
-                        {'\n'}• Get 7 tokens weekly
+                        {'\n'}• Get 7 tokens monthly
                       </Text>
                     </View>
                   </View>
@@ -1525,7 +1525,7 @@ export default function TokenDisplay({
           {claiming ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.claimButtonText}>✨ Claim Weekly Tokens</Text>
+            <Text style={styles.claimButtonText}>✨ Claim Monthly Tokens</Text>
           )}
         </TouchableOpacity>
       ) : (
@@ -1533,13 +1533,13 @@ export default function TokenDisplay({
           {data.availableTokens >= 7
             ? 'You already have 7 tokens. Use them to match!'
             : data.nextRefillDate
-              ? `Next weekly refill: ${new Date(data.nextRefillDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.`
-              : 'You can claim more tokens on your next weekly refill.'}
+              ? `Next monthly refill: ${new Date(data.nextRefillDate).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}.`
+              : 'You can claim more tokens on your next monthly refill.'}
         </Text>
       )}
 
       <Text style={styles.infoText}>
-        Use tokens to match with people. Get 7 tokens weekly (up to 7 max).
+        Use tokens to match with people. Get 7 tokens monthly (up to 7 max).
       </Text>
 
       {/* Buy More Button - Only show when tokens are 0 or very low */}

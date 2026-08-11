@@ -316,7 +316,7 @@ export default function BrowseScreen() {
   const [browseUnlocked, setBrowseUnlocked] = useState<boolean>(false); // Start as locked (false)
   const [unlocking, setUnlocking] = useState(false);
   const [isAutoMatching, setIsAutoMatching] = useState(false); // Track when auto-matching to prevent UI flash
-  const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Weekly claim available from API
+  const [canClaimTokens, setCanClaimTokens] = useState<boolean>(false); // Monthly claim available from API
   const [availableTokens, setAvailableTokens] = useState<number>(0);
   const [nextRefillDate, setNextRefillDate] = useState<string | null>(null);
   const [activeMatches, setActiveMatches] = useState(0);
@@ -1899,6 +1899,7 @@ export default function BrowseScreen() {
             apiErr.status === 400 &&
             (String(err.message || '').toLowerCase().includes('no tokens') ||
               String(err.message || '').toLowerCase().includes('claim your weekly token') ||
+              String(err.message || '').toLowerCase().includes('claim your monthly token') ||
               (err as any).code === 'NO_TOKENS')
           ) {
             setShowNoTokensModal(true);

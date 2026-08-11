@@ -52,7 +52,7 @@ export async function getWeeklyIncomingMatchCount(userId: string): Promise<{
       `SELECT granted_at
        FROM mulligan_tokens
        WHERE user_id = ?
-         AND (source IS NULL OR source IN ('weekly', 'initial'))
+         AND (source IS NULL OR source IN ('weekly', 'monthly', 'initial'))
        ORDER BY granted_at DESC
        LIMIT 1`,
     )

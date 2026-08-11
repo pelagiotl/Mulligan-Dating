@@ -292,7 +292,7 @@ export default function ProfileModal({ profile, onClose, onConnect }: ProfileMod
 
             {tokenCount === 0 && !success && (
               <p className="token-hint">
-                Claim your weekly tokens to connect with people!
+                Claim your monthly tokens to connect with people!
               </p>
             )}
 

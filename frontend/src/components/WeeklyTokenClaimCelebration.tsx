@@ -19,7 +19,7 @@ export default function WeeklyTokenClaimCelebration({ tokensGranted, onDismiss }
         🎟️
       </span>
       <div className="weekly-token-celebration-copy">
-        <p className="weekly-token-celebration-title">Weekly refill claimed</p>
+        <p className="weekly-token-celebration-title">Monthly refill claimed</p>
         <p className="weekly-token-celebration-sub">
           {n} token{n !== 1 ? "s" : ""} added — you&apos;re ready to connect.
         </p>

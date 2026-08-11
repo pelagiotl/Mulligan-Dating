@@ -10,8 +10,8 @@ import { playMulliganBootSound } from '../utils/sounds';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-/** Reward peak of boot SFX (~340ms) lands on the lip-out / “Just missed…”. */
-const MISS_SOUND_AT_MS = 280 + 900 - 340;
+/** Reward peak of boot SFX (~320ms on v4) lands on the lip-out / “Just missed…”. */
+const MISS_SOUND_AT_MS = 280 + 900 - 320;
 
 type Props = {
   onFinished: () => void;
@@ -36,7 +36,11 @@ export default function MulliganBootSplash({ onFinished }: Props) {
     };
 
     const soundTimer = setTimeout(() => {
-      void playMulliganBootSound().catch(() => {});
+      void playMulliganBootSound().catch((err) => {
+        if (__DEV__) {
+          console.warn('🎵 Boot splash sound failed:', err);
+        }
+      });
     }, MISS_SOUND_AT_MS);
 
     const sequence = Animated.sequence([

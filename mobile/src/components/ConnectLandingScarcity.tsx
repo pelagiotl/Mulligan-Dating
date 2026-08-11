@@ -119,7 +119,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
   const statusNote = atCapacity
     ? `At ${connectionLimit} connections — unmatch or wait for expiry`
     : canClaimWeeklyToken && tokensCapped < MAX_MULLIGANS
-      ? 'Weekly Mulligans ready on Connect'
+      ? 'Monthly Mulligans ready on Connect'
       : showRefillCountdown && refillMs != null
         ? `Next Mulligan in ${formatCountdown(refillMs)}`
         : null;
@@ -211,7 +211,7 @@ const ConnectLandingScarcity = memo(function ConnectLandingScarcity({
           <View style={styles.titleGroup}>
             <Text style={[styles.eyebrow, { color: colors.eyebrow }]}>Limits</Text>
             <Text style={[styles.lede, { color: colors.lede }]}>
-              {MAX_MULLIGANS} Mulligans weekly · {connectionLimit} connections max
+              {MAX_MULLIGANS} Mulligans monthly · {connectionLimit} connections max
             </Text>
           </View>
           <TouchableOpacity

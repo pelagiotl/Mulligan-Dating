@@ -1,19 +1,19 @@
 /**
- * Weekly token refill: rolling 7-day window per user.
+ * Monthly token refill: rolling 30-day window per user.
  * First allotment (claim on Connect) is available immediately; later refills unlock
- * 7 days after the last allotment grant (initial or weekly).
+ * 30 days after the last free allotment grant (initial, weekly legacy, or monthly).
  */
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 export type TokenAllotmentRow = {
   source?: string | null;
   granted_at: string;
 };
 
-/** Free weekly / signup allotment sources (excludes IAP, admin, dev, etc.). */
+/** Free monthly / signup allotment sources (excludes IAP, admin, dev, etc.). */
 export function isAllotmentSource(source: string | null | undefined): boolean {
-  return !source || source === "weekly" || source === "initial";
+  return !source || source === "weekly" || source === "monthly" || source === "initial";
 }
 
 export function hasReceivedTokenAllotment(tokens: TokenAllotmentRow[]): boolean {
@@ -28,21 +28,21 @@ export function getLastAllotmentGrantedAt(tokens: TokenAllotmentRow[]): string |
 }
 
 /**
- * True if the user can claim another free allotment now (7 days after last grant, or first claim ever).
+ * True if the user can claim another free allotment now (30 days after last grant, or first claim ever).
  */
 export function canClaimWeekly(lastAllotmentGrantedAt: Date | string | null | undefined): boolean {
   if (lastAllotmentGrantedAt == null) return true;
   const last = new Date(lastAllotmentGrantedAt);
-  return last.getTime() <= Date.now() - SEVEN_DAYS_MS;
+  return last.getTime() <= Date.now() - THIRTY_DAYS_MS;
 }
 
 /**
- * Next date when the user can claim (7 days after last allotment grant). Null if never granted.
+ * Next date when the user can claim (30 days after last allotment grant). Null if never granted.
  */
 export function getNextRefillDate(lastAllotmentGrantedAt: Date | string | null | undefined): string | null {
   if (lastAllotmentGrantedAt == null) return null;
   const d = new Date(lastAllotmentGrantedAt);
-  d.setTime(d.getTime() + SEVEN_DAYS_MS);
+  d.setTime(d.getTime() + THIRTY_DAYS_MS);
   return d.toISOString();
 }
 

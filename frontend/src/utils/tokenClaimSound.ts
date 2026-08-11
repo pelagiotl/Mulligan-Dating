@@ -1,5 +1,5 @@
 /**
- * Cash-register "cha-ching" when weekly tokens are claimed (web).
+ * Warm ascending refill chime when monthly tokens are claimed (web).
  * Unlock on the claim button pointerdown so playback works after the async API call.
  */
 
@@ -9,7 +9,8 @@ export function tokenClaimSoundPublicUrl(): string {
   const base = import.meta.env.BASE_URL.endsWith("/")
     ? import.meta.env.BASE_URL
     : `${import.meta.env.BASE_URL}/`;
-  return `${base}token-claim-sound.wav`;
+  // v2 filename busts browser cache vs the old cha-ching asset
+  return `${base}token-claim-sound-v2.wav`;
 }
 
 function getClaimAudio(): HTMLAudioElement {
@@ -42,45 +43,34 @@ export function unlockTokenClaimAudio(): void {
     });
 }
 
-function playSyntheticChaChing(): void {
+/** Fallback if the wav fails — soft ascending major cascade. */
+function playSyntheticRefillChime(): void {
   try {
     const ctx = new (window.AudioContext ||
       (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     void ctx.resume().catch(() => {});
 
-    const duration = 0.36;
-    const sampleRate = ctx.sampleRate;
-    const frameCount = Math.floor(sampleRate * duration);
-    const buffer = ctx.createBuffer(1, frameCount, sampleRate);
-    const data = buffer.getChannelData(0);
+    const notes = [
+      { freq: 392.0, at: 0.02, dur: 0.28, gain: 0.22 },
+      { freq: 523.25, at: 0.12, dur: 0.3, gain: 0.24 },
+      { freq: 659.25, at: 0.235, dur: 0.34, gain: 0.26 },
+      { freq: 783.99, at: 0.36, dur: 0.36, gain: 0.2 },
+    ];
 
-    for (let i = 0; i < frameCount; i++) {
-      const t = i / sampleRate;
-      let s = 0;
-      if (t < 0.03) s += (Math.random() * 2 - 1) * Math.exp(-t * 100) * 0.15;
-      if (t >= 0.05 && t < 0.14) {
-        const local = t - 0.05;
-        s += Math.sin(2 * Math.PI * 988 * t) * Math.exp(-local * 25) * 0.25;
-      }
-      if (t >= 0.1 && t < 0.34) {
-        const local = t - 0.1;
-        s +=
-          (Math.sin(2 * Math.PI * 1568 * t) + Math.sin(2 * Math.PI * 1976 * t) * 0.85) *
-          Math.exp(-local * 10) *
-          0.3;
-      }
-      data[i] = s;
+    for (const note of notes) {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.value = note.freq;
+      const t0 = ctx.currentTime + note.at;
+      gain.gain.setValueAtTime(0.0001, t0);
+      gain.gain.exponentialRampToValueAtTime(note.gain, t0 + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t0 + note.dur);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(t0);
+      osc.stop(t0 + note.dur + 0.02);
     }
-
-    const source = ctx.createBufferSource();
-    const gain = ctx.createGain();
-    source.buffer = buffer;
-    gain.gain.setValueAtTime(0.45, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
-    source.connect(gain);
-    gain.connect(ctx.destination);
-    source.start();
-    source.stop(ctx.currentTime + duration);
   } catch {
     /* autoplay blocked */
   }
@@ -96,6 +86,6 @@ export function playTokenClaimSound(volume = 0.5): void {
   audio.volume = volume;
 
   void audio.play().catch(() => {
-    playSyntheticChaChing();
+    playSyntheticRefillChime();
   });
 }

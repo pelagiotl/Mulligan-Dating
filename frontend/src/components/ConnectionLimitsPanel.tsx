@@ -73,7 +73,7 @@ export default function ConnectionLimitsPanel({
   const statusNote = atCapacity
     ? `At ${limit} connections — unmatch or wait for expiry`
     : canClaimWeeklyToken && tokensReady < TOKEN_MAX
-      ? "Weekly Mulligans ready on Connect"
+      ? "Monthly Mulligans ready on Connect"
       : showRefill && refillMs != null
         ? `Next Mulligan in ${formatCountdown(refillMs)}`
         : null;
@@ -138,7 +138,7 @@ export default function ConnectionLimitsPanel({
         <div className="connection-limits-panel__title-group">
           <span className="connection-limits-panel__eyebrow">Limits</span>
           <p className="connection-limits-panel__lede">
-            {TOKEN_MAX} Mulligans weekly · {limit} connections max
+            {TOKEN_MAX} Mulligans monthly · {limit} connections max
           </p>
         </div>
         <button

@@ -81,15 +81,15 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
     }
 
     if (!data?.canClaimWeeklyToken) {
-      console.log("⚠️ Cannot claim weekly token - canClaimWeeklyToken is false");
+      console.log("⚠️ Cannot claim monthly token - canClaimWeeklyToken is false");
       setError(
-        `You cannot claim weekly tokens right now. You may have already claimed this week or already have ${TOKEN_MAX} tokens.`
+        `You cannot claim monthly tokens right now. You may have already claimed this month or already have ${TOKEN_MAX} tokens.`
       );
       setTimeout(() => setError(""), 5000);
       return;
     }
 
-    console.log("🔄 Attempting to claim weekly tokens...");
+    console.log("🔄 Attempting to claim monthly tokens...");
     setClaiming(true);
     setError("");
     setSuccess("");
@@ -120,7 +120,7 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
           if (apiErr.status === 400) {
             errorMessage =
               err.message ||
-              `Cannot claim tokens. You may have already claimed this week or already have ${TOKEN_MAX} tokens.`;
+              `Cannot claim tokens. You may have already claimed this month or already have ${TOKEN_MAX} tokens.`;
           } else if (apiErr.status === 401) {
             errorMessage = "Session expired. Please log in again.";
           } else if (apiErr.status === 408) {
@@ -183,8 +183,8 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
     data.availableTokens >= TOKEN_MAX
       ? `You're at your maximum of ${TOKEN_MAX} tokens. Use them to match with people!`
       : refillFormatted
-        ? `Next weekly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
-        : "Weekly tokens aren't ready to claim yet. Check back after your refill date.";
+        ? `Next monthly refill: ${refillFormatted}. You'll get up to ${TOKEN_MAX} tokens.`
+        : "Monthly tokens aren't ready to claim yet. Check back after your refill date.";
 
   const cannotClaimCompact =
     data.availableTokens >= TOKEN_MAX
@@ -250,7 +250,7 @@ export default function TokenDisplay({ variant = "default" }: TokenDisplayProps)
             disabled={claiming}
             type="button"
           >
-            {claiming ? "Claiming…" : compact ? "Claim weekly refill" : "✨ Claim Weekly Tokens"}
+            {claiming ? "Claiming…" : compact ? "Claim monthly refill" : "✨ Claim Monthly Tokens"}
           </button>
         ) : (
           <div className={`token-cannot-claim${compact ? " token-cannot-claim--compact" : ""}`}>

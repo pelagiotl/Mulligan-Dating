@@ -83,7 +83,7 @@ export async function activateUserAccount(
       .run([userId]) as Promise<unknown>);
   }
 
-  // Tokens are not granted on activate — users claim their first weekly refill on Connect.
+  // Tokens are not granted on activate — users claim their first monthly refill on Connect.
   return {
     accountStatus: ACCOUNT_STATUS_ACTIVE,
     tokensGranted: 0,

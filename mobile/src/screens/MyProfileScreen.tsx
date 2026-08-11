@@ -34,7 +34,7 @@ import { api } from '../utils/api';
 import { uploadPhotoUris } from '../utils/batchPhotoUpload';
 import { compactCityState, handleLocationChange, hasCityAndState } from '../utils/locationUtils';
 import { checkLocationInServiceArea } from '../utils/validateServiceAreaLocation';
-import { displayProfileGender } from '../utils/createProfileProgress';
+import { displayProfileAge, displayProfileGender, isProfileAgeUnset } from '../utils/createProfileProgress';
 import { detectUserLocation } from '../utils/detectUserLocation';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
@@ -2163,7 +2163,7 @@ export default function MyProfileScreen() {
                   <TouchableOpacity
                     activeOpacity={0.9}
                     onPress={() => {
-                      setEditAge(String(profile.age));
+                      setEditAge(isProfileAgeUnset(profile.age) ? '' : String(profile.age));
                       setShowAgeModal(true);
                       Vibration.vibrate(50);
                     }}
@@ -2182,7 +2182,7 @@ export default function MyProfileScreen() {
                         containerStyle={styles.infoCardEmojiWrap}
                       />
                       <Text style={styles.infoCardLabel}>Age</Text>
-                      <Text style={styles.infoCardValue}>{profile.age}</Text>
+                      <Text style={styles.infoCardValue}>{displayProfileAge(profile.age)}</Text>
                       <Text style={styles.infoCardTapHint}>Tap to update</Text>
                     </LinearGradient>
                   </TouchableOpacity>

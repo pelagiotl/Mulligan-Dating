@@ -21,8 +21,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import type { Socket } from 'socket.io-client';
 import { api } from '../utils/api';
 import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
+import GolfRoundCompleteCelebration from './GolfRoundCompleteCelebration';
 
 type HolePromptState = {
   matchId: string;
@@ -36,7 +39,12 @@ type Props = {
   matchId: string;
   headerMode?: boolean;
   onPromptShared?: () => void;
+  socket?: Socket | null;
 };
+
+const celebrationStorageKey = (matchId: string) =>
+  `mulligan_golf_round_complete_celeb_v1_${matchId}`;
+
 
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 const CARD_MAX_W = Math.min(408, SCREEN_W - 28);
@@ -186,7 +194,7 @@ function Sparkle({
   );
 }
 
-export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }: Props) {
+export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, socket }: Props) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -194,6 +202,9 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }:
   const [state, setState] = useState<HolePromptState | null>(null);
   const [displayPrompt, setDisplayPrompt] = useState('');
   const [displayHole, setDisplayHole] = useState(1);
+  const [showRoundCelebration, setShowRoundCelebration] = useState(false);
+  const wasCompletedRef = useRef(false);
+  const celebratingRef = useRef(false);
 
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const cardScale = useRef(new Animated.Value(0.9)).current;
@@ -209,6 +220,36 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }:
   const shimmer = useRef(new Animated.Value(0)).current;
   const shareFlash = useRef(new Animated.Value(0)).current;
   const animatingPrompt = useRef(false);
+
+  const maybeCelebrateRoundComplete = useCallback(
+    async (next: HolePromptState) => {
+      if (!next.completed) {
+        wasCompletedRef.current = false;
+        return;
+      }
+      if (celebratingRef.current || showRoundCelebration) return;
+      celebratingRef.current = true;
+      try {
+        const seen = await AsyncStorage.getItem(celebrationStorageKey(matchId));
+        if (seen === '1') {
+          celebratingRef.current = false;
+          wasCompletedRef.current = true;
+          return;
+        }
+      } catch {
+        // still try to celebrate once this session
+      }
+      wasCompletedRef.current = true;
+      setShowRoundCelebration(true);
+      void AsyncStorage.setItem(celebrationStorageKey(matchId), '1').catch(() => {});
+    },
+    [matchId, showRoundCelebration],
+  );
+
+  const dismissRoundCelebration = useCallback(() => {
+    setShowRoundCelebration(false);
+    celebratingRef.current = false;
+  }, []);
 
   const applyPromptContent = useCallback((next: HolePromptState) => {
     const hole = Number(next.currentHole) || 1;
@@ -359,13 +400,66 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }:
     try {
       const data = await api.get<HolePromptState>(`/matches/${matchId}/hole-prompts`, false);
       runPromptReveal(data, 'enter');
+      if (data.completed) {
+        void maybeCelebrateRoundComplete(data);
+      } else {
+        wasCompletedRef.current = false;
+      }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to load hole prompts';
       Alert.alert('Golf Dates', msg);
     } finally {
       setLoading(false);
     }
-  }, [matchId, runPromptReveal]);
+  }, [matchId, runPromptReveal, maybeCelebrateRoundComplete]);
+
+  useEffect(() => {
+    celebratingRef.current = false;
+    setShowRoundCelebration(false);
+  }, [matchId]);
+
+  // If the round finished while this user was away, celebrate when they open the golf chat.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const data = await api.get<HolePromptState>(`/matches/${matchId}/hole-prompts`, false);
+        if (cancelled || !data?.completed) return;
+        void maybeCelebrateRoundComplete(data);
+      } catch {
+        // non-critical
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [matchId, maybeCelebrateRoundComplete]);
+
+  useEffect(() => {
+    if (!socket || !matchId) return;
+    const onHoleUpdate = (payload: HolePromptState & { matchId?: string }) => {
+      if (payload?.matchId && payload.matchId !== matchId) return;
+      const next: HolePromptState = {
+        matchId: payload.matchId ?? matchId,
+        currentHole: Number(payload.currentHole) || 1,
+        totalHoles: Number(payload.totalHoles) || 18,
+        prompt: payload.prompt || '',
+        completed: !!payload.completed,
+      };
+      if (visible) {
+        runPromptReveal(next, 'enter');
+      } else {
+        setState(next);
+      }
+      if (next.completed) {
+        void maybeCelebrateRoundComplete(next);
+      }
+    };
+    socket.on('golf_hole_prompt_updated', onHoleUpdate);
+    return () => {
+      socket.off('golf_hole_prompt_updated', onHoleUpdate);
+    };
+  }, [socket, matchId, visible, runPromptReveal, maybeCelebrateRoundComplete]);
 
   useEffect(() => {
     if (!visible) return;
@@ -534,7 +628,9 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }:
       runPromptReveal(next, 'advance');
       onPromptShared?.();
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    } catch (e: unknown) {
+      if (next.completed) {
+        void maybeCelebrateRoundComplete(next);
+      }    } catch (e: unknown) {
       // Restore visible prompt if advance failed mid-fade
       promptOpacity.setValue(1);
       holeNumOpacity.setValue(1);
@@ -823,6 +919,11 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared }:
           </Animated.View>
         </View>
       </Modal>
+
+      <GolfRoundCompleteCelebration
+        visible={showRoundCelebration}
+        onDismiss={dismissRoundCelebration}
+      />
     </>
   );
 }

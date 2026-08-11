@@ -65,7 +65,7 @@ usersRouter.post('/unlock-browse', authenticateToken, async (req: AuthRequest, r
       : tokenResult) as { id: string } | undefined;
 
     if (!token) {
-      return res.status(400).json({ error: "No tokens available. Claim your weekly token!" });
+      return res.status(400).json({ error: "No tokens available. Claim your monthly tokens!" });
     }
 
     const connectViolations = await getConnectSetupViolationsForUser(userId);

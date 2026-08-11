@@ -542,7 +542,7 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
 });
 
 // Send a match request (use a token) - AUTOMATIC MATCH
-// Match limit: default 10 active matches per user (see matchSlots config). Tokens stay at 7 (weekly claim, max 7).
+// Match limit: default 10 active matches per user (see matchSlots config). Tokens stay at 7 (monthly claim, max 7).
 matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   const userId = req.userId!;
   const { targetUserId, expandSlot, source } = req.body;
@@ -857,7 +857,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
     const token = tokens[0];
 
     if (!token || tokens.length < tokensNeeded) {
-      // Check if user can claim weekly tokens
+      // Check if user can claim monthly tokens
       const allTokensResult = db
         .prepare(
           `SELECT * FROM mulligan_tokens WHERE user_id = ? ORDER BY granted_at DESC`
@@ -874,7 +874,7 @@ matchesRouter.post("/connect", authenticateToken, rateLimitAPI, async (req: Auth
       const { canClaimWeeklyToken } = computeWeeklyClaimEligibility(allTokens, availableCount);
 
       return res.status(400).json({ 
-        error: "No tokens available. Claim your weekly token!",
+        error: "No tokens available. Claim your monthly tokens!",
         canClaimWeeklyToken,
         code: "NO_TOKENS"
       });

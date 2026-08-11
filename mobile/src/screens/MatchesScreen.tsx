@@ -38,6 +38,9 @@ import {
   connectShellTabBodyBg,
   mainTabScrollBottomPadding,
 } from '../utils/androidConnectShellChrome';
+
+const GOLF_MATCHES_HERO = require('../../assets/golf-matches-hero.jpg');
+
 import { getPhotoUrl } from '../utils/photoUrl';
 import {
   getPendingOpenMatchId,
@@ -665,13 +668,39 @@ function AnimatedHeaderGradient({
   matchesCount,
   gradientPos,
   shellBackdropColors,
+  useGolfHero = false,
 }: {
   children: React.ReactNode;
   matchesCount: number;
   gradientPos?: Animated.Value;
   shellBackdropColors: readonly [string, string, ...string[]];
+  /** Photo hero behind “Your Golf Matches” (not used for Sober Circle). */
+  useGolfHero?: boolean;
 }) {
   const insets = useSafeAreaInsets();
+
+  if (useGolfHero) {
+    return (
+      <View style={styles.golfHeroWrap}>
+        <Image
+          source={GOLF_MATCHES_HERO}
+          style={styles.golfHeroImage}
+          resizeMode="cover"
+          accessibilityLabel="Golf course fairway behind Your Golf Matches"
+        />
+        <LinearGradient
+          colors={['rgba(11, 61, 46, 0.18)', 'rgba(11, 61, 46, 0.45)', 'rgba(15, 23, 42, 0.88)']}
+          locations={[0.2, 0.58, 1]}
+          style={StyleSheet.absoluteFill}
+          pointerEvents="none"
+        />
+        <View style={[styles.golfHeroCopy, { paddingTop: matchesHeaderPaddingTop(insets.top) }]}>
+          {children}
+        </View>
+      </View>
+    );
+  }
+
   return (
     <Animated.View
       style={[styles.headerGradient, { paddingTop: matchesHeaderPaddingTop(insets.top), overflow: 'visible' }]}
@@ -957,11 +986,6 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                   compact
                   style={styles.matchSoberBadge}
                 />
-              ) : null}
-              {(item.connectedVia === 'golf_date') ? (
-                <View style={styles.date2ReadyBadge}>
-                  <Text style={styles.date2ReadyBadgeText}>⛳ Golf Date</Text>
-                </View>
               ) : null}
               {item.profileCompatibility != null && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityInline}>
@@ -3331,19 +3355,44 @@ export default function MatchesScreen() {
   if (!isAuthenticated || !user) {
     return (
       <View style={[styles.container, { backgroundColor: tabBodyBg }]}>
-        <LinearGradient
-          colors={[...shellBackdropColors]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={[styles.headerGradient, { paddingTop: matchesHeaderPaddingTop(insets.top) }]}
-        >
-          <View style={styles.header}>
-            <View style={styles.headerTitleContainer}>
-              <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
-              <Text style={styles.headerTitle}>{listHeaderTitle}</Text>
+        {soberCircleMode ? (
+          <LinearGradient
+            colors={[...shellBackdropColors]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[styles.headerGradient, { paddingTop: matchesHeaderPaddingTop(insets.top) }]}
+          >
+            <View style={styles.header}>
+              <View style={styles.headerTitleContainer}>
+                <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
+                <Text style={styles.headerTitle}>{listHeaderTitle}</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        ) : (
+          <View style={styles.golfHeroWrap}>
+            <Image
+              source={GOLF_MATCHES_HERO}
+              style={styles.golfHeroImage}
+              resizeMode="cover"
+              accessibilityLabel="Golf course fairway behind Your Golf Matches"
+            />
+            <LinearGradient
+              colors={['rgba(11, 61, 46, 0.18)', 'rgba(11, 61, 46, 0.45)', 'rgba(15, 23, 42, 0.88)']}
+              locations={[0.2, 0.58, 1]}
+              style={StyleSheet.absoluteFill}
+              pointerEvents="none"
+            />
+            <View style={[styles.golfHeroCopy, { paddingTop: matchesHeaderPaddingTop(insets.top) }]}>
+              <View style={[styles.header, styles.golfHeroHeader]}>
+                <View style={styles.headerTitleContainer}>
+                  <AnimatedLinkHeaderIcon connectShell={connectShellMode} />
+                  <Text style={styles.headerTitle}>{listHeaderTitle}</Text>
+                </View>
+              </View>
             </View>
           </View>
-        </LinearGradient>
+        )}
         <View style={styles.emptyContainer}>
           <Text style={[styles.emptyTitle, connectShellMode === 'midnight' && { color: '#f1f5f9' }]}>Please log in</Text>
           <Text style={[styles.emptyText, connectShellMode === 'midnight' && { color: '#94a3b8' }]}>
@@ -3361,8 +3410,9 @@ export default function MatchesScreen() {
           matchesCount={visibleMatches.length}
           gradientPos={headerGradientPos}
           shellBackdropColors={shellBackdropColors}
+          useGolfHero={!soberCircleMode}
         >
-          <View style={styles.header}>
+          <View style={[styles.header, !soberCircleMode && styles.golfHeroHeader]}>
             {soberCircleMode ? (
               <TouchableOpacity
                 onPress={() => navigation.goBack()}
@@ -3567,6 +3617,7 @@ export default function MatchesScreen() {
                   <GolfHolePrompts
                     matchId={selectedMatch.id}
                     headerMode
+                    socket={socketRef.current}
                     onPromptShared={() => {
                       void fetchMessages(selectedMatch.id);
                     }}
@@ -4482,10 +4533,39 @@ const styles = StyleSheet.create({
     elevation: 10,
     overflow: 'visible',
   },
+  golfHeroWrap: {
+    width: '100%',
+    // Tall enough for landscape photo; a bit extra height reveals sky / mountain peaks
+    height: 278,
+    marginBottom: 0,
+    backgroundColor: '#0b3d2e',
+    borderBottomLeftRadius: 22,
+    borderBottomRightRadius: 22,
+    overflow: 'hidden',
+    shadowColor: '#0b3d2e',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.28,
+    shadowRadius: 14,
+    elevation: 10,
+  },
+  golfHeroImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  golfHeroCopy: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
+  // Keep title block compact inside photo hero
+  golfHeroHeader: {
+    paddingTop: 8,
+    paddingBottom: 16,
+  },
   header: {
     padding: 24,
-    paddingTop: 28,
-    paddingBottom: 24,
+    paddingTop: 20,
+    paddingBottom: 22,
     overflow: 'visible',
   },
   headerTitleContainer: {
@@ -4613,9 +4693,9 @@ const styles = StyleSheet.create({
     color: '#fff',
     letterSpacing: -0.3,
     lineHeight: 30,
-    textShadowColor: 'rgba(0, 0, 0, 0.2)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+    textShadowColor: 'rgba(0, 0, 0, 0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
     ...Platform.select({
       android: { includeFontPadding: false },
     }),

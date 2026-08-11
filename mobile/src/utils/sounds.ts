@@ -35,7 +35,8 @@ try {
 }
 
 try {
-  tokenClaimSoundModule = require('../../assets/token-claim-sound.wav');
+  // v2 — warmer ascending refill chime (filename busts Metro asset cache)
+  tokenClaimSoundModule = require('../../assets/token-claim-sound-v2.wav');
 } catch {
   tokenClaimSoundModule = null;
   if (!isExpoGo) {
@@ -44,12 +45,22 @@ try {
 }
 
 try {
-  // v3 — celebration-forward boot SFX (filename busts Metro asset cache)
-  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v3.wav');
+  // v4 — whoosh + soft hit + warm mid resolve (no bright high chime)
+  // Rollback: require('../../assets/mulligan-boot-sound-v3.wav')
+  //   (archive: assets/sound-archive/mulligan-boot-sound-v3.wav)
+  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v4.wav');
 } catch {
-  mulliganBootSoundModule = null;
-  if (!isExpoGo) {
-    console.warn('🎵 Mulligan boot sound not found — run: node scripts/generate-mulligan-boot-sound.js');
+  try {
+    mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v3.wav');
+  } catch {
+    try {
+      mulliganBootSoundModule = require('../../assets/mulligan-boot-sound.wav');
+    } catch {
+      mulliganBootSoundModule = null;
+      if (!isExpoGo) {
+        console.warn('🎵 Mulligan boot sound not found — run: node scripts/generate-mulligan-boot-sound.js');
+      }
+    }
   }
 }
 
@@ -90,12 +101,9 @@ async function playBundledSound(
   holder: SoundHolder,
   label: string
 ): Promise<void> {
-  if (!module) return;
-
-  const soundSource = resolveBundledSoundUri(module);
-  if (!soundSource?.uri) {
+  if (!module) {
     if (__DEV__) {
-      console.warn(`🎵 [SOUND] ${label}: no URI for bundled asset`);
+      console.warn(`🎵 [SOUND] ${label}: module is null (asset failed to load)`);
     }
     return;
   }
@@ -113,18 +121,38 @@ async function playBundledSound(
       holder.sound = null;
     }
 
-    // downloadFirst=false: do not call Asset.downloadAsync (needs expo-file-system native module).
-    const { sound } = await Audio.Sound.createAsync(
-      soundSource,
-      {
-        shouldPlay: false,
-        volume: 1.0,
-        isLooping: false,
-        isMuted: false,
-      },
-      null,
-      false
-    );
+    // Prefer the Metro require() module directly (most reliable with expo-av).
+    // Fall back to Asset URI if needed — downloadFirst=false avoids expo-file-system.
+    let sound: Audio.Sound;
+    try {
+      ({ sound } = await Audio.Sound.createAsync(
+        module,
+        {
+          shouldPlay: false,
+          volume: 1.0,
+          isLooping: false,
+          isMuted: false,
+        },
+        null,
+        false
+      ));
+    } catch (directErr) {
+      const soundSource = resolveBundledSoundUri(module);
+      if (!soundSource?.uri) {
+        throw directErr;
+      }
+      ({ sound } = await Audio.Sound.createAsync(
+        soundSource,
+        {
+          shouldPlay: false,
+          volume: 1.0,
+          isLooping: false,
+          isMuted: false,
+        },
+        null,
+        false
+      ));
+    }
 
     holder.sound = sound;
 
@@ -166,7 +194,7 @@ export async function playMessageSound(): Promise<void> {
   await playBundledSound(messageSoundModule, messageSoundHolder, 'message');
 }
 
-/** Cash-register cha-ching when weekly tokens are claimed. */
+/** Warm ascending refill chime when monthly tokens are claimed. */
 export async function playTokenClaimSound(): Promise<void> {
   await playBundledSound(tokenClaimSoundModule, tokenClaimSoundHolder, 'token-claim');
 }

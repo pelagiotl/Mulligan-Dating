@@ -92,7 +92,7 @@ export default function NoTokensModal({ visible, onClose, onTokenClaimed }: NoTo
           ) : tokenData?.canClaimWeeklyToken ? (
             <View style={styles.content}>
               <Text style={styles.message}>
-                You're out of mulligan tokens! Claim your weekly tokens to start connecting with people.
+                You're out of mulligan tokens! Claim your monthly tokens to start connecting with people.
               </Text>
               <TouchableOpacity
                 style={[styles.button, claiming && styles.buttonDisabled]}
@@ -108,7 +108,7 @@ export default function NoTokensModal({ visible, onClose, onTokenClaimed }: NoTo
                   {claiming ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.buttonText}>✨ Claim Weekly Tokens</Text>
+                    <Text style={styles.buttonText}>✨ Claim Monthly Tokens</Text>
                   )}
                 </LinearGradient>
               </TouchableOpacity>
@@ -116,7 +116,7 @@ export default function NoTokensModal({ visible, onClose, onTokenClaimed }: NoTo
           ) : (
             <View style={styles.content}>
               <Text style={styles.message}>
-                You're out of mulligan tokens and you've already claimed your weekly tokens. Cop some more in the app to keep connecting!
+                You're out of mulligan tokens and you've already claimed your monthly tokens. Cop some more in the app to keep connecting!
               </Text>
             </View>
           )}

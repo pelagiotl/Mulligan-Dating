@@ -1,16 +1,11 @@
 /**
- * Mulligan boot splash SFX v4 — whoosh → soft hit → warm mid resolve.
- * Softer ending than v3 (no bright high sparkle / piercing top note).
+ * Mulligan boot splash SFX — addictive “reward” sting (golf nod + celebration).
+ * Inspired by short dating-app match celebrations: whoosh → hit → ascending sparkle.
  *
  * Run: node scripts/generate-mulligan-boot-sound.js
- * Output: mobile/assets/mulligan-boot-sound-v4.wav
+ * Output: mobile/assets/mulligan-boot-sound-v3.wav
  *
- * Rollback to current (v3):
- *   cp assets/sound-archive/mulligan-boot-sound-v3.wav assets/mulligan-boot-sound-v3.wav
- *   point sounds.ts require back to mulligan-boot-sound-v3.wav
- *   (generator backup: scripts/generate-mulligan-boot-sound.v3.js)
- *
- * Older rollbacks:
+ * Rollback options:
  *   v2: assets/sound-archive/mulligan-boot-sound-v2.wav
  *   pre: assets/sound-archive/mulligan-boot-sound.pre-addictive.wav
  */
@@ -21,7 +16,7 @@ const path = require('path');
 const TAU = 2 * Math.PI;
 
 /** Peak of the reward (sync splash timing to this). */
-const REWARD_PEAK_SEC = 0.32;
+const REWARD_PEAK_SEC = 0.34;
 
 function encodeWav(rawFloat, sampleRate = 44100) {
   const numChannels = 1;
@@ -31,7 +26,7 @@ function encodeWav(rawFloat, sampleRate = 44100) {
   const byteRate = sampleRate * numChannels * (bitsPerSample / 8);
   const blockAlign = numChannels * (bitsPerSample / 8);
 
-  const tailLen = 0.14;
+  const tailLen = 0.12;
   const tailStart = duration - tailLen;
   const samples = [];
   for (let i = 0; i < numSamples; i++) {
@@ -41,7 +36,7 @@ function encodeWav(rawFloat, sampleRate = 44100) {
       const x = (duration - t) / tailLen;
       master = x * x;
     }
-    let s = Math.tanh(rawFloat[i] * 1.15) * master;
+    let s = Math.tanh(rawFloat[i] * 1.18) * master;
     s = Math.max(-1, Math.min(1, s));
     const int16 = Math.floor(s * 32767);
     samples.push(int16 & 0xff);
@@ -75,8 +70,8 @@ function softReverb(raw, sampleRate) {
   let i1 = 0;
   let i2 = 0;
   const out = new Float32Array(raw.length);
-  const g = 0.3;
-  const wet = 0.16;
+  const g = 0.32;
+  const wet = 0.18;
   for (let i = 0; i < raw.length; i++) {
     const x = raw[i];
     const r1 = buf1[i1];
@@ -91,9 +86,10 @@ function softReverb(raw, sampleRate) {
 }
 
 /**
- * Whoosh → soft thwack → warm mid resolve (no bright high fanfare).
+ * Brief golf whoosh → soft thwack → ascending celebration sparkle.
+ * Built to feel rewarding on every cold start (Tinder-match energy, Mulligan DNA).
  */
-function generateBootReward(sampleRate = 44100, duration = 0.78) {
+function generateBootReward(sampleRate = 44100, duration = 0.82) {
   const numSamples = Math.floor(sampleRate * duration);
   const raw = new Float32Array(numSamples);
 
@@ -120,7 +116,8 @@ function generateBootReward(sampleRate = 44100, duration = 0.78) {
 
     let sample = 0;
 
-    // 1) Short whoosh into the hit
+    // 1) Short addictive whoosh into the hit
+    let whoosh = 0;
     if (t < impact + 0.12) {
       const x = Math.min(1, t / impact);
       const env =
@@ -128,13 +125,14 @@ function generateBootReward(sampleRate = 44100, duration = 0.78) {
           ? Math.pow(x, 2.2) * 0.7 + (x > 0.5 ? Math.pow((x - 0.5) / 0.5, 1.3) * 0.45 : 0)
           : Math.exp(-(t - impact) * 14) * 0.55;
       const tone = 120 + Math.pow(Math.min(1, t / impact), 1.8) * 580;
-      sample += slow * env * 0.55;
-      sample += mid * env * 0.95;
-      sample += bright * env * speed * 0.35;
-      sample += Math.sin(TAU * tone * t) * env * 0.2;
+      whoosh += slow * env * 0.55;
+      whoosh += mid * env * 0.95;
+      whoosh += bright * env * speed * 0.35;
+      whoosh += Math.sin(TAU * tone * t) * env * 0.2;
+      sample += whoosh;
     }
 
-    // 2) Soft body hit
+    // 2) Soft satisfying body hit (not metallic)
     if (t >= impact && t < impact + 0.08) {
       const local = t - impact;
       const hit = (1 - Math.exp(-local * 650)) * Math.exp(-local * 40);
@@ -143,27 +141,38 @@ function generateBootReward(sampleRate = 44100, duration = 0.78) {
       sample += mid * Math.exp(-local * 160) * 0.25;
     }
 
-    // 3) Warm mid resolve — gentle lift only (G4 → soft C5), no high sparkle
+    // 3) Ascending celebration — the dopamine (C5 → E5 → G5)
+    // Staggered like a tiny match fanfare; warm + slightly detuned for organic feel
     const notes = [
-      { f: 392.0, start: impact + 0.06, len: 0.34, amp: 0.28 }, // G4
-      { f: 523.25, start: impact + 0.14, len: 0.36, amp: 0.22 }, // C5 (soft)
+      { f: 523.25, start: impact + 0.05, len: 0.32, amp: 0.34 },
+      { f: 659.25, start: impact + 0.12, len: 0.34, amp: 0.3 },
+      { f: 783.99, start: impact + 0.19, len: 0.38, amp: 0.26 },
     ];
     for (const note of notes) {
       if (t >= note.start && t < note.start + note.len) {
         const local = t - note.start;
         const env =
-          (1 - Math.exp(-local * 50)) * Math.exp(-local * 6.2) * note.amp;
-        const detune = note.f * 1.002;
+          (1 - Math.exp(-local * 55)) * Math.exp(-local * 5.5) * note.amp;
+        const detune = note.f * 1.003;
         sample += Math.sin(TAU * note.f * t) * env;
-        sample += Math.sin(TAU * detune * t) * env * 0.3;
-        sample += Math.sin(TAU * note.f * 2 * t) * env * 0.05;
+        sample += Math.sin(TAU * detune * t) * env * 0.35;
+        sample += Math.sin(TAU * note.f * 2 * t) * env * 0.08;
       }
     }
 
-    // 4) Low warmth under the resolve (premium on phone speakers)
-    if (t >= impact && t < impact + 0.48) {
+    // 4) Soft shimmer / sparkle dust on top of the resolve
+    const shimmerStart = impact + 0.22;
+    if (t >= shimmerStart && t < shimmerStart + 0.4) {
+      const local = t - shimmerStart;
+      const env = Math.exp(-local * 6) * (1 - Math.exp(-local * 40)) * 0.1;
+      sample += Math.sin(TAU * 1046.5 * t) * env;
+      sample += bright * env * 0.45;
+    }
+
+    // 5) Low “warmth” under the celebration so it feels premium on phone speakers
+    if (t >= impact && t < impact + 0.45) {
       const local = t - impact;
-      const env = Math.exp(-local * 4.2) * (1 - Math.exp(-local * 28)) * 0.24;
+      const env = Math.exp(-local * 4.5) * (1 - Math.exp(-local * 30)) * 0.22;
       sample += Math.sin(TAU * 82 * t) * env;
       sample += Math.sin(TAU * 110 * t) * env * 0.4;
     }
@@ -183,10 +192,7 @@ function generateBootReward(sampleRate = 44100, duration = 0.78) {
 
 const assetsDir = path.join(__dirname, '../assets');
 const wav = generateBootReward();
-const mobilePath = path.join(assetsDir, 'mulligan-boot-sound-v4.wav');
+const mobilePath = path.join(assetsDir, 'mulligan-boot-sound-v3.wav');
 fs.writeFileSync(mobilePath, wav);
-// Also write stable name so Metro can resolve even if the v4 require isn't cached yet
-fs.writeFileSync(path.join(assetsDir, 'mulligan-boot-sound.wav'), wav);
 console.log('✅ Mulligan boot sound →', mobilePath);
 console.log(`   Reward peak ~${REWARD_PEAK_SEC}s`);
-console.log('   Rollback: sound-archive/mulligan-boot-sound-v3.wav + sounds.ts → v3');

@@ -30,7 +30,7 @@ export default function WeeklyTokenClaimCelebration({ visible, tokensGranted, on
             <Text style={styles.emoji} accessibilityElementsHidden>
               🎟️
             </Text>
-            <Text style={styles.title}>Weekly refill claimed</Text>
+            <Text style={styles.title}>Monthly refill claimed</Text>
             <Text style={styles.sub}>
               {n} token{n !== 1 ? 's' : ''} added — you&apos;re ready to connect.
             </Text>

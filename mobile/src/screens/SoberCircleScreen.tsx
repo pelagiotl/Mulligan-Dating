@@ -13,6 +13,7 @@ import {
   Animated,
   Easing,
   useWindowDimensions,
+  Image,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,6 +38,28 @@ import {
   connectInitiatorAtRef,
   initiatorMatchIdRef,
 } from '../utils/currentMatchView';
+
+const SOBER_CIRCLE_BG = require('../../assets/sober-circle-bg.jpg');
+
+function SoberCirclePhotoShell({ children }: { children: React.ReactNode }) {
+  return (
+    <View style={styles.flex}>
+      <Image
+        source={SOBER_CIRCLE_BG}
+        style={styles.fullBleedPhoto}
+        resizeMode="cover"
+        accessibilityLabel="Peaceful meadow background for Sober Circle"
+      />
+      <LinearGradient
+        colors={['rgba(6, 40, 24, 0.35)', 'rgba(15, 23, 42, 0.55)', 'rgba(15, 23, 42, 0.82)']}
+        locations={[0, 0.45, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View style={styles.flex}>{children}</View>
+    </View>
+  );
+}
 
 type BrowseProfile = {
   id: string;
@@ -144,7 +167,7 @@ function LevelPicker({
     <View style={styles.levelPickerWrap}>
       {onCancel ? (
         <TouchableOpacity onPress={onCancel} style={styles.changeCancel} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={[styles.changeCancelText, midnight && styles.leadMidnight]}>Cancel</Text>
+          <Text style={[styles.changeCancelText, styles.changeCancelTextOnPhoto]}>Cancel</Text>
         </TouchableOpacity>
       ) : null}
       {SOBER_CIRCLE_LEVELS.map((opt) => {
@@ -415,10 +438,10 @@ export default function SoberCircleScreen() {
 
   if (!level || changingLevel) {
     return (
-      <LinearGradient colors={connectShellGradientStops(shellMode)} style={styles.flex}>
+      <SoberCirclePhotoShell>
         <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 16, paddingBottom: bottomPad }]}>
-          <Text style={[styles.title, midnight && styles.textLight]}>Sober Circle</Text>
-          <Text style={[styles.lead, midnight && styles.leadMidnight]}>
+          <Text style={styles.titleOnPhoto}>Sober Circle</Text>
+          <Text style={styles.leadOnPhoto}>
             A trust-based space to connect with others on a sober or sober-curious path. Choose the level that fits
             you — you can change it anytime.
           </Text>
@@ -430,7 +453,7 @@ export default function SoberCircleScreen() {
             onCancel={level ? () => setChangingLevel(false) : undefined}
           />
         </ScrollView>
-      </LinearGradient>
+      </SoberCirclePhotoShell>
     );
   }
 
@@ -442,13 +465,13 @@ export default function SoberCircleScreen() {
   const findingMatch = connecting || loadingPoolTotal;
 
   return (
-    <LinearGradient colors={connectShellGradientStops(shellMode)} style={styles.flex}>
+    <SoberCirclePhotoShell>
       <ScrollView contentContainerStyle={[styles.scroll, { paddingTop: insets.top + 12, paddingBottom: bottomPad }]}>
-        <Text style={[styles.title, midnight && styles.textLight]}>Sober Circle</Text>
+        <Text style={styles.titleOnPhoto}>Sober Circle</Text>
 
         <View style={styles.levelRow}>
-          <View style={[styles.levelPill, midnight && styles.levelPillMidnight]}>
-            <Text style={[styles.levelPillText, midnight && styles.textLight]}>
+          <View style={[styles.levelPill, styles.levelPillOnPhoto]}>
+            <Text style={[styles.levelPillText, styles.levelPillTextOnPhoto]}>
               💚 {soberCircleLevelLabel(level)}
             </Text>
           </View>
@@ -456,11 +479,11 @@ export default function SoberCircleScreen() {
             onPress={() => setChangingLevel(true)}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
-            <Text style={styles.changeLink}>Change</Text>
+            <Text style={styles.changeLinkOnPhoto}>Change</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={[styles.lead, midnight && styles.leadMidnight]}>
+        <Text style={styles.leadOnPhoto}>
           Tap below when you are ready — we will find someone in the circle and connect you. No one is shown until
           you tap.
         </Text>
@@ -468,11 +491,11 @@ export default function SoberCircleScreen() {
         {soberMatches.length > 0 ? (
           <View style={styles.matchesSection}>
             <View style={styles.matchesSectionHeader}>
-              <Text style={[styles.matchesSectionTitle, midnight && styles.textLight]}>Your circle matches</Text>
+              <Text style={styles.matchesSectionTitleOnPhoto}>Your circle matches</Text>
               <TouchableOpacity
                 onPress={() => navigation.navigate('SoberCircleChat', { soberCircleMode: true })}
               >
-                <Text style={styles.matchesSectionLink}>See all →</Text>
+                <Text style={styles.matchesSectionLinkOnPhoto}>See all →</Text>
               </TouchableOpacity>
             </View>
             {soberMatches.slice(0, 3).map((m) => {
@@ -514,11 +537,11 @@ export default function SoberCircleScreen() {
             })}
           </View>
         ) : loadingMatches ? (
-          <ActivityIndicator style={{ marginBottom: 12 }} color={midnight ? '#4ade80' : '#16a34a'} />
+          <ActivityIndicator style={{ marginBottom: 12 }} color="#4ade80" />
         ) : null}
 
         {loadingPoolTotal && soberMatches.length === 0 ? (
-          <ActivityIndicator style={{ marginTop: 32 }} color={midnight ? '#4ade80' : '#16a34a'} />
+          <ActivityIndicator style={{ marginTop: 32 }} color="#4ade80" />
         ) : (
           <View style={[styles.emptyCard, midnight && styles.emptyCardMidnight]}>
             <SmoothPulsingEmoji emoji="🌿" fontSize={40} variant="emoji" containerStyle={styles.emptyEmojiWrap} />
@@ -658,16 +681,39 @@ export default function SoberCircleScreen() {
           }}
         />
       ) : null}
-    </LinearGradient>
+    </SoberCirclePhotoShell>
   );
 }
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  fullBleedPhoto: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
   scroll: { paddingHorizontal: 20 },
   title: { fontSize: 28, fontWeight: '800', color: '#1e1b4b', marginBottom: 8 },
+  titleOnPhoto: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#fff',
+    marginBottom: 8,
+    textShadowColor: 'rgba(0,0,0,0.45)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
+  },
   textLight: { color: '#f8fafc' },
   lead: { fontSize: 14, lineHeight: 20, color: '#475569', marginBottom: 16 },
+  leadOnPhoto: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: 'rgba(248,250,252,0.92)',
+    marginBottom: 16,
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
   leadMidnight: { color: 'rgba(248,250,252,0.75)' },
   levelPickerWrap: { marginTop: 4 },
   levelRow: {
@@ -705,8 +751,17 @@ const styles = StyleSheet.create({
   levelSub: { fontSize: 13, color: '#64748b', marginTop: 2 },
   levelCheck: { fontSize: 18, fontWeight: '800', color: '#16a34a' },
   changeLink: { fontSize: 14, fontWeight: '700', color: '#16a34a' },
+  changeLinkOnPhoto: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#86efac',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   changeCancel: { alignSelf: 'flex-end', marginBottom: 8 },
   changeCancelText: { fontSize: 14, fontWeight: '600', color: '#64748b' },
+  changeCancelTextOnPhoto: { color: 'rgba(248,250,252,0.88)' },
   levelPill: {
     backgroundColor: 'rgba(34,197,94,0.12)',
     paddingHorizontal: 12,
@@ -714,7 +769,9 @@ const styles = StyleSheet.create({
     borderRadius: 999,
   },
   levelPillMidnight: { backgroundColor: 'rgba(34,197,94,0.2)' },
+  levelPillOnPhoto: { backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)' },
   levelPillText: { fontSize: 13, fontWeight: '700', color: '#166534' },
+  levelPillTextOnPhoto: { color: '#ecfdf5' },
   matchesSection: { marginBottom: 16 },
   matchesSectionHeader: {
     flexDirection: 'row',
@@ -723,7 +780,16 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   matchesSectionTitle: { fontSize: 16, fontWeight: '800', color: '#1e1b4b' },
+  matchesSectionTitleOnPhoto: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#fff',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
+  },
   matchesSectionLink: { fontSize: 13, fontWeight: '700', color: '#16a34a' },
+  matchesSectionLinkOnPhoto: { fontSize: 13, fontWeight: '700', color: '#86efac' },
   matchRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -81,7 +81,7 @@ tokensRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
-// Claim weekly tokens (7 tokens per week, fills up to 7 max)
+// Claim monthly tokens (fills up to 7 max; once per rolling 30 days)
 tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -113,7 +113,7 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
   if (!canClaimWeeklyToken) {
     return res
       .status(400)
-      .json({ error: "You can only claim weekly tokens once per week. Wait until next week!" });
+      .json({ error: "You can only claim monthly tokens once per month. Wait until your next refill!" });
   }
 
   // Calculate how many tokens to grant (fill up to 7 max)
@@ -125,7 +125,7 @@ tokensRouter.post("/claim", authenticateToken, async (req: AuthRequest, res) => 
     for (let i = 0; i < tokensToGrant; i++) {
       const tokenId = uuidv4();
       const insertResult = db.prepare(
-        `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'weekly')`
+        `INSERT INTO mulligan_tokens (id, user_id, source) VALUES (?, ?, 'monthly')`
       ).run([tokenId, userId]);
       
       // Handle both sync (SQLite) and async (PostgreSQL)
@@ -200,7 +200,7 @@ tokensRouter.post("/check-returns", authenticateToken, async (req: AuthRequest, 
   }
 });
 
-// Grant a free token (for development/testing - bypasses weekly limit, still capped at 7 total)
+// Grant a free token (for development/testing - bypasses monthly limit, still capped at 7 total)
 tokensRouter.post("/grant-free", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -229,7 +229,7 @@ tokensRouter.post("/grant-free", authenticateToken, async (req: AuthRequest, res
     res.json({
       message: "Free token granted!",
       tokenId,
-      note: "This is a development token (bypasses weekly limit)",
+      note: "This is a development token (bypasses monthly limit)",
     });
   } catch (error) {
     console.error('Tokens grant-free error:', error);
