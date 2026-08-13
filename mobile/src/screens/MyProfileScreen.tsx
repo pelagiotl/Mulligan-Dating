@@ -38,6 +38,13 @@ import { displayProfileAge, displayProfileGender, isProfileAgeUnset } from '../u
 import { detectUserLocation } from '../utils/detectUserLocation';
 import { getPhotoUrl } from '../utils/photoUrl';
 import OptimizedImage from '../components/OptimizedImage';
+import GolfVibeSection, {
+  type GolfFormat,
+  type GolfLevel,
+  type GolfTransport,
+  type GolfVibe,
+  type GolfVibeValues,
+} from '../components/GolfVibeSection';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
@@ -154,6 +161,11 @@ interface ProfileData {
     photo_url: string | null;
     intro_video_url?: string | null;
     looking_for: string | null;
+    golf_dates_opt_in?: number | boolean | null;
+    golf_format?: string | null;
+    golf_transport?: string | null;
+    golf_vibe?: string | null;
+    golf_level?: string | null;
   };
   interests: Array<{ name: string; category: string | null }>;
   preferences: {
@@ -1163,6 +1175,35 @@ export default function MyProfileScreen() {
       Alert.alert('Error', e?.message || 'Failed to update lifestyle.');
     } finally {
       setUpdatingField(false);
+    }
+  };
+
+  const saveGolfVibe = async (next: GolfVibeValues) => {
+    setData((prev) =>
+      prev
+        ? {
+            ...prev,
+            profile: {
+              ...prev.profile,
+              golf_format: next.golfFormat,
+              golf_transport: next.golfTransport,
+              golf_vibe: next.golfVibe,
+              golf_level: next.golfLevel,
+            },
+          }
+        : null,
+    );
+    try {
+      await api.put('/profile/golf-vibe', {
+        golfFormat: next.golfFormat,
+        golfTransport: next.golfTransport,
+        golfVibe: next.golfVibe,
+        golfLevel: next.golfLevel,
+      });
+      api.clearCache('/profile');
+      refreshProfile?.();
+    } catch (e: any) {
+      Alert.alert('Error', e?.message || 'Failed to save golf vibe.');
     }
   };
 
@@ -2420,6 +2461,20 @@ export default function MyProfileScreen() {
                   </LinearGradient>
                 </TouchableOpacity>
               </ProfileEditableCardBorder>
+
+              <View style={{ marginTop: 14, marginHorizontal: 4 }}>
+                <GolfVibeSection
+                  values={{
+                    golfFormat: (profile.golf_format as GolfFormat) || null,
+                    golfTransport: (profile.golf_transport as GolfTransport) || null,
+                    golfVibe: (profile.golf_vibe as GolfVibe) || null,
+                    golfLevel: (profile.golf_level as GolfLevel) || null,
+                  }}
+                  onChange={(next) => {
+                    void saveGolfVibe(next);
+                  }}
+                />
+              </View>
 
               {/* About Me - tappable to open edit modal (keyboard won't cover Save/Cancel) */}
               <ProfileEditableCardBorder

@@ -16,6 +16,8 @@ import {
   Easing,
   Pressable,
   Dimensions,
+  TextInput,
+  ScrollView,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
@@ -27,11 +29,29 @@ import { api } from '../utils/api';
 import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 import GolfRoundCompleteCelebration from './GolfRoundCompleteCelebration';
 
+type HoleAnswerView = {
+  choiceId: string | null;
+  choiceLabel: string | null;
+  writeIn: string | null;
+  tags: string[];
+};
+
 type HolePromptState = {
   matchId: string;
   currentHole: number;
   totalHoles: number;
   prompt: string;
+  promptId?: string;
+  depth?: 'light' | 'deeper';
+  depthPreference?: 'light' | 'deeper' | 'auto';
+  choices?: { id: string; label: string }[];
+  myAnswer?: HoleAnswerView | null;
+  partnerAnswer?: HoleAnswerView | null;
+  partnerHasAnswered?: boolean;
+  bothAnswered?: boolean;
+  sharedInsight?: string | null;
+  myRating?: 'up' | 'down' | null;
+  canAdvance?: boolean;
   completed: boolean;
 };
 
@@ -203,6 +223,8 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
   const [displayPrompt, setDisplayPrompt] = useState('');
   const [displayHole, setDisplayHole] = useState(1);
   const [showRoundCelebration, setShowRoundCelebration] = useState(false);
+  const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
+  const [writeIn, setWriteIn] = useState('');
   const wasCompletedRef = useRef(false);
   const celebratingRef = useRef(false);
 
@@ -260,6 +282,8 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
     setState({ ...next, currentHole: hole, prompt });
     setDisplayHole(hole);
     setDisplayPrompt(promptBody(prompt, hole));
+    setSelectedChoiceId(next.myAnswer?.choiceId || null);
+    setWriteIn(next.myAnswer?.writeIn || '');
   }, []);
 
   const animatePromptIn = useCallback(
@@ -439,21 +463,22 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
     if (!socket || !matchId) return;
     const onHoleUpdate = (payload: HolePromptState & { matchId?: string }) => {
       if (payload?.matchId && payload.matchId !== matchId) return;
-      const next: HolePromptState = {
-        matchId: payload.matchId ?? matchId,
-        currentHole: Number(payload.currentHole) || 1,
-        totalHoles: Number(payload.totalHoles) || 18,
-        prompt: payload.prompt || '',
-        completed: !!payload.completed,
-      };
-      if (visible) {
-        runPromptReveal(next, 'enter');
-      } else {
-        setState(next);
-      }
-      if (next.completed) {
-        void maybeCelebrateRoundComplete(next);
-      }
+      // Always re-fetch so myAnswer/partnerAnswer are correct for this user
+      void (async () => {
+        try {
+          const data = await api.get<HolePromptState>(`/matches/${matchId}/hole-prompts`, false);
+          if (visible) {
+            runPromptReveal(data, 'enter');
+          } else {
+            setState(data);
+          }
+          if (data.completed) {
+            void maybeCelebrateRoundComplete(data);
+          }
+        } catch {
+          // non-critical
+        }
+      })();
     };
     socket.on('golf_hole_prompt_updated', onHoleUpdate);
     return () => {
@@ -583,7 +608,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
     setBusy(true);
     try {
       const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/share`, {});
-      setState(next);
+      applyPromptContent(next);
       onPromptShared?.();
       shareFlash.setValue(0);
       Animated.sequence([
@@ -606,23 +631,80 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
     }
   };
 
-  const advance = async () => {
-    if (!state || state.completed || busy) return;
+  const submitAnswer = async () => {
+    if (!state || busy || state.myAnswer) return;
+    if (!selectedChoiceId && !writeIn.trim()) {
+      Alert.alert('Golf Dates', 'Pick a choice or write a short answer.');
+      return;
+    }
     setBusy(true);
     try {
-      const raw = await api.post<HolePromptState & { current_hole?: number }>(
-        `/matches/${matchId}/hole-prompts/advance`,
-        { shareToChat: false },
-      );
+      const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/answer`, {
+        choiceId: selectedChoiceId || undefined,
+        writeIn: writeIn.trim() || undefined,
+      });
+      applyPromptContent(next);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (e: unknown) {
+      Alert.alert('Golf Dates', e instanceof Error ? e.message : 'Failed to save answer');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const setDepth = async (preference: 'light' | 'deeper') => {
+    if (!state || busy) return;
+    const nextPref =
+      state.depthPreference === preference ? 'auto' : preference;
+    setBusy(true);
+    try {
+      const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/depth`, {
+        preference: nextPref,
+      });
+      applyPromptContent(next);
+    } catch (e: unknown) {
+      Alert.alert('Golf Dates', e instanceof Error ? e.message : 'Failed to update depth');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ratePrompt = async (rating: 'up' | 'down') => {
+    if (!state || busy) return;
+    setBusy(true);
+    try {
+      const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/rate`, {
+        rating,
+      });
+      applyPromptContent(next);
+      void Haptics.selectionAsync().catch(() => {});
+    } catch (e: unknown) {
+      Alert.alert('Golf Dates', e instanceof Error ? e.message : 'Failed to rate');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const advance = async () => {
+    if (!state || state.completed || busy) return;
+    if (!state.myAnswer && !state.canAdvance) {
+      Alert.alert('Golf Dates', 'Answer this hole before advancing.');
+      return;
+    }
+    setBusy(true);
+    try {
+      const raw = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/advance`, {
+        shareToChat: false,
+      });
       const next: HolePromptState = {
+        ...raw,
         matchId: raw.matchId ?? matchId,
-        currentHole: Number(raw.currentHole ?? raw.current_hole) || (state.currentHole + 1),
+        currentHole: Number(raw.currentHole) || state.currentHole + 1,
         totalHoles: Number(raw.totalHoles) || state.totalHoles || 18,
         prompt: raw.prompt || '',
         completed: !!raw.completed,
       };
       if (!next.prompt) {
-        // Keep UI moving even if response shape is unexpected
         next.prompt = `Hole ${next.currentHole}`;
       }
       runPromptReveal(next, 'advance');
@@ -630,8 +712,8 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
       void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
       if (next.completed) {
         void maybeCelebrateRoundComplete(next);
-      }    } catch (e: unknown) {
-      // Restore visible prompt if advance failed mid-fade
+      }
+    } catch (e: unknown) {
       promptOpacity.setValue(1);
       holeNumOpacity.setValue(1);
       promptSlide.setValue(0);
@@ -827,8 +909,45 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                     </Animated.View>
                     <Text style={styles.heroLabel}>Hole prompts</Text>
                     <Text style={styles.heroSub}>
-                      A shared question for this hole — talk it through together.
+                      Answer together — then peek at a tiny shared insight.
                     </Text>
+                  </View>
+
+                  <View style={styles.depthRow}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => void setDepth('light')}
+                      style={[
+                        styles.depthChip,
+                        state?.depthPreference === 'light' && styles.depthChipOn,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.depthChipText,
+                          state?.depthPreference === 'light' && styles.depthChipTextOn,
+                        ]}
+                      >
+                        Keep it light
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={() => void setDepth('deeper')}
+                      style={[
+                        styles.depthChip,
+                        state?.depthPreference === 'deeper' && styles.depthChipOn,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.depthChipText,
+                          state?.depthPreference === 'deeper' && styles.depthChipTextOn,
+                        ]}
+                      >
+                        Go a bit deeper
+                      </Text>
+                    </TouchableOpacity>
                   </View>
 
                   <View style={styles.promptCard}>
@@ -847,57 +966,185 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                     {loading && !state ? (
                       <ActivityIndicator color="#5eead4" style={{ marginVertical: 32 }} />
                     ) : (
-                      <Animated.View
-                        style={{
-                          opacity: promptOpacity,
-                          transform: [{ translateY: promptSlide }, { scale: promptScale }],
-                        }}
+                      <ScrollView
+                        style={styles.promptScroll}
+                        contentContainerStyle={styles.promptScrollContent}
+                        showsVerticalScrollIndicator={false}
+                        keyboardShouldPersistTaps="handled"
                       >
-                        <View style={styles.promptMetaRow}>
-                          <View style={styles.liveDot} />
-                          <Text style={styles.promptEyebrow}>
-                            {state?.completed ? 'Closing hole' : `Hole ${displayHole} · live`}
-                          </Text>
-                        </View>
-                        <Text style={styles.promptText}>{displayPrompt}</Text>
-                        {state?.completed ? (
-                          <Text style={styles.doneNote}>
-                            Round complete — use post-date reflection when you’re ready.
-                          </Text>
-                        ) : null}
-                      </Animated.View>
+                        <Animated.View
+                          style={{
+                            opacity: promptOpacity,
+                            transform: [{ translateY: promptSlide }, { scale: promptScale }],
+                          }}
+                        >
+                          <View style={styles.promptMetaRow}>
+                            <View style={styles.liveDot} />
+                            <Text style={styles.promptEyebrow}>
+                              {state?.completed
+                                ? 'Round complete'
+                                : `Hole ${displayHole} · ${state?.depth === 'deeper' ? 'deeper' : 'light'}`}
+                            </Text>
+                          </View>
+                          <Text style={styles.promptText}>{displayPrompt}</Text>
+
+                          {!state?.completed && !state?.myAnswer ? (
+                            <View style={styles.choicesBlock}>
+                              {(state?.choices || []).map((choice) => {
+                                const on = selectedChoiceId === choice.id;
+                                return (
+                                  <TouchableOpacity
+                                    key={choice.id}
+                                    activeOpacity={0.85}
+                                    onPress={() => setSelectedChoiceId(choice.id)}
+                                    style={[styles.choiceChip, on && styles.choiceChipOn]}
+                                  >
+                                    <Text style={[styles.choiceText, on && styles.choiceTextOn]}>
+                                      {choice.label}
+                                    </Text>
+                                  </TouchableOpacity>
+                                );
+                              })}
+                              <TextInput
+                                value={writeIn}
+                                onChangeText={setWriteIn}
+                                placeholder="Or write your own…"
+                                placeholderTextColor="rgba(167, 243, 208, 0.45)"
+                                style={styles.writeIn}
+                                maxLength={160}
+                              />
+                            </View>
+                          ) : null}
+
+                          {state?.myAnswer ? (
+                            <View style={styles.answerBlock}>
+                              <Text style={styles.answerLabel}>Your answer</Text>
+                              <Text style={styles.answerBody}>
+                                {state.myAnswer.choiceLabel || state.myAnswer.writeIn || '—'}
+                                {state.myAnswer.writeIn && state.myAnswer.choiceLabel
+                                  ? ` · ${state.myAnswer.writeIn}`
+                                  : ''}
+                              </Text>
+                              {!state.bothAnswered ? (
+                                <Text style={styles.waitingNote}>
+                                  {state.partnerHasAnswered
+                                    ? 'Partner answered — waiting on sync…'
+                                    : 'Waiting on your partner…'}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ) : null}
+
+                          {state?.bothAnswered && state.partnerAnswer ? (
+                            <View style={styles.answerBlock}>
+                              <Text style={styles.answerLabel}>Their answer</Text>
+                              <Text style={styles.answerBody}>
+                                {state.partnerAnswer.choiceLabel ||
+                                  state.partnerAnswer.writeIn ||
+                                  '—'}
+                                {state.partnerAnswer.writeIn && state.partnerAnswer.choiceLabel
+                                  ? ` · ${state.partnerAnswer.writeIn}`
+                                  : ''}
+                              </Text>
+                            </View>
+                          ) : null}
+
+                          {state?.sharedInsight ? (
+                            <View style={styles.insightChip}>
+                              <Text style={styles.insightText}>{state.sharedInsight}</Text>
+                            </View>
+                          ) : null}
+
+                          {state?.myAnswer || state?.completed ? (
+                            <View style={styles.rateRow}>
+                              <Text style={styles.rateLabel}>Rate this prompt</Text>
+                              <TouchableOpacity
+                                onPress={() => void ratePrompt('up')}
+                                style={[
+                                  styles.rateBtn,
+                                  state?.myRating === 'up' && styles.rateBtnOn,
+                                ]}
+                              >
+                                <Text style={styles.rateBtnText}>👍</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                onPress={() => void ratePrompt('down')}
+                                style={[
+                                  styles.rateBtn,
+                                  state?.myRating === 'down' && styles.rateBtnOn,
+                                ]}
+                              >
+                                <Text style={styles.rateBtnText}>👎</Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : null}
+
+                          {state?.completed ? (
+                            <Text style={styles.doneNote}>
+                              Round complete — plan another 9 when you’re ready.
+                            </Text>
+                          ) : null}
+                        </Animated.View>
+                      </ScrollView>
                     )}
                   </View>
 
                   <View style={styles.actions}>
                     {!state?.completed ? (
                       <>
-                        <TouchableOpacity
-                          activeOpacity={0.9}
-                          disabled={busy || loading || !state}
-                          onPress={() => void shareCurrent()}
-                          style={[styles.primaryWrap, (busy || loading || !state) && styles.disabled]}
-                        >
-                          <LinearGradient
-                            colors={['#5eead4', '#2dd4bf', '#14b8a6']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 1 }}
-                            style={styles.primaryGrad}
+                        {!state?.myAnswer ? (
+                          <TouchableOpacity
+                            activeOpacity={0.9}
+                            disabled={busy || loading || !state}
+                            onPress={() => void submitAnswer()}
+                            style={[styles.primaryWrap, (busy || loading || !state) && styles.disabled]}
                           >
-                            {busy ? (
-                              <ActivityIndicator color="#042f2e" />
-                            ) : (
-                              <Text style={styles.primaryText}>Share to chat</Text>
-                            )}
-                          </LinearGradient>
-                        </TouchableOpacity>
+                            <LinearGradient
+                              colors={['#5eead4', '#2dd4bf', '#14b8a6']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.primaryGrad}
+                            >
+                              {busy ? (
+                                <ActivityIndicator color="#042f2e" />
+                              ) : (
+                                <Text style={styles.primaryText}>Save answer</Text>
+                              )}
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        ) : (
+                          <TouchableOpacity
+                            activeOpacity={0.9}
+                            disabled={busy || loading || !state}
+                            onPress={() => void shareCurrent()}
+                            style={[styles.primaryWrap, (busy || loading || !state) && styles.disabled]}
+                          >
+                            <LinearGradient
+                              colors={['#5eead4', '#2dd4bf', '#14b8a6']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.primaryGrad}
+                            >
+                              {busy ? (
+                                <ActivityIndicator color="#042f2e" />
+                              ) : (
+                                <Text style={styles.primaryText}>Share to chat</Text>
+                              )}
+                            </LinearGradient>
+                          </TouchableOpacity>
+                        )}
                         <TouchableOpacity
                           activeOpacity={0.85}
-                          disabled={busy || loading || !state}
+                          disabled={busy || loading || !state || !state?.myAnswer}
                           onPress={() => void advance()}
-                          style={[styles.nextBtn, (busy || loading || !state) && styles.disabled]}
+                          style={[
+                            styles.nextBtn,
+                            (busy || loading || !state || !state?.myAnswer) && styles.disabled,
+                          ]}
                         >
-                          <Text style={styles.nextText}>Next hole →</Text>
+                          <Text style={styles.nextText}>
+                            {state?.currentHole >= 18 ? 'Finish round' : 'Next hole →'}
+                          </Text>
                         </TouchableOpacity>
                       </>
                     ) : (
@@ -1096,9 +1343,149 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 18,
     minHeight: 132,
+    maxHeight: SCREEN_H * 0.42,
     justifyContent: 'center',
     overflow: 'hidden',
     zIndex: 2,
+  },
+  promptScroll: {
+    maxHeight: SCREEN_H * 0.38,
+  },
+  promptScrollContent: {
+    paddingBottom: 4,
+  },
+  depthRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+    zIndex: 2,
+  },
+  depthChip: {
+    flex: 1,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.28)',
+    backgroundColor: 'rgba(15, 118, 110, 0.18)',
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  depthChipOn: {
+    backgroundColor: 'rgba(45, 212, 191, 0.28)',
+    borderColor: 'rgba(94, 234, 212, 0.7)',
+  },
+  depthChipText: {
+    color: 'rgba(204, 251, 241, 0.75)',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  depthChipTextOn: {
+    color: '#ecfdf5',
+  },
+  choicesBlock: {
+    marginTop: 14,
+    gap: 8,
+  },
+  choiceChip: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.22)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  choiceChipOn: {
+    borderColor: 'rgba(94, 234, 212, 0.75)',
+    backgroundColor: 'rgba(45, 212, 191, 0.18)',
+  },
+  choiceText: {
+    color: 'rgba(240, 253, 250, 0.88)',
+    fontSize: 14,
+    fontWeight: '600',
+    lineHeight: 19,
+  },
+  choiceTextOn: {
+    color: '#ecfdf5',
+  },
+  writeIn: {
+    marginTop: 4,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.22)',
+    backgroundColor: 'rgba(0,0,0,0.18)',
+    color: '#f0fdfa',
+    paddingHorizontal: 12,
+    paddingVertical: Platform.OS === 'ios' ? 11 : 8,
+    fontSize: 14,
+  },
+  answerBlock: {
+    marginTop: 12,
+    paddingTop: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(94, 234, 212, 0.2)',
+  },
+  answerLabel: {
+    color: '#5eead4',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  answerBody: {
+    color: '#f8fafc',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+  waitingNote: {
+    marginTop: 6,
+    color: 'rgba(204, 251, 241, 0.65)',
+    fontSize: 12,
+  },
+  insightChip: {
+    marginTop: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(52, 211, 153, 0.16)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.35)',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+  },
+  insightText: {
+    color: '#ecfdf5',
+    fontSize: 13,
+    fontWeight: '700',
+    lineHeight: 18,
+  },
+  rateRow: {
+    marginTop: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rateLabel: {
+    color: 'rgba(204, 251, 241, 0.7)',
+    fontSize: 12,
+    fontWeight: '600',
+    marginRight: 4,
+  },
+  rateBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  rateBtnOn: {
+    backgroundColor: 'rgba(45, 212, 191, 0.25)',
+    borderColor: 'rgba(94, 234, 212, 0.55)',
+  },
+  rateBtnText: {
+    fontSize: 16,
   },
   shareFlash: {
     ...StyleSheet.absoluteFillObject,

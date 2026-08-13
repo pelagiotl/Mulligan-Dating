@@ -450,6 +450,90 @@ export async function initDatabase() {
     )
   `);
 
+  try {
+    await execSQL(
+      `ALTER TABLE golf_hole_prompt_sessions ADD COLUMN depth_preference ${usePostgres ? 'VARCHAR(16)' : 'TEXT'} DEFAULT 'auto'`,
+    );
+    console.log('✅ Added golf_hole_prompt_sessions.depth_preference');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add golf_hole_prompt_sessions.depth_preference:', msg);
+    }
+  }
+
+  try {
+    await execSQL(
+      `ALTER TABLE golf_hole_prompt_sessions ADD COLUMN prompt_ids_json ${usePostgres ? 'TEXT' : 'TEXT'}`,
+    );
+    console.log('✅ Added golf_hole_prompt_sessions.prompt_ids_json');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add golf_hole_prompt_sessions.prompt_ids_json:', msg);
+    }
+  }
+
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS golf_hole_prompt_answers (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      hole ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      choice_id ${usePostgres ? 'VARCHAR(64)' : 'TEXT'},
+      write_in ${usePostgres ? 'VARCHAR(200)' : 'TEXT'},
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(match_id, hole, user_id),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS golf_hole_prompt_ratings (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      hole ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      user_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      prompt_id ${usePostgres ? 'VARCHAR(64)' : 'TEXT'} NOT NULL,
+      rating ${usePostgres ? 'VARCHAR(8)' : 'TEXT'} NOT NULL,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(match_id, hole, user_id),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  await execSQL(`
+    CREATE TABLE IF NOT EXISTS golf_date_plans (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      course_id ${usePostgres ? 'VARCHAR(64)' : 'TEXT'} NOT NULL,
+      proposed_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'},
+      notes_json ${usePostgres ? 'TEXT' : 'TEXT'},
+      created_by ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      status ${usePostgres ? 'VARCHAR(32)' : 'TEXT'} DEFAULT 'proposed',
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      updated_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  for (const col of [
+    ['golf_format', usePostgres ? 'VARCHAR(32)' : 'TEXT'],
+    ['golf_transport', usePostgres ? 'VARCHAR(32)' : 'TEXT'],
+    ['golf_vibe', usePostgres ? 'VARCHAR(32)' : 'TEXT'],
+    ['golf_level', usePostgres ? 'VARCHAR(32)' : 'TEXT'],
+  ] as const) {
+    try {
+      await execSQL(`ALTER TABLE profiles ADD COLUMN ${col[0]} ${col[1]}`);
+      console.log(`✅ Added profiles.${col[0]}`);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      if (!/duplicate column|already exists/i.test(msg)) {
+        console.warn(`⚠️  Could not add profiles.${col[0]}:`, msg);
+      }
+    }
+  }
+
   // Photos table - multiple photos per profile
   await execSQL(`
     CREATE TABLE IF NOT EXISTS photos (

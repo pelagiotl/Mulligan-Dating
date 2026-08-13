@@ -159,9 +159,13 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
                 p1.display_name as user1_name, p1.age as user1_age, p1.bio as user1_bio, 
                 p1.photo_url as user1_photo, p1.gender as user1_gender, p1.location as user1_location, p1.looking_for as user1_looking_for,
                 p1.intro_video_url as user1_intro_video, p1.sober_circle_level as user1_sober_circle_level,
+                p1.golf_format as user1_golf_format, p1.golf_transport as user1_golf_transport,
+                p1.golf_vibe as user1_golf_vibe, p1.golf_level as user1_golf_level,
                 p2.display_name as user2_name, p2.age as user2_age, p2.bio as user2_bio,
                 p2.photo_url as user2_photo, p2.gender as user2_gender, p2.location as user2_location, p2.looking_for as user2_looking_for,
                 p2.intro_video_url as user2_intro_video, p2.sober_circle_level as user2_sober_circle_level,
+                p2.golf_format as user2_golf_format, p2.golf_transport as user2_golf_transport,
+                p2.golf_vibe as user2_golf_vibe, p2.golf_level as user2_golf_level,
                 u1.last_active_at as user1_last_active, u2.last_active_at as user2_last_active,
                 u1.show_active_status as user1_show_active, u2.show_active_status as user2_show_active,
                 u1.photo_verified_at as user1_photo_verified_at, u2.photo_verified_at as user2_photo_verified_at
@@ -477,6 +481,10 @@ matchesRouter.get("/", authenticateToken, async (req: AuthRequest, res) => {
         photoVerified: !!(otherPhotoVerifiedAt && String(otherPhotoVerifiedAt).trim()),
         last_active_at: otherLastActive,
         show_active_status: otherShowActive,
+        golfFormat: isUser1 ? (m.user2_golf_format ?? null) : (m.user1_golf_format ?? null),
+        golfTransport: isUser1 ? (m.user2_golf_transport ?? null) : (m.user1_golf_transport ?? null),
+        golfVibe: isUser1 ? (m.user2_golf_vibe ?? null) : (m.user1_golf_vibe ?? null),
+        golfLevel: isUser1 ? (m.user2_golf_level ?? null) : (m.user1_golf_level ?? null),
       };
 
       const interests = otherProfileId ? (interestsMap.get(otherProfileId) || []) : [];
@@ -2778,6 +2786,63 @@ matchesRouter.post("/:matchId/hole-prompts/share", authenticateToken, rateLimitA
     if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to share hole prompt' });
     console.error('Hole prompts share error:', error);
     res.status(500).json({ error: 'Failed to share hole prompt' });
+  }
+});
+
+matchesRouter.post("/:matchId/hole-prompts/answer", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { answerGolfHolePrompt } = await import('../services/golfHolePrompts.js');
+    const state = await answerGolfHolePrompt(req.params.matchId, req.userId!, {
+      choiceId: req.body?.choiceId,
+      writeIn: req.body?.writeIn,
+    });
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${req.params.matchId}`).emit('golf_hole_prompt_updated', state);
+    }
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to save answer' });
+    console.error('Hole prompts answer error:', error);
+    res.status(500).json({ error: 'Failed to save answer' });
+  }
+});
+
+matchesRouter.post("/:matchId/hole-prompts/rate", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { rateGolfHolePrompt } = await import('../services/golfHolePrompts.js');
+    const rating = req.body?.rating === 'down' ? 'down' : req.body?.rating === 'up' ? 'up' : null;
+    if (!rating) return res.status(400).json({ error: 'rating must be up or down' });
+    const state = await rateGolfHolePrompt(req.params.matchId, req.userId!, rating);
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to rate prompt' });
+    console.error('Hole prompts rate error:', error);
+    res.status(500).json({ error: 'Failed to rate prompt' });
+  }
+});
+
+matchesRouter.post("/:matchId/hole-prompts/depth", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { setGolfHoleDepthPreference } = await import('../services/golfHolePrompts.js');
+    const raw = String(req.body?.preference || req.body?.depth || 'auto');
+    const preference = raw === 'light' || raw === 'deeper' || raw === 'auto' ? raw : null;
+    if (!preference) return res.status(400).json({ error: 'preference must be light, deeper, or auto' });
+    const state = await setGolfHoleDepthPreference(req.params.matchId, req.userId!, preference);
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${req.params.matchId}`).emit('golf_hole_prompt_updated', state);
+    }
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to set depth' });
+    console.error('Hole prompts depth error:', error);
+    res.status(500).json({ error: 'Failed to set depth' });
   }
 });
 

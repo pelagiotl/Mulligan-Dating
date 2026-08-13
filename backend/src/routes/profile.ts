@@ -1095,6 +1095,90 @@ profileRouter.put('/golf-dates', authenticateToken, rateLimitAPI, async (req: Au
   }
 });
 
+const GOLF_FORMATS = new Set(['nine', 'eighteen', 'either']);
+const GOLF_TRANSPORTS = new Set(['walk', 'cart', 'either']);
+const GOLF_VIBES = new Set(['casual', 'competitive', 'either']);
+const GOLF_LEVELS = new Set(['just_starting', 'plays_9s', 'intermediate', 'advanced']);
+
+/** Golf vibe signals — preferred format, walk/cart, casual/competitive, level. */
+profileRouter.put('/golf-vibe', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+    const format = req.body?.golfFormat ?? req.body?.golf_format;
+    const transport = req.body?.golfTransport ?? req.body?.golf_transport;
+    const vibe = req.body?.golfVibe ?? req.body?.golf_vibe;
+    const level = req.body?.golfLevel ?? req.body?.golf_level;
+
+    const golf_format =
+      format === undefined ? undefined : format == null || format === '' ? null : String(format);
+    const golf_transport =
+      transport === undefined
+        ? undefined
+        : transport == null || transport === ''
+          ? null
+          : String(transport);
+    const golf_vibe =
+      vibe === undefined ? undefined : vibe == null || vibe === '' ? null : String(vibe);
+    const golf_level =
+      level === undefined ? undefined : level == null || level === '' ? null : String(level);
+
+    if (golf_format !== undefined && golf_format !== null && !GOLF_FORMATS.has(golf_format)) {
+      return res.status(400).json({ error: 'Invalid golf format' });
+    }
+    if (
+      golf_transport !== undefined &&
+      golf_transport !== null &&
+      !GOLF_TRANSPORTS.has(golf_transport)
+    ) {
+      return res.status(400).json({ error: 'Invalid golf transport' });
+    }
+    if (golf_vibe !== undefined && golf_vibe !== null && !GOLF_VIBES.has(golf_vibe)) {
+      return res.status(400).json({ error: 'Invalid golf vibe' });
+    }
+    if (golf_level !== undefined && golf_level !== null && !GOLF_LEVELS.has(golf_level)) {
+      return res.status(400).json({ error: 'Invalid golf level' });
+    }
+
+    const current = (await db
+      .prepare(
+        `SELECT golf_format, golf_transport, golf_vibe, golf_level FROM profiles WHERE user_id = ?`,
+      )
+      .get([userId])) as any;
+
+    const nextFormat = golf_format !== undefined ? golf_format : current?.golf_format ?? null;
+    const nextTransport =
+      golf_transport !== undefined ? golf_transport : current?.golf_transport ?? null;
+    const nextVibe = golf_vibe !== undefined ? golf_vibe : current?.golf_vibe ?? null;
+    const nextLevel = golf_level !== undefined ? golf_level : current?.golf_level ?? null;
+
+    await (db
+      .prepare(
+        `UPDATE profiles SET
+           golf_format = ?, golf_transport = ?, golf_vibe = ?, golf_level = ?,
+           updated_at = CURRENT_TIMESTAMP
+         WHERE user_id = ?`,
+      )
+      .run([nextFormat, nextTransport, nextVibe, nextLevel, userId]) as Promise<unknown>);
+
+    notifyPartnersProfileChanged(userId);
+    const row = (await db
+      .prepare(
+        `SELECT golf_format, golf_transport, golf_vibe, golf_level, golf_dates_opt_in FROM profiles WHERE user_id = ?`,
+      )
+      .get([userId])) as any;
+    res.json({
+      golfFormat: row?.golf_format ?? null,
+      golfTransport: row?.golf_transport ?? null,
+      golfVibe: row?.golf_vibe ?? null,
+      golfLevel: row?.golf_level ?? null,
+      golfDatesOptIn: Number(row?.golf_dates_opt_in ?? 0) === 1,
+    });
+  } catch (error) {
+    console.error('Golf vibe update error:', error);
+    res.status(500).json({ error: 'Failed to save golf vibe' });
+  }
+});
+
 profileRouter.post('/activate', authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
     const clientPlatform = detectClientPlatformFromRequest(req);

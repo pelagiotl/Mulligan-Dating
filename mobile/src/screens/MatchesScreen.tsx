@@ -54,6 +54,9 @@ import { navigationRef } from '../navigation/navigationRef';
 import LegalFooter from '../components/LegalFooter';
 import MulliganMoments from '../components/MulliganMoments';
 import HangoutPlanHeaderButton from '../components/HangoutPlanHeaderButton';
+import GolfDatePlanHeaderButton from '../components/GolfDatePlanHeaderButton';
+import GolfDatePlanner from '../components/GolfDatePlanner';
+import { golfLevelBadgeLabel } from '../components/GolfVibeSection';
 import TruthOrDare, {
   truthOrDareMessageThresholdMet,
   truthOrDareMessageCounts,
@@ -147,6 +150,10 @@ interface Match {
     photoUrl: string | null;
     introVideoUrl?: string | null;
     soberCircleLevel?: string | null;
+    golfFormat?: string | null;
+    golfTransport?: string | null;
+    golfVibe?: string | null;
+    golfLevel?: string | null;
     profileId?: string;
     photos?: Photo[];
     interests: string[];
@@ -987,6 +994,20 @@ const MatchCardAnimated = React.memo(function MatchCardAnimated({
                   style={styles.matchSoberBadge}
                 />
               ) : null}
+              {item.connectedVia === 'golf_date' && golfLevelBadgeLabel(item.otherUser.golfLevel) ? (
+                <View style={styles.golfVibeBadge}>
+                  <Text style={styles.golfVibeBadgeText}>
+                    {golfLevelBadgeLabel(item.otherUser.golfLevel)}
+                  </Text>
+                </View>
+              ) : null}
+              {item.connectedVia === 'golf_date' &&
+              !golfLevelBadgeLabel(item.otherUser.golfLevel) &&
+              item.otherUser.golfFormat === 'nine' ? (
+                <View style={styles.golfVibeBadge}>
+                  <Text style={styles.golfVibeBadgeText}>Plays 9s</Text>
+                </View>
+              ) : null}
               {item.profileCompatibility != null && item.stage !== 'pending' && (
                 <View style={styles.matchCardCompatibilityInline}>
                   <Text style={styles.matchCardCompatibilityIcon}>🎯</Text>
@@ -1458,6 +1479,7 @@ export default function MatchesScreen() {
   const [mulliganOpenerUsedByMatchId, setMulliganOpenerUsedByMatchId] = useState<Record<string, boolean>>({});
   const [celebrationDatePlannerOpen, setCelebrationDatePlannerOpen] = useState(false);
   const [chatDatePlannerOpen, setChatDatePlannerOpen] = useState(false);
+  const [golfDatePlannerOpen, setGolfDatePlannerOpen] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [composerStackHeight, setComposerStackHeight] = useState(DEFAULT_COMPOSER_STACK_HEIGHT);
@@ -3623,6 +3645,9 @@ export default function MatchesScreen() {
                     }}
                   />
                 ) : null}
+                {selectedMatch.connectedVia === 'golf_date' ? (
+                  <GolfDatePlanHeaderButton onPress={() => setGolfDatePlannerOpen(true)} />
+                ) : null}
                 <TruthOrDare
                     matchId={selectedMatch.id}
                     messages={messages}
@@ -4125,6 +4150,19 @@ export default function MatchesScreen() {
           currentUserId={user.id}
           isCurrentUserMatchUser1={selectedMatch.isInitiator}
           onProposalSent={() => setChatDatePlannerOpen(false)}
+        />
+      ) : null}
+
+      {golfDatePlannerOpen && selectedMatch ? (
+        <GolfDatePlanner
+          visible={golfDatePlannerOpen}
+          onClose={() => setGolfDatePlannerOpen(false)}
+          matchId={selectedMatch.id}
+          partnerName={selectedMatch.otherUser.displayName || 'your match'}
+          onPlanSent={() => {
+            setGolfDatePlannerOpen(false);
+            void fetchMessages(selectedMatch.id);
+          }}
         />
       ) : null}
 
@@ -4963,6 +5001,20 @@ const styles = StyleSheet.create({
   },
   matchSoberBadge: {
     marginRight: 2,
+  },
+  golfVibeBadge: {
+    backgroundColor: 'rgba(15, 118, 110, 0.12)',
+    borderColor: 'rgba(15, 118, 110, 0.28)',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginRight: 4,
+  },
+  golfVibeBadgeText: {
+    color: '#0f766e',
+    fontSize: 11,
+    fontWeight: '800',
   },
   matchCardCompatibilityInline: {
     flexDirection: 'row',

@@ -28,6 +28,12 @@ import {
   PARTNER_QUALITY_EMOJI,
 } from '../constants/profileMySections';
 import { formatPreferredGendersLabel } from './MyProfilePreviewModal';
+import GolfVibeSection, {
+  type GolfFormat,
+  type GolfLevel,
+  type GolfTransport,
+  type GolfVibe,
+} from './GolfVibeSection';
 
 export type MatchPartnerPhoto = {
   id: string;
@@ -54,6 +60,10 @@ export type MatchPartnerUser = {
   preferredGenders?: string[] | null;
   lastActiveLabel?: string | null;
   photoVerified?: boolean;
+  golfFormat?: string | null;
+  golfTransport?: string | null;
+  golfVibe?: string | null;
+  golfLevel?: string | null;
 };
 
 export type MatchPartnerProfileMatch = {
@@ -239,6 +249,10 @@ export default function MatchPartnerProfileModal({
 
   const hasDetailsBeyondBio = !!(
     otherUser.lookingFor ||
+    otherUser.golfFormat ||
+    otherUser.golfTransport ||
+    otherUser.golfVibe ||
+    otherUser.golfLevel ||
     (otherUser.partnerQualities?.length ?? 0) > 0 ||
     matchInterests.length > 0 ||
     (otherUser.values?.length ?? 0) > 0 ||
@@ -522,6 +536,24 @@ export default function MatchPartnerProfileModal({
               {otherUser.lookingFor && lookingForDisplay ? (
                 <DetailSection title="Looking for">
                   <Text style={styles.blockBody}>{lookingForDisplay}</Text>
+                </DetailSection>
+              ) : null}
+
+              {(otherUser.golfFormat ||
+                otherUser.golfTransport ||
+                otherUser.golfVibe ||
+                otherUser.golfLevel) ? (
+                <DetailSection title="Golf vibe">
+                  <GolfVibeSection
+                    compact
+                    readOnly
+                    values={{
+                      golfFormat: (otherUser.golfFormat as GolfFormat) || null,
+                      golfTransport: (otherUser.golfTransport as GolfTransport) || null,
+                      golfVibe: (otherUser.golfVibe as GolfVibe) || null,
+                      golfLevel: (otherUser.golfLevel as GolfLevel) || null,
+                    }}
+                  />
                 </DetailSection>
               ) : null}
 
