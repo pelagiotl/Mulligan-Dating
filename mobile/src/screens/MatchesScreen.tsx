@@ -3523,7 +3523,7 @@ export default function MatchesScreen() {
     <View
       style={[
         styles.container,
-        { width: windowWidth, maxWidth: windowWidth, overflow: 'hidden', alignSelf: 'center' },
+        { width: windowWidth, maxWidth: windowWidth, overflow: 'visible', alignSelf: 'center' },
         { backgroundColor: tabBodyBg },
       ]}
     >
@@ -3538,7 +3538,7 @@ export default function MatchesScreen() {
           },
         ]}
       >
-        <View style={[styles.chatHeader, isSmallScreen && { padding: 10, paddingBottom: 8 }]}>
+        <View style={[styles.chatHeader, isSmallScreen && { padding: 10, paddingBottom: 26 }]}>
           {/* Top row: Back | Photo | Name */}
           <View style={[styles.chatHeaderTopRow, isSmallScreen && { marginBottom: 6 }]}>
             <TouchableOpacity
@@ -3643,6 +3643,7 @@ export default function MatchesScreen() {
                     onPromptShared={() => {
                       void fetchMessages(selectedMatch.id);
                     }}
+                    onPlanAnotherRound={() => setGolfDatePlannerOpen(true)}
                   />
                 ) : null}
                 {selectedMatch.connectedVia === 'golf_date' ? (
@@ -5160,7 +5161,7 @@ const styles = StyleSheet.create({
   chatHeader: {
     flexDirection: 'column',
     padding: 16,
-    paddingBottom: 14,
+    paddingBottom: 28,
     overflow: 'visible',
     zIndex: 6,
   },
@@ -5168,6 +5169,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 10,
+    zIndex: 1,
   },
   chatHeaderBackTouch: {
     marginRight: 12,
@@ -5183,6 +5185,7 @@ const styles = StyleSheet.create({
   chatHeaderPhotoTouch: {
     marginRight: 12,
     flexShrink: 0,
+    zIndex: 1,
   },
   chatHeaderPhoto: {
     width: 56,
@@ -5375,7 +5378,7 @@ const styles = StyleSheet.create({
     gap: 10,
     justifyContent: 'space-between',
     overflow: 'visible',
-    zIndex: 6,
+    zIndex: 12,
   },
   chatHeaderActionsRow: {
     flexDirection: 'row',
@@ -5383,7 +5386,7 @@ const styles = StyleSheet.create({
     gap: 6,
     flexShrink: 0,
     overflow: 'visible',
-    zIndex: 5,
+    zIndex: 20,
   },
   chatHeaderPillRow: {
     flexDirection: 'column',

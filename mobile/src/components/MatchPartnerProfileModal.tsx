@@ -79,6 +79,7 @@ type SectionAccent = {
 
 const SECTION_ACCENTS: Record<string, SectionAccent> = {
   'Looking for': { emoji: '💞', colors: ['#fda4af', '#fb7185', '#f472b6'] },
+  'Golf vibe': { emoji: '⛳', colors: ['#2dd4bf', '#14b8a6', '#0d9488'] },
   'Preferred matches': { emoji: '💕', colors: ['#a78bfa', '#c084fc', '#e879f9'] },
   About: { emoji: '💬', colors: ['#667eea', '#764ba2', '#a855f7'] },
   "What you're looking for": { emoji: '✨', colors: ['#f093fb', '#e879f9', '#667eea'] },
@@ -547,6 +548,7 @@ export default function MatchPartnerProfileModal({
                   <GolfVibeSection
                     compact
                     readOnly
+                    embedded
                     values={{
                       golfFormat: (otherUser.golfFormat as GolfFormat) || null,
                       golfTransport: (otherUser.golfTransport as GolfTransport) || null,

@@ -474,6 +474,18 @@ export async function initDatabase() {
     }
   }
 
+  try {
+    await execSQL(
+      `ALTER TABLE golf_hole_prompt_sessions ADD COLUMN total_holes ${usePostgres ? 'INT' : 'INTEGER'}`,
+    );
+    console.log('✅ Added golf_hole_prompt_sessions.total_holes');
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (!/duplicate column|already exists/i.test(msg)) {
+      console.warn('⚠️  Could not add golf_hole_prompt_sessions.total_holes:', msg);
+    }
+  }
+
   await execSQL(`
     CREATE TABLE IF NOT EXISTS golf_hole_prompt_answers (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,

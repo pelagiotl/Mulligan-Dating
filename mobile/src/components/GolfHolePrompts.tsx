@@ -39,7 +39,8 @@ type HoleAnswerView = {
 type HolePromptState = {
   matchId: string;
   currentHole: number;
-  totalHoles: number;
+  totalHoles: number | null;
+  needsHoleSelection?: boolean;
   prompt: string;
   promptId?: string;
   depth?: 'light' | 'deeper';
@@ -55,10 +56,14 @@ type HolePromptState = {
   completed: boolean;
 };
 
+type RoundHoleCount = 9 | 18;
+
 type Props = {
   matchId: string;
   headerMode?: boolean;
   onPromptShared?: () => void;
+  /** After finishing a round: open Plan Golf Date (caller opens planner). */
+  onPlanAnotherRound?: () => void;
   socket?: Socket | null;
 };
 
@@ -214,7 +219,13 @@ function Sparkle({
   );
 }
 
-export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, socket }: Props) {
+export default function GolfHolePrompts({
+  matchId,
+  headerMode,
+  onPromptShared,
+  onPlanAnotherRound,
+  socket,
+}: Props) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -223,6 +234,8 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
   const [displayPrompt, setDisplayPrompt] = useState('');
   const [displayHole, setDisplayHole] = useState(1);
   const [showRoundCelebration, setShowRoundCelebration] = useState(false);
+  /** After Done on a completed round — pick 9/18 before restart + plan. */
+  const [pickingNextRound, setPickingNextRound] = useState(false);
   const [selectedChoiceId, setSelectedChoiceId] = useState<string | null>(null);
   const [writeIn, setWriteIn] = useState('');
   const wasCompletedRef = useRef(false);
@@ -361,7 +374,8 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
 
   const runPromptReveal = useCallback(
     (next: HolePromptState, direction: 'enter' | 'advance' = 'enter') => {
-      const pct = next.totalHoles > 0 ? next.currentHole / next.totalHoles : 0;
+      const total = Number(next.totalHoles) || 0;
+      const pct = total > 0 ? next.currentHole / total : 0;
 
       if (direction === 'enter') {
         applyPromptContent(next);
@@ -440,6 +454,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
   useEffect(() => {
     celebratingRef.current = false;
     setShowRoundCelebration(false);
+    setPickingNextRound(false);
   }, [matchId]);
 
   // If the round finished while this user was away, celebrate when they open the golf chat.
@@ -686,7 +701,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
   };
 
   const advance = async () => {
-    if (!state || state.completed || busy) return;
+    if (!state || state.completed || busy || state.needsHoleSelection) return;
     if (!state.myAnswer && !state.canAdvance) {
       Alert.alert('Golf Dates', 'Answer this hole before advancing.');
       return;
@@ -700,7 +715,8 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
         ...raw,
         matchId: raw.matchId ?? matchId,
         currentHole: Number(raw.currentHole) || state.currentHole + 1,
-        totalHoles: Number(raw.totalHoles) || state.totalHoles || 18,
+        totalHoles: raw.totalHoles ?? state.totalHoles,
+        needsHoleSelection: !!raw.needsHoleSelection,
         prompt: raw.prompt || '',
         completed: !!raw.completed,
       };
@@ -724,6 +740,58 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
     }
   };
 
+  const configureRound = async (totalHoles: RoundHoleCount) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/configure`, {
+        totalHoles,
+      });
+      setPickingNextRound(false);
+      runPromptReveal(next, 'enter');
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch (e: unknown) {
+      Alert.alert('Golf Dates', e instanceof Error ? e.message : 'Failed to start round');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const startNextRoundAndPlan = async (totalHoles: RoundHoleCount) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/restart`, {
+        totalHoles,
+      });
+      void AsyncStorage.removeItem(celebrationStorageKey(matchId)).catch(() => {});
+      wasCompletedRef.current = false;
+      celebratingRef.current = false;
+      setShowRoundCelebration(false);
+      setPickingNextRound(false);
+      applyPromptContent(next);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      close();
+      // Let the holes sheet close, then open Plan Golf Date
+      setTimeout(() => {
+        onPlanAnotherRound?.();
+      }, 280);
+    } catch (e: unknown) {
+      Alert.alert('Golf Dates', e instanceof Error ? e.message : 'Failed to start a new round');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const onDonePress = () => {
+    if (state?.completed) {
+      setPickingNextRound(true);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+      return;
+    }
+    close();
+  };
+
   const strokeDashoffset = useMemo(
     () =>
       ringProgress.interpolate({
@@ -743,32 +811,52 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
     outputRange: [-120, CARD_MAX_W],
   });
 
-  const total = state?.totalHoles ?? 18;
+  const total = state?.totalHoles ?? 0;
+  const needsHolePick = !!state?.needsHoleSelection || pickingNextRound;
+  const isLastHole =
+    !!state &&
+    !state.completed &&
+    !!state.totalHoles &&
+    state.currentHole >= state.totalHoles;
 
   return (
     <>
       {headerMode ? (
         <ChatHeaderFeatureHint
-          storageKey="mulligan_chat_hint_hole_prompts_v1"
-          label="Tap for hole prompts"
-          priority={10}
+          storageKey="mulligan_chat_hint_hole_prompts_v2"
+          label="Hole prompts"
+          priority={15}
           glowColor="rgba(45, 212, 191, 0.4)"
+          alwaysShowTip
+          alwaysPulse
+          tipPlacement="below"
+          tipAlign="center"
+          tipLift={44}
+          tipWidth={104}
         >
           {({ onPressWithHintDismiss }) => (
             <TouchableOpacity
               onPress={() => onPressWithHintDismiss(open)}
               activeOpacity={0.85}
               style={styles.headerBtn}
-              accessibilityLabel="Golf hole prompts — tap for shared questions on the course"
-              accessibilityHint="Opens hole prompts you can share in chat"
+              accessibilityLabel="Golf hole prompts"
+              accessibilityHint="Opens shared golf hole questions for this match"
             >
-              <Text style={styles.headerBtnText}>⛳</Text>
+              <Text style={styles.headerBtnEmoji}>⛳</Text>
+              <Text style={styles.headerBtnLabel} numberOfLines={1}>
+                Holes
+              </Text>
             </TouchableOpacity>
           )}
         </ChatHeaderFeatureHint>
       ) : (
-        <TouchableOpacity onPress={open} activeOpacity={0.85} style={styles.btn} accessibilityLabel="Golf hole prompts">
-          <Text style={styles.btnText}>⛳</Text>
+        <TouchableOpacity
+          onPress={open}
+          activeOpacity={0.85}
+          style={styles.btn}
+          accessibilityLabel="Golf hole prompts"
+        >
+          <Text style={styles.btnText}>⛳ Hole prompts</Text>
         </TouchableOpacity>
       )}
 
@@ -895,8 +983,12 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                           },
                         ]}
                       >
-                        <Text style={styles.ringHoleNum}>{displayHole}</Text>
-                        <Text style={styles.ringHoleOf}>/{total}</Text>
+                        <Text style={styles.ringHoleNum}>
+                          {needsHolePick ? '—' : displayHole}
+                        </Text>
+                        <Text style={styles.ringHoleOf}>
+                          {total > 0 ? `/${total}` : ''}
+                        </Text>
                       </Animated.View>
                     </View>
 
@@ -909,10 +1001,15 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                     </Animated.View>
                     <Text style={styles.heroLabel}>Hole prompts</Text>
                     <Text style={styles.heroSub}>
-                      Answer together — then peek at a tiny shared insight.
+                      {needsHolePick
+                        ? pickingNextRound
+                          ? 'Pick 9 or 18 for your next round — then plan the date.'
+                          : 'Choose 9 or 18 holes before you tee off.'
+                        : 'Answer together — then peek at a tiny shared insight.'}
                     </Text>
                   </View>
 
+                  {!needsHolePick ? (
                   <View style={styles.depthRow}>
                     <TouchableOpacity
                       activeOpacity={0.85}
@@ -949,6 +1046,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                       </Text>
                     </TouchableOpacity>
                   </View>
+                  ) : null}
 
                   <View style={styles.promptCard}>
                     <Animated.View
@@ -965,6 +1063,60 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                     />
                     {loading && !state ? (
                       <ActivityIndicator color="#5eead4" style={{ marginVertical: 32 }} />
+                    ) : needsHolePick ? (
+                      <View style={styles.holePickBlock}>
+                        <Text style={styles.promptEyebrow}>
+                          {pickingNextRound ? 'Next round' : 'Round length'}
+                        </Text>
+                        <Text style={styles.holePickTitle}>
+                          {pickingNextRound
+                            ? 'How many holes next?'
+                            : 'How many holes this round?'}
+                        </Text>
+                        <Text style={styles.holePickSub}>
+                          You’ll get one prompt per hole — same for both of you.
+                        </Text>
+                        <View style={styles.holePickRow}>
+                          <TouchableOpacity
+                            activeOpacity={0.9}
+                            disabled={busy}
+                            onPress={() =>
+                              void (pickingNextRound
+                                ? startNextRoundAndPlan(9)
+                                : configureRound(9))
+                            }
+                            style={[styles.holePickBtn, busy && styles.disabled]}
+                          >
+                            <Text style={styles.holePickNum}>9</Text>
+                            <Text style={styles.holePickLabel}>holes</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            activeOpacity={0.9}
+                            disabled={busy}
+                            onPress={() =>
+                              void (pickingNextRound
+                                ? startNextRoundAndPlan(18)
+                                : configureRound(18))
+                            }
+                            style={[styles.holePickBtn, busy && styles.disabled]}
+                          >
+                            <Text style={styles.holePickNum}>18</Text>
+                            <Text style={styles.holePickLabel}>holes</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {pickingNextRound ? (
+                          <TouchableOpacity
+                            onPress={() => setPickingNextRound(false)}
+                            disabled={busy}
+                            style={styles.holePickCancel}
+                          >
+                            <Text style={styles.holePickCancelText}>Back</Text>
+                          </TouchableOpacity>
+                        ) : null}
+                        {busy ? (
+                          <ActivityIndicator color="#5eead4" style={{ marginTop: 12 }} />
+                        ) : null}
+                      </View>
                     ) : (
                       <ScrollView
                         style={styles.promptScroll}
@@ -1081,7 +1233,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
 
                           {state?.completed ? (
                             <Text style={styles.doneNote}>
-                              Round complete — plan another 9 when you’re ready.
+                              Round complete — pick 9 or 18 and plan your next golf date.
                             </Text>
                           ) : null}
                         </Animated.View>
@@ -1090,7 +1242,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                   </View>
 
                   <View style={styles.actions}>
-                    {!state?.completed ? (
+                    {needsHolePick ? null : !state?.completed ? (
                       <>
                         {!state?.myAnswer ? (
                           <TouchableOpacity
@@ -1143,19 +1295,23 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
                           ]}
                         >
                           <Text style={styles.nextText}>
-                            {state?.currentHole >= 18 ? 'Finish round' : 'Next hole →'}
+                            {isLastHole ? 'Finish round' : 'Next hole →'}
                           </Text>
                         </TouchableOpacity>
                       </>
                     ) : (
-                      <TouchableOpacity activeOpacity={0.9} onPress={close} style={styles.primaryWrap}>
+                      <TouchableOpacity
+                        activeOpacity={0.9}
+                        onPress={onDonePress}
+                        style={styles.primaryWrap}
+                      >
                         <LinearGradient
                           colors={['#5eead4', '#2dd4bf', '#14b8a6']}
                           start={{ x: 0, y: 0 }}
                           end={{ x: 1, y: 1 }}
                           style={styles.primaryGrad}
                         >
-                          <Text style={styles.primaryText}>Done</Text>
+                          <Text style={styles.primaryText}>Plan another round</Text>
                         </LinearGradient>
                       </TouchableOpacity>
                     )}
@@ -1169,6 +1325,7 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
 
       <GolfRoundCompleteCelebration
         visible={showRoundCelebration}
+        totalHoles={state?.totalHoles === 9 || state?.totalHoles === 18 ? state.totalHoles : 18}
         onDismiss={dismissRoundCelebration}
       />
     </>
@@ -1177,14 +1334,24 @@ export default function GolfHolePrompts({ matchId, headerMode, onPromptShared, s
 
 const styles = StyleSheet.create({
   headerBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: 'rgba(15, 118, 110, 0.25)',
+    minWidth: 52,
+    height: 40,
+    borderRadius: 20,
+    paddingHorizontal: 10,
+    backgroundColor: 'rgba(15, 118, 110, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1.5,
-    borderColor: 'rgba(45, 212, 191, 0.45)',
+    borderColor: 'rgba(45, 212, 191, 0.5)',
+    flexDirection: 'row',
+    gap: 4,
+  },
+  headerBtnEmoji: { fontSize: 15 },
+  headerBtnLabel: {
+    color: '#ecfdf5',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 0.2,
   },
   headerBtnText: { fontSize: 18 },
   btn: {
@@ -1193,7 +1360,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#0f766e',
   },
-  btnText: { color: '#fff', fontWeight: '700' },
+  btnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   modalRoot: {
     flex: 1,
     justifyContent: 'center',
@@ -1522,6 +1689,63 @@ const styles = StyleSheet.create({
     color: 'rgba(204, 251, 241, 0.7)',
     fontSize: 13,
     lineHeight: 18,
+  },
+  holePickBlock: {
+    paddingVertical: 8,
+    alignItems: 'center',
+  },
+  holePickTitle: {
+    marginTop: 8,
+    color: '#f8fafc',
+    fontSize: 18,
+    fontWeight: '800',
+    letterSpacing: -0.2,
+    textAlign: 'center',
+  },
+  holePickSub: {
+    marginTop: 6,
+    marginBottom: 16,
+    color: 'rgba(204, 251, 241, 0.7)',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  holePickRow: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  holePickBtn: {
+    flex: 1,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(94, 234, 212, 0.45)',
+    backgroundColor: 'rgba(45, 212, 191, 0.14)',
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  holePickNum: {
+    color: '#ecfdf5',
+    fontSize: 32,
+    fontWeight: '800',
+    letterSpacing: -0.5,
+  },
+  holePickLabel: {
+    marginTop: 2,
+    color: '#99f6e4',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  holePickCancel: {
+    marginTop: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  holePickCancelText: {
+    color: 'rgba(204, 251, 241, 0.75)',
+    fontSize: 14,
+    fontWeight: '600',
   },
   actions: {
     marginTop: 16,

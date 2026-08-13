@@ -1468,6 +1468,10 @@ export default function MyProfileScreen() {
       values: parseProfileValues(prefs?.values),
       lifestyle,
       introVideoUrl: profile.intro_video_url ?? null,
+      golfFormat: profile.golf_format ?? null,
+      golfTransport: profile.golf_transport ?? null,
+      golfVibe: profile.golf_vibe ?? null,
+      golfLevel: profile.golf_level ?? null,
     };
   }, [data]);
 

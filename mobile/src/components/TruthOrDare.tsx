@@ -597,7 +597,7 @@ export default function TruthOrDare({
       label="Truth or Dare"
       priority={20}
       glowColor="rgba(167, 139, 250, 0.45)"
-      alwaysPulse
+      enablePulse={false}
     >
       {({ onPressWithHintDismiss }) => (
         <TouchableOpacity

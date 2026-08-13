@@ -26,6 +26,21 @@ type Props = {
   glowColor?: string;
   /** Keep a gentle pulse even after the tip is dismissed. */
   alwaysPulse?: boolean;
+  /** When false, never pulse (tips can still show). Default true. */
+  enablePulse?: boolean;
+  /** Keep the tip bubble visible forever (never dismiss on tap). */
+  alwaysShowTip?: boolean;
+  /**
+   * Horizontal placement of the tip relative to the button.
+   * `end` shifts the tip right (away from left-side avatar); `start` shifts left.
+   */
+  tipAlign?: 'center' | 'start' | 'end';
+  /** Place tip above or below the button. */
+  tipPlacement?: 'above' | 'below';
+  /** Distance from the button edge to the tip. */
+  tipLift?: number;
+  /** Tip bubble width. */
+  tipWidth?: number;
   children: (opts: { onPressWithHintDismiss: (open: () => void) => void }) => React.ReactNode;
   style?: StyleProp<ViewStyle>;
 };
@@ -69,15 +84,25 @@ export default function ChatHeaderFeatureHint({
   priority = 100,
   glowColor = 'rgba(45, 212, 191, 0.35)',
   alwaysPulse = false,
+  enablePulse = true,
+  alwaysShowTip = false,
+  tipAlign = 'center',
+  tipPlacement = 'above',
+  tipLift = 38,
+  tipWidth = 120,
   children,
   style,
 }: Props) {
-  const [showHint, setShowHint] = useState(false);
-  const [isActiveTip, setIsActiveTip] = useState(false);
+  const [showHint, setShowHint] = useState(alwaysShowTip);
+  const [isActiveTip, setIsActiveTip] = useState(alwaysShowTip);
   const hintPulse = useRef(new Animated.Value(0)).current;
-  const hintLabelOpacity = useRef(new Animated.Value(0)).current;
+  const hintLabelOpacity = useRef(new Animated.Value(alwaysShowTip ? 1 : 0)).current;
 
   useEffect(() => {
+    if (alwaysShowTip) {
+      setShowHint(true);
+      return;
+    }
     let cancelled = false;
     void AsyncStorage.getItem(storageKey).then((v) => {
       if (!cancelled && v !== '1') setShowHint(true);
@@ -85,9 +110,15 @@ export default function ChatHeaderFeatureHint({
     return () => {
       cancelled = true;
     };
-  }, [storageKey]);
+  }, [storageKey, alwaysShowTip]);
 
   useEffect(() => {
+    if (alwaysShowTip) {
+      // Sticky tip does not enter the single-active-tip claim pool.
+      unregisterClaim(storageKey);
+      setIsActiveTip(true);
+      return;
+    }
     if (!showHint) {
       unregisterClaim(storageKey);
       setIsActiveTip(false);
@@ -101,13 +132,15 @@ export default function ChatHeaderFeatureHint({
       claimListeners.delete(sync);
       unregisterClaim(storageKey);
     };
-  }, [showHint, storageKey, priority]);
+  }, [showHint, storageKey, priority, alwaysShowTip]);
 
   useEffect(() => {
-    if (!showHint && !alwaysPulse) {
+    const wantPulse =
+      enablePulse && (showHint || alwaysPulse || alwaysShowTip);
+    if (!wantPulse) {
       hintPulse.stopAnimation();
       hintPulse.setValue(0);
-      hintLabelOpacity.setValue(0);
+      if (!alwaysShowTip && !showHint) hintLabelOpacity.setValue(0);
       return;
     }
 
@@ -129,10 +162,11 @@ export default function ChatHeaderFeatureHint({
     );
     pulseLoop.start();
     return () => pulseLoop.stop();
-  }, [showHint, alwaysPulse, hintPulse, hintLabelOpacity]);
+  }, [showHint, alwaysPulse, alwaysShowTip, enablePulse, hintPulse, hintLabelOpacity]);
 
   useEffect(() => {
-    if (!showHint || !isActiveTip) {
+    const tipVisible = alwaysShowTip || (showHint && isActiveTip);
+    if (!tipVisible) {
       hintLabelOpacity.setValue(0);
       return;
     }
@@ -140,13 +174,14 @@ export default function ChatHeaderFeatureHint({
     Animated.timing(hintLabelOpacity, {
       toValue: 1,
       duration: 420,
-      delay: 350,
+      delay: alwaysShowTip ? 120 : 350,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start();
-  }, [showHint, isActiveTip, hintLabelOpacity]);
+  }, [showHint, isActiveTip, alwaysShowTip, hintLabelOpacity]);
 
   const dismissHint = useCallback(() => {
+    if (alwaysShowTip) return;
     if (!showHint) return;
     setShowHint(false);
     void AsyncStorage.setItem(storageKey, '1').catch(() => {});
@@ -155,7 +190,7 @@ export default function ChatHeaderFeatureHint({
       duration: 160,
       useNativeDriver: true,
     }).start();
-  }, [showHint, storageKey, hintLabelOpacity]);
+  }, [showHint, storageKey, hintLabelOpacity, alwaysShowTip]);
 
   const onPressWithHintDismiss = useCallback(
     (open: () => void) => {
@@ -165,23 +200,50 @@ export default function ChatHeaderFeatureHint({
     [dismissHint],
   );
 
-  const showBubble = showHint && isActiveTip;
-  const shouldPulse = showHint || alwaysPulse;
+  const showBubble = alwaysShowTip || (showHint && isActiveTip);
+  const shouldPulse = enablePulse && (showHint || alwaysPulse || alwaysShowTip);
+
+  const bubblePositionStyle =
+    tipAlign === 'start'
+      ? { left: 0 as const, right: undefined, marginLeft: 0 }
+      : tipAlign === 'end'
+        ? { left: undefined, right: 0 as const, marginLeft: 0 }
+        : { left: '50%' as const, right: undefined, marginLeft: -(tipWidth / 2) };
+
+  const verticalStyle =
+    tipPlacement === 'below'
+      ? { top: tipLift, bottom: undefined }
+      : { bottom: tipLift, top: undefined };
+
+  const caretPositionStyle =
+    tipAlign === 'start'
+      ? { left: 18, marginLeft: 0, right: undefined }
+      : tipAlign === 'end'
+        ? { left: undefined, right: 18, marginLeft: 0 }
+        : { left: '50%' as const, marginLeft: -3.5, right: undefined };
+
+  const caretVerticalStyle =
+    tipPlacement === 'below'
+      ? { top: -4, bottom: undefined, transform: [{ rotate: '-135deg' as const }] }
+      : { bottom: -4, top: undefined, transform: [{ rotate: '45deg' as const }] };
 
   return (
-    <View style={[styles.wrap, style]}>
+    <View style={[styles.wrap, { zIndex: 8 + Math.round(tipLift / 10) }, style]}>
       {showBubble ? (
         <Animated.View
           pointerEvents="none"
           style={[
             styles.bubble,
+            bubblePositionStyle,
+            verticalStyle,
             {
+              width: tipWidth,
               opacity: hintLabelOpacity,
               transform: [
                 {
                   translateY: hintPulse.interpolate({
                     inputRange: [0, 1],
-                    outputRange: [0, -1],
+                    outputRange: tipPlacement === 'below' ? [0, 1] : [0, -1],
                   }),
                 },
               ],
@@ -191,7 +253,7 @@ export default function ChatHeaderFeatureHint({
           <Text style={styles.label} numberOfLines={1}>
             {label}
           </Text>
-          <View style={styles.caret} />
+          <View style={[styles.caret, caretPositionStyle, caretVerticalStyle]} />
         </Animated.View>
       ) : null}
 
@@ -240,8 +302,6 @@ export default function ChatHeaderFeatureHint({
   );
 }
 
-const BUBBLE_W = 148;
-
 const styles = StyleSheet.create({
   wrap: {
     position: 'relative',
@@ -257,13 +317,8 @@ const styles = StyleSheet.create({
     borderRadius: 21,
     alignSelf: 'center',
   },
-  // Tucked just above the icon so it stays clear of the name row.
   bubble: {
     position: 'absolute',
-    bottom: 38,
-    width: BUBBLE_W,
-    left: '50%',
-    marginLeft: -(BUBBLE_W / 2),
     backgroundColor: 'rgba(15, 23, 42, 0.96)',
     paddingHorizontal: 8,
     paddingVertical: 5,
@@ -293,15 +348,11 @@ const styles = StyleSheet.create({
   },
   caret: {
     position: 'absolute',
-    bottom: -4,
-    left: '50%',
-    marginLeft: -3.5,
     width: 7,
     height: 7,
     backgroundColor: 'rgba(15, 23, 42, 0.96)',
     borderRightWidth: 1,
     borderBottomWidth: 1,
     borderColor: 'rgba(148, 163, 184, 0.35)',
-    transform: [{ rotate: '45deg' }],
   },
 });

@@ -1,5 +1,5 @@
 /**
- * Chill celebration when a Golf Date hole-prompt round hits 18 complete.
+ * Chill celebration when a Golf Date hole-prompt round completes.
  * Soft falling fairway particles from the top of the screen.
  */
 
@@ -22,6 +22,7 @@ import { playMatchSound } from '../utils/sounds';
 
 type Props = {
   visible: boolean;
+  totalHoles?: 9 | 18;
   onDismiss: () => void;
 };
 
@@ -145,7 +146,11 @@ function FallingParticle({
   );
 }
 
-export default function GolfRoundCompleteCelebration({ visible, onDismiss }: Props) {
+export default function GolfRoundCompleteCelebration({
+  visible,
+  totalHoles = 18,
+  onDismiss,
+}: Props) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const cardOpacity = useRef(new Animated.Value(0)).current;
   const cardScale = useRef(new Animated.Value(0.92)).current;
@@ -257,7 +262,7 @@ export default function GolfRoundCompleteCelebration({ visible, onDismiss }: Pro
               <Text style={styles.flag} allowFontScaling={false}>
                 ⛳
               </Text>
-              <Text style={styles.title}>18 holes complete</Text>
+              <Text style={styles.title}>{totalHoles} holes complete</Text>
               <Text style={styles.sub}>
                 Nice round — you finished the prompts together. Keep the vibe going off the course.
               </Text>

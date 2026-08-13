@@ -117,8 +117,80 @@ const DARE_ANGLES_SPICY = [
 ];
 
 export type CreativeAngleSpice = "pg13" | "ratedr" | "spicy";
+export type CreativeAngleTheme = "default" | "golf";
 
-export function randomCreativeAngle(type: "truth" | "dare", spiceLevel?: CreativeAngleSpice): string {
+const GOLF_TRUTH_ANGLES = [
+  "first-tee nerves vs first-date nerves",
+  "cart vs walk as a personality test",
+  "how they handle a bad hole — and what that says about dating",
+  "chemistry that shows up between shots, not on the scorecard",
+  "a mulligan they'd take in dating",
+  "green flags on the fairway",
+  "competitive energy that tips into attraction",
+  "post-round hang honesty",
+  "what they'd ask on the cart path but never over text",
+  "keeping score vs keeping the vibe",
+  "when a golf date becomes a real date",
+  "clubhouse courage — asking for round two",
+  "what a triple bogey reveals about ego",
+  "the most attractive non-golf thing on a golf date",
+  "slow burn across 18 holes",
+];
+
+const GOLF_DARE_ANGLES = [
+  "voice note — first-tee dating pitch",
+  "selfie — first-tee or post-round energy",
+  "short video — bag-drop hello energy",
+  "text — ask them to play nine this weekend",
+  "voice note — specific compliment as if you're on the fairway",
+  "three words — on-course vibe when into someone",
+  "cart-path question they'd never ask in normal chat",
+  "selfie — 'one more drink after the round' look",
+  "voice note — walk vs cart honesty",
+  "micro-dare — nod if talk beats scorekeeping",
+  "flirty golf metaphor that somehow isn't cringe",
+  "voice note — green flag they've already noticed",
+];
+
+const GOLF_TRUTH_ANGLES_SPICY = [
+  "tension sharing a cart with someone you're into",
+  "competitive heat that became attraction",
+  "what happens after the 18th when neither wants to leave",
+  "a boundary they'd bend after an electric round",
+  "the hottest non-golf moment after a golf date",
+  "parking-lot courage — honest and adult",
+  "celebration energy that almost crossed a line",
+  "late-day light and unfinished conversations",
+];
+
+const GOLF_DARE_ANGLES_SPICY = [
+  "voice note — keep them after the round, confident not crude",
+  "selfie — golden-hour 'one more drink' energy",
+  "video — lean-in reaction after a good putt",
+  "text — message that replays the whole round in their head",
+  "voice note — cart-ride tension, tasteful",
+  "selfie — 'you up after golf' photo energy",
+  "video — lip press then look at camera, not sorry",
+  "dare — first move if alone after the round, PG-13 wording",
+];
+
+export function randomCreativeAngle(
+  type: "truth" | "dare",
+  spiceLevel?: CreativeAngleSpice,
+  theme: CreativeAngleTheme = "default",
+): string {
+  if (theme === "golf") {
+    let pool =
+      type === "truth" ? GOLF_TRUTH_ANGLES : GOLF_DARE_ANGLES;
+    if (spiceLevel === "spicy") {
+      pool = type === "truth" ? GOLF_TRUTH_ANGLES_SPICY : GOLF_DARE_ANGLES_SPICY;
+    }
+    return (
+      pool[Math.floor(Math.random() * pool.length)] ??
+      "fairway chemistry between two adults who matched for golf"
+    );
+  }
+
   let pool = type === "truth" ? TRUTH_ANGLES : DARE_ANGLES;
   if (spiceLevel === "spicy") {
     pool = type === "truth" ? TRUTH_ANGLES_SPICY : DARE_ANGLES_SPICY;

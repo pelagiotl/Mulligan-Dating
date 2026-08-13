@@ -2846,6 +2846,46 @@ matchesRouter.post("/:matchId/hole-prompts/depth", authenticateToken, rateLimitA
   }
 });
 
+matchesRouter.post("/:matchId/hole-prompts/configure", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { configureGolfHolePromptSession } = await import('../services/golfHolePrompts.js');
+    const totalHoles = Number(req.body?.totalHoles) === 9 ? 9 : Number(req.body?.totalHoles) === 18 ? 18 : null;
+    if (!totalHoles) return res.status(400).json({ error: 'totalHoles must be 9 or 18' });
+    const state = await configureGolfHolePromptSession(req.params.matchId, req.userId!, totalHoles);
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${req.params.matchId}`).emit('golf_hole_prompt_updated', state);
+    }
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to configure round' });
+    console.error('Hole prompts configure error:', error);
+    res.status(500).json({ error: 'Failed to configure round' });
+  }
+});
+
+matchesRouter.post("/:matchId/hole-prompts/restart", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
+  try {
+    const { restartGolfHolePromptSession } = await import('../services/golfHolePrompts.js');
+    const totalHoles = Number(req.body?.totalHoles) === 9 ? 9 : Number(req.body?.totalHoles) === 18 ? 18 : null;
+    if (!totalHoles) return res.status(400).json({ error: 'totalHoles must be 9 or 18' });
+    const state = await restartGolfHolePromptSession(req.params.matchId, req.userId!, totalHoles);
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (io) {
+      io.to(`match:${req.params.matchId}`).emit('golf_hole_prompt_updated', state);
+    }
+    res.json(state);
+  } catch (error: unknown) {
+    const err = error as { status?: number; message?: string };
+    if (err.status) return res.status(err.status).json({ error: err.message || 'Failed to restart round' });
+    console.error('Hole prompts restart error:', error);
+    res.status(500).json({ error: 'Failed to restart round' });
+  }
+});
+
 matchesRouter.get("/:matchId/truth-or-dare/state", authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
@@ -3033,11 +3073,11 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
     }
 
     const matchResult = db
-      .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
+      .prepare('SELECT user1_id, user2_id, connected_via FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
       .get([matchId, userId, userId]);
     const match = (matchResult instanceof Promise
       ? await matchResult
-      : matchResult) as { user1_id: string; user2_id: string } | undefined;
+      : matchResult) as { user1_id: string; user2_id: string; connected_via?: string | null } | undefined;
 
     if (!match) {
       return res.status(404).json({ error: "Match not found" });
@@ -3116,6 +3156,8 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
 
     const { generateDistinctTruthOrDarePrompt } = await import('../services/truthOrDare.js');
     const { appendUsedPrompt } = await import('../services/gamePromptHistory.js');
+    const { MATCH_POOL_GOLF_DATE } = await import('../utils/matchPools.js');
+    const todTheme = match.connected_via === MATCH_POOL_GOLF_DATE ? 'golf' : 'default';
 
     const result = await generateDistinctTruthOrDarePrompt(
       type,
@@ -3123,6 +3165,7 @@ matchesRouter.post("/:matchId/truth-or-dare", authenticateToken, rateLimitAPI, a
       userId,
       levelNorm,
       excludePrompts,
+      todTheme,
     );
     const prompt = result.prompt;
     const fromAI = result.fromAI;

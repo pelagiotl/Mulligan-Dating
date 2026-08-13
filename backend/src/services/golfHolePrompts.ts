@@ -13,6 +13,7 @@ import {
 import { MATCH_POOL_GOLF_DATE } from '../utils/matchPools.js';
 
 export type DepthPreference = 'light' | 'deeper' | 'auto';
+export type GolfRoundHoleCount = 9 | 18;
 
 type MatchRow = {
   id: string;
@@ -29,6 +30,7 @@ type SessionRow = {
   completed_at?: string | null;
   depth_preference?: string | null;
   prompt_ids_json?: string | null;
+  total_holes?: number | null;
 };
 
 type AnswerRow = {
@@ -50,7 +52,8 @@ export type GolfHoleAnswerView = {
 export type GolfHolePromptState = {
   matchId: string;
   currentHole: number;
-  totalHoles: number;
+  totalHoles: number | null;
+  needsHoleSelection: boolean;
   promptId: string;
   prompt: string;
   depth: GolfPromptDepth;
@@ -67,6 +70,23 @@ export type GolfHolePromptState = {
   startedAt: string;
   updatedAt: string;
 };
+
+function normalizeHoleCount(raw: unknown): GolfRoundHoleCount | null {
+  const n = typeof raw === 'string' ? Number(raw) : typeof raw === 'number' ? raw : NaN;
+  if (n === 9 || n === 18) return n;
+  return null;
+}
+
+function sessionHoleCount(session: SessionRow): GolfRoundHoleCount | null {
+  const explicit = normalizeHoleCount(session.total_holes);
+  if (explicit) return explicit;
+  // Legacy sessions created before total_holes existed
+  const ids = parsePromptIds(session.prompt_ids_json);
+  if (session.completed_at || Number(session.current_hole) > 1 || ids.length > 0) {
+    return 18;
+  }
+  return null;
+}
 
 function parsePromptIds(raw: string | null | undefined): string[] {
   if (!raw) return [];
@@ -87,27 +107,51 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-function pickPromptId(
-  depth: GolfPromptDepth,
-  used: Set<string>,
-): string {
+function pickPromptId(depth: GolfPromptDepth, used: Set<string>): string {
   const pool = shuffle(promptsForDepth(depth).map((p) => p.id)).filter((id) => !used.has(id));
   if (pool.length > 0) return pool[0];
-  // Fallback: any unused from full catalog, then any from depth
   const anyUnused = shuffle(GOLF_PROMPT_CATALOG.map((p) => p.id)).find((id) => !used.has(id));
   if (anyUnused) return anyUnused;
   return promptsForDepth(depth)[0]?.id || GOLF_PROMPT_CATALOG[0].id;
 }
 
-function depthForHole(hole: number, preference: DepthPreference): GolfPromptDepth {
+/** Auto depth: Front half light, back half deeper (works for both 9 and 18). */
+function depthForHole(
+  hole: number,
+  preference: DepthPreference,
+  totalHoles: GolfRoundHoleCount,
+): GolfPromptDepth {
   if (preference === 'light') return 'light';
   if (preference === 'deeper') return 'deeper';
-  return hole <= 9 ? 'light' : 'deeper';
+  const frontEnd = Math.ceil(totalHoles / 2);
+  return hole <= frontEnd ? 'light' : 'deeper';
 }
 
 function normalizePreference(raw: string | null | undefined): DepthPreference {
   if (raw === 'light' || raw === 'deeper' || raw === 'auto') return raw;
   return 'auto';
+}
+
+function buildPromptIds(
+  totalHoles: GolfRoundHoleCount,
+  preference: DepthPreference,
+  keepThroughHole: number,
+  existingIds: string[],
+): string[] {
+  const used = new Set(existingIds.slice(0, Math.max(0, keepThroughHole)));
+  const nextIds: string[] = [];
+  for (let h = 1; h <= totalHoles; h++) {
+    if (h <= keepThroughHole && existingIds[h - 1]) {
+      nextIds.push(existingIds[h - 1]);
+      used.add(existingIds[h - 1]);
+    } else {
+      const depth = depthForHole(h, preference, totalHoles);
+      const id = pickPromptId(depth, used);
+      used.add(id);
+      nextIds.push(id);
+    }
+  }
+  return nextIds;
 }
 
 async function requireGolfMatch(matchId: string, userId: string): Promise<MatchRow> {
@@ -132,43 +176,27 @@ async function requireGolfMatch(matchId: string, userId: string): Promise<MatchR
   return row;
 }
 
-async function ensurePromptIds(session: SessionRow, preference: DepthPreference): Promise<string[]> {
+async function ensurePromptIds(
+  session: SessionRow,
+  preference: DepthPreference,
+  totalHoles: GolfRoundHoleCount,
+): Promise<string[]> {
   let ids = parsePromptIds(session.prompt_ids_json);
-  const used = new Set(ids);
-  const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), GOLF_HOLE_COUNT);
+  const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), totalHoles);
+  const nextIds = buildPromptIds(totalHoles, preference, hole, ids);
+  const changed =
+    nextIds.length !== ids.length || nextIds.some((id, i) => id !== ids[i]) || !session.prompt_ids_json;
 
-  // Ensure we have an id for every hole up through current (and fill 18 eventually)
-  let changed = false;
-  for (let h = 1; h <= Math.max(hole, ids.length); h++) {
-    if (!ids[h - 1]) {
-      const depth = depthForHole(h, preference);
-      const id = pickPromptId(depth, used);
-      used.add(id);
-      ids[h - 1] = id;
-      changed = true;
-    }
-  }
-  // Pre-fill remaining holes with current preference so toggle only affects unassigned
-  while (ids.length < GOLF_HOLE_COUNT) {
-    const h = ids.length + 1;
-    const depth = depthForHole(h, preference);
-    const id = pickPromptId(depth, used);
-    used.add(id);
-    ids.push(id);
-    changed = true;
-  }
-  ids = ids.slice(0, GOLF_HOLE_COUNT);
-
-  if (changed || !session.prompt_ids_json) {
+  if (changed) {
     await db
       .prepare(
         `UPDATE golf_hole_prompt_sessions
          SET prompt_ids_json = ?, updated_at = CURRENT_TIMESTAMP
          WHERE match_id = ?`,
       )
-      .run([JSON.stringify(ids), session.match_id]);
+      .run([JSON.stringify(nextIds), session.match_id]);
   }
-  return ids;
+  return nextIds;
 }
 
 function answerView(prompt: GolfPrompt, row: AnswerRow | undefined): GolfHoleAnswerView | null {
@@ -216,54 +244,71 @@ async function toState(
   match: MatchRow,
 ): Promise<GolfHolePromptState> {
   const preference = normalizePreference(session.depth_preference);
-  const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), GOLF_HOLE_COUNT);
+  const totalHoles = sessionHoleCount(session);
+  const needsHoleSelection = totalHoles == null;
   const completed = !!session.completed_at;
-  const ids = await ensurePromptIds(session, preference);
-  const promptId = ids[hole - 1] || GOLF_PROMPT_CATALOG[0].id;
-  const prompt = getPromptById(promptId) || GOLF_PROMPT_CATALOG[0];
+  const effectiveTotal = totalHoles ?? GOLF_HOLE_COUNT;
+  const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), effectiveTotal);
 
-  const answers = await loadAnswers(session.match_id, hole);
-  const myRow = answers.find((a) => a.user_id === userId);
-  const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
-  const partnerRow = answers.find((a) => a.user_id === partnerId);
-  const bothAnswered = !!myRow && !!partnerRow;
-
-  const myAnswer = answerView(prompt, myRow);
-  const partnerAnswer = bothAnswered ? answerView(prompt, partnerRow) : null;
-
+  let prompt = GOLF_PROMPT_CATALOG[0];
+  let myAnswer: GolfHoleAnswerView | null = null;
+  let partnerAnswer: GolfHoleAnswerView | null = null;
+  let partnerHasAnswered = false;
+  let bothAnswered = false;
   let sharedInsight: string | null = null;
-  if (bothAnswered) {
-    const choiceA = myRow?.choice_id
-      ? prompt.choices.find((c) => c.id === myRow.choice_id) || null
-      : null;
-    const choiceB = partnerRow?.choice_id
-      ? prompt.choices.find((c) => c.id === partnerRow.choice_id) || null
-      : null;
-    sharedInsight = computeSharedInsight(prompt, choiceA as GolfPromptChoice | null, choiceB as GolfPromptChoice | null);
-    if (!sharedInsight && (myRow?.write_in || partnerRow?.write_in)) {
-      sharedInsight = 'You both showed up with a real answer — keep going.';
-    }
-  }
+  let myRating: 'up' | 'down' | null = null;
 
-  const myRating = await loadMyRating(session.match_id, hole, userId);
+  if (!needsHoleSelection && totalHoles) {
+    const ids = await ensurePromptIds(session, preference, totalHoles);
+    const promptId = ids[hole - 1] || GOLF_PROMPT_CATALOG[0].id;
+    prompt = getPromptById(promptId) || GOLF_PROMPT_CATALOG[0];
+
+    const answers = await loadAnswers(session.match_id, hole);
+    const myRow = answers.find((a) => a.user_id === userId);
+    const partnerId = match.user1_id === userId ? match.user2_id : match.user1_id;
+    const partnerRow = answers.find((a) => a.user_id === partnerId);
+    bothAnswered = !!myRow && !!partnerRow;
+    partnerHasAnswered = !!partnerRow;
+    myAnswer = answerView(prompt, myRow);
+    partnerAnswer = bothAnswered ? answerView(prompt, partnerRow) : null;
+
+    if (bothAnswered) {
+      const choiceA = myRow?.choice_id
+        ? prompt.choices.find((c) => c.id === myRow.choice_id) || null
+        : null;
+      const choiceB = partnerRow?.choice_id
+        ? prompt.choices.find((c) => c.id === partnerRow.choice_id) || null
+        : null;
+      sharedInsight = computeSharedInsight(
+        prompt,
+        choiceA as GolfPromptChoice | null,
+        choiceB as GolfPromptChoice | null,
+      );
+      if (!sharedInsight && (myRow?.write_in || partnerRow?.write_in)) {
+        sharedInsight = 'You both showed up with a real answer — keep going.';
+      }
+    }
+    myRating = await loadMyRating(session.match_id, hole, userId);
+  }
 
   return {
     matchId: session.match_id,
     currentHole: hole,
-    totalHoles: GOLF_HOLE_COUNT,
+    totalHoles,
+    needsHoleSelection,
     promptId: prompt.id,
-    prompt: prompt.text,
+    prompt: needsHoleSelection ? 'Pick 9 or 18 holes to start this round.' : prompt.text,
     depth: prompt.depth,
     depthPreference: preference,
-    choices: prompt.choices.map((c) => ({ id: c.id, label: c.label })),
+    choices: needsHoleSelection ? [] : prompt.choices.map((c) => ({ id: c.id, label: c.label })),
     myAnswer,
     partnerAnswer,
-    partnerHasAnswered: !!partnerRow,
+    partnerHasAnswered,
     bothAnswered,
     sharedInsight,
     myRating,
     completed,
-    canAdvance: !!myRow && !completed,
+    canAdvance: !!myAnswer && !completed && !needsHoleSelection,
     startedAt: session.started_at,
     updatedAt: session.updated_at,
   };
@@ -326,22 +371,16 @@ export async function setGolfHoleDepthPreference(
     throw err;
   }
 
-  const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), GOLF_HOLE_COUNT);
-  let ids = parsePromptIds(session.prompt_ids_json);
-  const used = new Set(ids.slice(0, hole)); // keep past + current fixed
-
-  // Keep holes 1..current; reassign upcoming holes with new preference
-  const nextIds: string[] = [];
-  for (let h = 1; h <= GOLF_HOLE_COUNT; h++) {
-    if (h <= hole && ids[h - 1]) {
-      nextIds.push(ids[h - 1]);
-    } else {
-      const depth = depthForHole(h, preference);
-      const id = pickPromptId(depth, used);
-      used.add(id);
-      nextIds.push(id);
-    }
+  const totalHoles = sessionHoleCount(session);
+  if (!totalHoles) {
+    const err = new Error('Pick 9 or 18 holes first') as Error & { status?: number };
+    err.status = 400;
+    throw err;
   }
+
+  const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), totalHoles);
+  const ids = parsePromptIds(session.prompt_ids_json);
+  const nextIds = buildPromptIds(totalHoles, preference, hole, ids);
 
   await db
     .prepare(
@@ -355,6 +394,95 @@ export async function setGolfHoleDepthPreference(
   return toState(session!, userId, match);
 }
 
+/** Set or change round length (9 or 18). Safe before answering starts; otherwise use restart. */
+export async function configureGolfHolePromptSession(
+  matchId: string,
+  userId: string,
+  totalHoles: GolfRoundHoleCount,
+): Promise<GolfHolePromptState> {
+  const match = await requireGolfMatch(matchId, userId);
+  if (totalHoles !== 9 && totalHoles !== 18) {
+    const err = new Error('totalHoles must be 9 or 18') as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+
+  await getOrCreateGolfHolePromptSession(matchId, userId);
+  let session = await getSessionRow(matchId);
+  if (!session) {
+    const err = new Error('Failed to load hole prompt session') as Error & { status?: number };
+    err.status = 500;
+    throw err;
+  }
+
+  const preference = normalizePreference(session.depth_preference);
+  const alreadyStarted = Number(session.current_hole) > 1 || !!session.completed_at;
+  const answersExist = (await db
+    .prepare(`SELECT 1 as ok FROM golf_hole_prompt_answers WHERE match_id = ? LIMIT 1`)
+    .get([matchId])) as { ok?: number } | undefined;
+
+  if ((alreadyStarted || answersExist) && sessionHoleCount(session) != null) {
+    const err = new Error('Round already started — use restart for a new 9 or 18') as Error & {
+      status?: number;
+    };
+    err.status = 400;
+    throw err;
+  }
+
+  const ids = buildPromptIds(totalHoles, preference, 0, []);
+  await db
+    .prepare(
+      `UPDATE golf_hole_prompt_sessions
+       SET total_holes = ?,
+           current_hole = 1,
+           prompt_ids_json = ?,
+           completed_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE match_id = ?`,
+    )
+    .run([totalHoles, JSON.stringify(ids), matchId]);
+
+  session = await getSessionRow(matchId);
+  return toState(session!, userId, match);
+}
+
+/** Wipe answers/ratings and start a fresh round at 9 or 18 holes. */
+export async function restartGolfHolePromptSession(
+  matchId: string,
+  userId: string,
+  totalHoles: GolfRoundHoleCount,
+): Promise<GolfHolePromptState> {
+  const match = await requireGolfMatch(matchId, userId);
+  if (totalHoles !== 9 && totalHoles !== 18) {
+    const err = new Error('totalHoles must be 9 or 18') as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+
+  await getOrCreateGolfHolePromptSession(matchId, userId);
+  await db.prepare(`DELETE FROM golf_hole_prompt_answers WHERE match_id = ?`).run([matchId]);
+  await db.prepare(`DELETE FROM golf_hole_prompt_ratings WHERE match_id = ?`).run([matchId]);
+
+  const preference: DepthPreference = 'auto';
+  const ids = buildPromptIds(totalHoles, preference, 0, []);
+  await db
+    .prepare(
+      `UPDATE golf_hole_prompt_sessions
+       SET total_holes = ?,
+           current_hole = 1,
+           prompt_ids_json = ?,
+           depth_preference = 'auto',
+           completed_at = NULL,
+           started_at = CURRENT_TIMESTAMP,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE match_id = ?`,
+    )
+    .run([totalHoles, JSON.stringify(ids), matchId]);
+
+  const session = await getSessionRow(matchId);
+  return toState(session!, userId, match);
+}
+
 export async function answerGolfHolePrompt(
   matchId: string,
   userId: string,
@@ -362,6 +490,11 @@ export async function answerGolfHolePrompt(
 ): Promise<GolfHolePromptState> {
   const match = await requireGolfMatch(matchId, userId);
   const state = await getOrCreateGolfHolePromptSession(matchId, userId);
+  if (state.needsHoleSelection) {
+    const err = new Error('Pick 9 or 18 holes first') as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
   if (state.completed) {
     const err = new Error('Round already complete') as Error & { status?: number };
     err.status = 400;
@@ -465,14 +598,22 @@ export async function advanceGolfHolePrompt(
     return state;
   }
 
+  if (state.needsHoleSelection || !state.totalHoles) {
+    const err = new Error('Pick 9 or 18 holes first') as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+
   if (!state.myAnswer) {
     const err = new Error('Answer this hole before advancing') as Error & { status?: number };
     err.status = 400;
     throw err;
   }
 
-  // Finished answering hole 18 → complete the round
-  if (state.currentHole >= GOLF_HOLE_COUNT) {
+  const totalHoles = state.totalHoles;
+
+  // Finished answering last hole → complete the round
+  if (state.currentHole >= totalHoles) {
     await db
       .prepare(
         `UPDATE golf_hole_prompt_sessions

@@ -1038,6 +1038,7 @@ export default function NeverHaveIEver({
       label="Never Have I Ever"
       priority={30}
       glowColor="rgba(52, 211, 153, 0.45)"
+      enablePulse={false}
     >
       {({ onPressWithHintDismiss }) => (
         <TouchableOpacity

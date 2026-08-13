@@ -7,7 +7,10 @@
  *    are rare. Each request also gets a random "creative angle" nudge for diversity.
  *
  * 2) Fallback (no key or API error): random choice from merged static pools — core
- *    arrays plus `truthOrDareExtraPools.ts` — still excluding `used_prompts`.
+ *    arrays plus `truthOrDareExtraPools.ts` (or golf pools when theme is `golf`).
+ *
+ * Golf Date matches (`connected_via = golf_date`) use theme `golf` so prompts lean
+ * fairway / cart / post-round dating energy. Sober Circle and other pools stay default.
  */
 
 import { db } from '../database.js';
@@ -22,6 +25,14 @@ import {
   EXTRA_TRUTHS_SPICY,
 } from './truthOrDareExtraPools.js';
 import {
+  GOLF_DARES_PG,
+  GOLF_DARES_R,
+  GOLF_DARES_SPICY,
+  GOLF_TRUTHS_PG,
+  GOLF_TRUTHS_R,
+  GOLF_TRUTHS_SPICY,
+} from './truthOrDareGolfPools.js';
+import {
   filterBannedGamePrompts,
   GAME_PROMPT_HARD_BANS,
   GAME_PROMPT_INTERESTS_RULE,
@@ -31,6 +42,9 @@ import {
   hasBannedGamePromptTheme,
 } from './gamePromptGuards.js';
 import { isPromptAlreadyUsed, normalizeGamePrompt } from './gamePromptHistory.js';
+import type { CreativeAngleTheme } from './truthOrDareAngles.js';
+
+export type TruthOrDareTheme = CreativeAngleTheme;
 
 // PG-13: grown-up dating energy — flirty, direct, never teen-party cute.
 const TRUTH_FALLBACKS = [
@@ -202,7 +216,16 @@ const DARE_FALLBACKS_SPICY: string[] = [
   "Send a 5-sec video: lip bite or lip press (subtle) then look at the camera like you're not sorry",
 ];
 
-function truthFallbacksForLevel(level: SpiceLevel): string[] {
+
+function truthFallbacksForLevel(level: SpiceLevel, theme: TruthOrDareTheme = 'default'): string[] {
+  if (theme === 'golf') {
+    const pg = filterBannedGamePrompts([...GOLF_TRUTHS_PG]);
+    const r = filterBannedGamePrompts([...GOLF_TRUTHS_R]);
+    const s = filterBannedGamePrompts([...GOLF_TRUTHS_SPICY]);
+    if (level === 'spicy') return [...pg, ...r, ...s];
+    if (level === 'ratedr') return [...pg, ...r];
+    return pg;
+  }
   const pg = filterBannedGamePrompts([...TRUTH_FALLBACKS, ...EXTRA_TRUTHS_PG]);
   const r = filterBannedGamePrompts([...TRUTH_FALLBACKS_R, ...EXTRA_TRUTHS_R]);
   const s = filterBannedGamePrompts([...TRUTH_FALLBACKS_SPICY, ...EXTRA_TRUTHS_SPICY]);
@@ -211,7 +234,15 @@ function truthFallbacksForLevel(level: SpiceLevel): string[] {
   return pg;
 }
 
-function dareFallbacksForLevel(level: SpiceLevel): string[] {
+function dareFallbacksForLevel(level: SpiceLevel, theme: TruthOrDareTheme = 'default'): string[] {
+  if (theme === 'golf') {
+    const pg = filterBannedGamePrompts([...GOLF_DARES_PG]);
+    const r = filterBannedGamePrompts([...GOLF_DARES_R]);
+    const s = filterBannedGamePrompts([...GOLF_DARES_SPICY]);
+    if (level === 'spicy') return [...pg, ...r, ...s];
+    if (level === 'ratedr') return [...pg, ...r];
+    return pg;
+  }
   const pg = filterBannedGamePrompts([...DARE_FALLBACKS, ...EXTRA_DARES_PG]);
   const r = filterBannedGamePrompts([...DARE_FALLBACKS_R, ...EXTRA_DARES_R]);
   const s = filterBannedGamePrompts([...DARE_FALLBACKS_SPICY, ...EXTRA_DARES_SPICY]);
@@ -225,19 +256,19 @@ export async function generateTruthOrDarePrompt(
   matchId: string,
   userId: string,
   spiceLevel: SpiceLevel = 'pg13',
-  excludePrompts?: string[] | null
+  excludePrompts?: string[] | null,
+  theme: TruthOrDareTheme = 'default',
 ): Promise<{ prompt: string; fromAI: boolean }> {
   const toExclude = (excludePrompts ?? []).filter((p) => p && p.trim().length > 0);
   const openaiApiKey = process.env.OPENAI_API_KEY;
+  const isGolf = theme === 'golf';
 
-  // Prefer OpenAI every time when key is set (unbounded variety). Fallback only when key is missing or API fails.
   if (!openaiApiKey) {
-    const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
+    const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel, theme) : dareFallbacksForLevel(spiceLevel, theme);
     return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
 
   try {
-    // Get match participants for context
     const matchResult = db
       .prepare('SELECT user1_id, user2_id FROM matches WHERE id = ?')
       .get([matchId]);
@@ -263,7 +294,21 @@ export async function generateTruthOrDarePrompt(
           ? `SPICE: Rated R — mature audience: sexual tension, past hookups, innuendo, jealousy, and real attraction are fair game. Confident and suggestive — like two adults at a bar after midnight. Still no graphic porn, no minors, no non-consent. Chat-only actions (text, voice, selfie, short video).`
           : `SPICE: Spicy — maximum heat for consenting adults on a dating app. Steamy, seductive, sexually charged tension: desire, anticipation, jealousy, power, late-night honesty, boundaries tested (consensually). Sound like adults flirting in private, not a party game. ${GAME_PROMPT_SPICY_ADULT} Dares stay doable in chat (voice, selfie, short clip, text); never require nudity or explicit acts on camera.`;
 
-    const typeInstruction = type === 'truth'
+    const golfTypeInstruction = type === 'truth'
+      ? spiceLevel === 'pg13'
+        ? 'a mature question about golf-date chemistry, on-course personality, cart vs walk vibes, competitive energy, post-round honesty, or attraction that shows up between shots — specific and self-aware.'
+        : spiceLevel === 'ratedr'
+          ? 'a truth about fairway tension, competitive heat tipping into attraction, cart-path confessions, or bold golf-date stories — consensual, respectful, adult; no graphic porn.'
+          : 'a provocative truth about desire after a round, cart tension, celebration energy, or what happens when golf stops being about golf — specific and vivid, never graphic porn, always consensual.'
+      : spiceLevel === 'pg13'
+        ? 'a confident dare they can do in chat from home, themed around golf dating (first tee energy, cart path honesty, post-round drinks vibe). Mix voice, selfie, and short video. No requiring them to be at a course right now.'
+        : spiceLevel === 'ratedr'
+          ? 'a bolder in-chat dare with golf-date heat: flirty selfie, suggestive voice note, or teasing short video — fairway/clubhouse energy. No nudity required.'
+          : 'a spicy dare they can complete in chat with golf-date seduction energy: voice, selfie, or short video — after-round tension, implication, anticipation — never pornographic, never require being on a course.';
+
+    const typeInstruction = isGolf
+      ? golfTypeInstruction
+      : type === 'truth'
       ? spiceLevel === 'pg13'
         ? 'a mature question about attraction, standards, emotional honesty, dating patterns, or chemistry — specific and self-aware, never cutesy or juvenile.'
         : spiceLevel === 'ratedr'
@@ -276,11 +321,14 @@ export async function generateTruthOrDarePrompt(
           : 'a spicy dare they can complete in chat: voice, selfie, or short video — confident, seductive, sexually charged but not pornographic. Lean into "we are alone in the same room" energy: implication, tone, anticipation, a bold compliment, a restrained gesture — never a public stunt or generic party dare.';
 
     const noTravelNote = type === 'dare'
-      ? '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
+      ? isGolf
+        ? '\n- Do NOT require them to be at a golf course right now. Dares must be doable from home via chat (text, voice, selfie, short video). Golf theme = language and vibe, not location stunts.'
+        : '\n- Do NOT use travel, vacation, "where you are", scenic views, or location. Users are often at home. Keep dares doable from wherever they are.'
       : '';
 
-    const noBanalEventsNote =
-      spiceLevel === 'spicy' || spiceLevel === 'ratedr'
+    const noBanalEventsNote = isGolf
+      ? '\n- Theme is GOLF DATING: fairways, carts, tees, mulligans, 9 vs 18, post-round drinks, competitive spark, and chemistry between shots ARE the point. Still avoid unrelated concerts/festivals/playlists as the main hook.'
+      : spiceLevel === 'spicy' || spiceLevel === 'ratedr'
         ? "\n- NEVER center prompts on: sports, games, teams, concerts, festivals, playlists, music scenes, travel, trips, vacations, hobbies-as-activities, or 'go do X in public'. Keep everything about the two people, chemistry, chat, voice, selfies, short clips, tension, desire — not events or outings."
         : "\n- Avoid sports, concerts, festivals, playlists, music, travel, and trips as the main hook; center the two people, chemistry, and chat — not outings or events.";
 
@@ -295,7 +343,11 @@ export async function generateTruthOrDarePrompt(
         ? '\n- LENGTH: One sentence, punchy. Aim under 160 characters; hard max 190.'
         : '\n- LENGTH: One sentence, aim under 130 characters; hard max 180.';
 
-    const systemPrompt = `You generate ${type} prompts for a dating app's "Truth or Dare" game for adults.
+    const themeIntro = isGolf
+      ? `You generate ${type} prompts for Mulligan Dating's golf-date "Truth or Dare" — two adults who matched to play golf and flirt.`
+      : `You generate ${type} prompts for a dating app's "Truth or Dare" game for adults.`;
+
+    const systemPrompt = `${themeIntro}
 
 ${spiceBlock}
 ${lengthNote}
@@ -310,16 +362,33 @@ ${GAME_PROMPT_HARD_BANS}
 
     const interestsNote = sharedInterests.length > 0 ? ` ${GAME_PROMPT_INTERESTS_RULE}` : '';
 
-    const varietyLine =
-      spiceLevel === 'spicy'
+    const varietyLine = isGolf
+      ? spiceLevel === 'spicy'
+        ? 'Prioritize fairway tension, post-round desire, cart chemistry, competitive heat, and chat-native actions — golf dating energy, never generic sports trivia.'
+        : spiceLevel === 'ratedr'
+          ? 'Prioritize golf-date tension, on-course personality, and in-chat actions with fairway heat — not hobby tourism or scorekeeping quizzes.'
+          : 'Prioritize golf-date chemistry, on-course honesty, cart vs walk vibes, and emotional attraction between adults who matched for golf.'
+      : spiceLevel === 'spicy'
         ? 'Prioritize sexual tension, seduction, power, restraint, jealousy, confession, and chat-native actions — never music, travel, concerts, or hobby-as-activity prompts. Do NOT repeat common hookup clichés.'
         : spiceLevel === 'ratedr'
           ? 'Prioritize adult dating tension, stories, and in-chat actions — never events, outings, playlists, travel, or hobby tourism.'
           : 'Prioritize mature chemistry, standards, and emotional honesty — confident adults, not party games or hobby prompts.';
 
-    const creativeAngle = randomCreativeAngle(type, spiceLevel);
+    const creativeAngle = randomCreativeAngle(type, spiceLevel, theme);
 
-    const userPrompt = `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}${interestsNote}
+    const userPrompt = isGolf
+      ? `Generate one unique ${typeLabel} prompt for two people playing Truth or Dare after matching for a golf date.${interestsContext}${interestsNote}
+
+Heat level for this round: ${spiceLevel.toUpperCase()}.
+
+VARIETY: Be creative and unexpected — golf dating angles, not the same "what's your handicap" cliché. Surprise them. ${varietyLine}
+
+Creative angle for this round (do not quote this phrase verbatim; let it steer topic and format): ${creativeAngle}
+
+Requirements: ${typeInstruction}${excludeHint}
+
+Return ONLY the prompt:`
+      : `Generate one unique ${typeLabel} prompt for two people playing on a dating app.${interestsContext}${interestsNote}
 
 Heat level for this round: ${spiceLevel.toUpperCase()}.
 
@@ -346,8 +415,7 @@ Return ONLY the prompt:`;
 
     const content = completion.choices[0]?.message?.content?.trim();
     if (content && content.length > 5 && content.length < 200) {
-      // Basic sanity check - ensure it's not an error message
-      const badStarts = ['I ', 'Sorry', 'I\'m', 'I cannot', 'As an AI', 'Here\'s', 'Sure,'];
+      const badStarts = ['I ', 'Sorry', "I'm", 'I cannot', 'As an AI', "Here's", 'Sure,'];
       const isBad = badStarts.some((s) => content.startsWith(s));
       const cleaned = content.replace(/^["']|["']$/g, '');
       const normalizedCleaned = normalizePrompt(cleaned);
@@ -364,7 +432,7 @@ Return ONLY the prompt:`;
     throw new Error('Invalid AI response');
   } catch (error) {
     console.warn('Truth or Dare AI generation failed, using fallback:', error);
-    const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
+    const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel, theme) : dareFallbacksForLevel(spiceLevel, theme);
     return { prompt: pickRandomExcluding(list, toExclude), fromAI: false };
   }
 }
@@ -381,12 +449,13 @@ export async function generateDistinctTruthOrDarePrompt(
   userId: string,
   spiceLevel: SpiceLevel = 'pg13',
   excludePrompts: string[] = [],
+  theme: TruthOrDareTheme = 'default',
 ): Promise<{ prompt: string; fromAI: boolean }> {
   let exclude = excludePrompts.filter((p) => p && p.trim().length > 0);
   let lastResult: { prompt: string; fromAI: boolean } | null = null;
 
   for (let attempt = 0; attempt < TRUTH_OR_DARE_DISTINCT_MAX_ATTEMPTS; attempt++) {
-    const result = await generateTruthOrDarePrompt(type, matchId, userId, spiceLevel, exclude);
+    const result = await generateTruthOrDarePrompt(type, matchId, userId, spiceLevel, exclude, theme);
     lastResult = result;
     if (!isPromptAlreadyUsed(result.prompt, exclude)) {
       return result;
@@ -394,7 +463,7 @@ export async function generateDistinctTruthOrDarePrompt(
     exclude = [...exclude, result.prompt.trim()];
   }
 
-  const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel) : dareFallbacksForLevel(spiceLevel);
+  const list = type === 'truth' ? truthFallbacksForLevel(spiceLevel, theme) : dareFallbacksForLevel(spiceLevel, theme);
   const fallback = pickRandomExcluding(list, exclude);
   if (!isPromptAlreadyUsed(fallback, exclude)) {
     return { prompt: fallback, fromAI: false };

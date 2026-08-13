@@ -29,6 +29,13 @@ import {
   PARTNER_QUALITY_EMOJI,
   type LifestyleFieldKey,
 } from '../constants/profileMySections';
+import GolfVibeSection, {
+  golfLevelBadgeLabel,
+  type GolfFormat,
+  type GolfLevel,
+  type GolfTransport,
+  type GolfVibe,
+} from './GolfVibeSection';
 
 export type MyProfilePreviewPhoto = {
   id: string;
@@ -60,6 +67,10 @@ export type MyProfilePreviewData = {
     work_life_balance: string | null;
     works_out: string | null;
   } | null;
+  golfFormat?: string | null;
+  golfTransport?: string | null;
+  golfVibe?: string | null;
+  golfLevel?: string | null;
 };
 
 function hasLifestyle(lifestyle: MyProfilePreviewData['lifestyle']): boolean {
@@ -94,6 +105,7 @@ type SectionAccent = {
 
 const SECTION_ACCENTS: Record<string, SectionAccent> = {
   'Looking for': { emoji: '💞', colors: ['#fda4af', '#fb7185', '#f472b6'] },
+  'Golf vibe': { emoji: '⛳', colors: ['#2dd4bf', '#14b8a6', '#0d9488'] },
   'Preferred matches': { emoji: '💕', colors: ['#a78bfa', '#c084fc', '#e879f9'] },
   About: { emoji: '💬', colors: ['#667eea', '#764ba2', '#a855f7'] },
   "What you're looking for": { emoji: '✨', colors: ['#f093fb', '#e879f9', '#667eea'] },
@@ -235,8 +247,16 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
     );
   };
 
+  const hasGolfVibe = !!(
+    data.golfFormat ||
+    data.golfTransport ||
+    data.golfVibe ||
+    data.golfLevel
+  );
+
   const hasDetails =
     data.lookingFor ||
+    hasGolfVibe ||
     data.partnerQualities.length > 0 ||
     data.interests.length > 0 ||
     data.values.length > 0 ||
@@ -309,6 +329,13 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
                 <View style={[styles.metaChip, iosCompactHero.metaChip]}>
                   <Text style={[styles.metaChipText, iosCompactHero.metaChipText]}>📏 {data.maxDistanceLabel}</Text>
                 </View>
+                {golfLevelBadgeLabel(data.golfLevel) ? (
+                  <View style={[styles.metaChip, styles.golfLevelChip, iosCompactHero.metaChip]}>
+                    <Text style={[styles.metaChipText, styles.golfLevelChipText, iosCompactHero.metaChipText]}>
+                      {golfLevelBadgeLabel(data.golfLevel)}
+                    </Text>
+                  </View>
+                ) : null}
               </View>
 
               {data.introVideoUrl ? (
@@ -432,6 +459,23 @@ export default function MyProfilePreviewModal({ visible, onClose, data, photos }
                   ? renderDetailSection(
                       'Looking for',
                       <Text style={styles.blockBody}>{lookingForDisplay}</Text>
+                    )
+                  : null}
+
+                {hasGolfVibe
+                  ? renderDetailSection(
+                      'Golf vibe',
+                      <GolfVibeSection
+                        compact
+                        readOnly
+                        embedded
+                        values={{
+                          golfFormat: (data.golfFormat as GolfFormat) || null,
+                          golfTransport: (data.golfTransport as GolfTransport) || null,
+                          golfVibe: (data.golfVibe as GolfVibe) || null,
+                          golfLevel: (data.golfLevel as GolfLevel) || null,
+                        }}
+                      />
                     )
                   : null}
 
@@ -921,6 +965,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     color: '#fff',
+  },
+  golfLevelChip: {
+    backgroundColor: 'rgba(15, 118, 110, 0.55)',
+    borderColor: 'rgba(94, 234, 212, 0.65)',
+  },
+  golfLevelChipText: {
+    color: '#ecfdf5',
   },
   tagline: {
     marginTop: 12,

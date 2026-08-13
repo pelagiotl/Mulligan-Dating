@@ -325,7 +325,7 @@ function PurchaseSuccessModal({
   );
 }
 
-/** Mirrors web `.navbar-token-badge` / `.navbar-token-badge--pulse` (index.css + connect-shell-theme). */
+/** Solid high-contrast badge for the Sober Circle quantity overlay (🎫 + count). */
 function WebNavbarTokenBadge({
   count,
   loading,
@@ -436,18 +436,6 @@ function WebNavbarTokenBadge({
     };
   }, [reduceMotion, loading, pulse, shimmer, badgeScale]);
 
-  const shadowOpacity =
-    reduceMotion || loading
-      ? 0.2
-      : Platform.OS === 'ios'
-        ? pulse.interpolate({ inputRange: [0, 1], outputRange: [0.16, 0.28] })
-        : 0.22;
-  const shadowRadius =
-    reduceMotion || loading
-      ? 12
-      : Platform.OS === 'ios'
-        ? pulse.interpolate({ inputRange: [0, 1], outputRange: [10, 20] })
-        : 14;
   const shimmerTranslateX = shimmer.interpolate({
     inputRange: [0, 1],
     outputRange: [-72, 168],
@@ -455,48 +443,25 @@ function WebNavbarTokenBadge({
 
   const gradientColors =
     shell === 'midnight'
-      ? (['rgba(244, 63, 94, 0.12)', 'rgba(99, 102, 241, 0.1)'] as const)
+      ? (['#15803d', '#16a34a', '#0f766e'] as const)
       : shell === 'sunny'
-        ? (['rgba(251, 146, 60, 0.2)', 'rgba(251, 191, 36, 0.12)'] as const)
-        : (['rgba(99, 102, 241, 0.13)', 'rgba(236, 72, 153, 0.08)'] as const);
-  const androidNavbarGradient =
-    shell === 'midnight'
-      ? (['#db2777', '#7c3aed', '#a855f7'] as const)
-      : shell === 'sunny'
-        ? (['#ea580c', '#f97316', '#fbbf24'] as const)
-        : (['#667eea', '#764ba2', '#f093fb'] as const);
-  const androidNavbarBorderColor =
-    shell === 'midnight'
-      ? 'rgba(254, 202, 202, 0.72)'
-      : shell === 'sunny'
-        ? 'rgba(255, 251, 235, 0.85)'
-        : 'rgba(255, 255, 255, 0.72)';
-  const borderColor =
-    shell === 'midnight'
-      ? 'rgba(244, 114, 182, 0.35)'
-      : shell === 'sunny'
-        ? 'rgba(251, 146, 60, 0.38)'
-        : 'rgba(129, 140, 248, 0.38)';
-  const textColor =
-    Platform.OS === 'android'
-      ? '#ffffff'
-      : shell === 'midnight'
-        ? '#fda4af'
-        : shell === 'sunny'
-          ? '#c2410c'
-          : '#6d28d9';
+        ? (['#ca8a04', '#eab308', '#16a34a'] as const)
+        : (['#16a34a', '#22c55e', '#0d9488'] as const);
+  const androidNavbarBorderColor = 'rgba(255, 255, 255, 0.9)';
+  const borderColor = 'rgba(255, 255, 255, 0.85)';
+  const textColor = '#ffffff';
 
-  /** iOS pulse shadow tint — matches Connect shell chrome */
-  const pulseShadowColor = shell === 'midnight' ? '#ec4899' : shell === 'sunny' ? '#ea580c' : '#8b5cf6';
+  /** Strong green glow — readable on light and dark Sober Circle surfaces */
+  const pulseShadowColor = '#166534';
 
   const badgeInnerStyle = {
     flexDirection: 'row' as const,
     alignItems: 'center' as const,
     justifyContent: 'center' as const,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    paddingVertical: 9,
+    paddingHorizontal: 15,
     borderRadius: 14,
-    borderWidth: 1.5,
+    borderWidth: 2,
     borderColor,
     minWidth: loading ? 56 : undefined,
     overflow: 'hidden' as const,
@@ -514,7 +479,7 @@ function WebNavbarTokenBadge({
             top: 0,
             bottom: 0,
             width: 30,
-            backgroundColor: 'rgba(255, 255, 255, 0.42)',
+            backgroundColor: 'rgba(255, 255, 255, 0.28)',
             transform: [{ skewX: '-20deg' }, { translateX: shimmerTranslateX }],
           }}
         />
@@ -531,14 +496,17 @@ function WebNavbarTokenBadge({
           <ActivityIndicator size="small" color={textColor} />
         ) : (
           <>
-            <SmoothPulsingEmoji emoji="🏌️" fontSize={16} />
+            <SmoothPulsingEmoji emoji="🎫" fontSize={17} />
             <Text
               style={{
-                fontSize: 14,
+                fontSize: 15,
                 fontWeight: '800',
                 color: textColor,
-                letterSpacing: 0.15,
+                letterSpacing: 0.2,
                 marginLeft: 6,
+                textShadowColor: 'rgba(0, 0, 0, 0.35)',
+                textShadowOffset: { width: 0, height: 1 },
+                textShadowRadius: 2,
                 ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
               }}
             >
@@ -564,15 +532,21 @@ function WebNavbarTokenBadge({
         style={{
           borderRadius: 14,
           transform: [{ translateY: pressed ? -2 : 0 }],
-          ...(Platform.OS === 'android'
-            ? {}
-            : {
-                shadowColor: pulseShadowColor,
-                shadowOffset: { width: 0, height: pressed ? 4 : 2 },
-                shadowOpacity,
-                shadowRadius,
-                elevation: pressed ? 8 : 5,
-              }),
+          shadowColor: pulseShadowColor,
+          shadowOffset: { width: 0, height: pressed ? 5 : 3 },
+          shadowOpacity:
+            Platform.OS === 'ios'
+              ? reduceMotion || loading
+                ? 0.35
+                : pulse.interpolate({ inputRange: [0, 1], outputRange: [0.32, 0.5] })
+              : 0.4,
+          shadowRadius:
+            Platform.OS === 'ios'
+              ? reduceMotion || loading
+                ? 10
+                : pulse.interpolate({ inputRange: [0, 1], outputRange: [8, 14] })
+              : 10,
+          elevation: pressed ? 12 : 8,
         }}
       >
         <Animated.View
@@ -580,31 +554,19 @@ function WebNavbarTokenBadge({
             transform: reduceMotion || loading ? [] : [{ scale: badgeScale }],
           }}
         >
-          {Platform.OS === 'android' ? (
-            <LinearGradient
-              colors={[...androidNavbarGradient]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={[
-                badgeInnerStyle,
-                {
-                  borderColor: androidNavbarBorderColor,
-                  elevation: pressed ? 10 : 6,
-                },
-              ]}
-            >
-              {badgeInner}
-            </LinearGradient>
-          ) : (
-            <LinearGradient
-              colors={[...gradientColors]}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={badgeInnerStyle}
-            >
-              {badgeInner}
-            </LinearGradient>
-          )}
+          <LinearGradient
+            colors={[...gradientColors]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={[
+              badgeInnerStyle,
+              Platform.OS === 'android'
+                ? { borderColor: androidNavbarBorderColor, elevation: pressed ? 12 : 8 }
+                : null,
+            ]}
+          >
+            {badgeInner}
+          </LinearGradient>
         </Animated.View>
       </Animated.View>
     </TouchableOpacity>
@@ -1420,6 +1382,10 @@ export default function TokenDisplay({
               setShowPurchaseModal(true);
               fetchPackages();
             }}
+            onOpenTokenSheet={() => {
+              setShowInfoModal(true);
+              fetchPackages();
+            }}
           />
         </View>
         {tokenManagementModals}
@@ -1484,7 +1450,7 @@ export default function TokenDisplay({
           }}
           style={[styles.compactContainer, compactContainerShell]}
         >
-          <Text style={styles.tokenIcon}>🏌️</Text>
+          <Text style={styles.tokenIcon}>🎫</Text>
           <Text style={[styles.compactTokenNumber, compactNumberShell]}>
             {data.availableTokens}
           </Text>

@@ -10,11 +10,16 @@ type Props = {
 export default function GolfDatePlanHeaderButton({ onPress }: Props) {
   return (
     <ChatHeaderFeatureHint
-      storageKey="mulligan_chat_hint_golf_date_plan_v1"
+      storageKey="mulligan_chat_hint_golf_date_plan_v2"
       label="Plan Golf Date"
-      priority={10}
+      priority={20}
       glowColor="rgba(45, 212, 191, 0.45)"
       alwaysPulse
+      alwaysShowTip
+      tipPlacement="above"
+      tipAlign="center"
+      tipLift={42}
+      tipWidth={118}
     >
       {({ onPressWithHintDismiss }) => (
         <TouchableOpacity

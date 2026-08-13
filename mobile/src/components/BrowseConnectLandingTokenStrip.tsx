@@ -18,6 +18,8 @@ export interface BrowseConnectLandingTokenStripProps {
   success: string;
   onClaim: () => void;
   onBuyPress: () => void;
+  /** Opens the same token management sheet as the navbar quantity badge. */
+  onOpenTokenSheet?: () => void;
 }
 
 /**
@@ -34,6 +36,7 @@ export default function BrowseConnectLandingTokenStrip({
   success,
   onClaim,
   onBuyPress,
+  onOpenTokenSheet,
 }: BrowseConnectLandingTokenStripProps) {
   const { profile } = useAuth();
   const golferEmoji = golferEmojiForGender(profile?.gender);
@@ -83,10 +86,14 @@ export default function BrowseConnectLandingTokenStrip({
       : (['#667eea', '#764ba2', '#f093fb'] as const);
 
   return (
-    <View
+    <TouchableOpacity
       style={[styles.cardOuter, cardOuterStyle]}
-      accessibilityRole="summary"
-      accessibilityLabel="Mulligan tokens"
+      activeOpacity={0.92}
+      onPress={onOpenTokenSheet}
+      disabled={!onOpenTokenSheet}
+      accessibilityRole="button"
+      accessibilityLabel={`Mulligan tokens: ${availableTokens} of ${TOKEN_MAX}. Tap to manage tokens.`}
+      accessibilityHint="Opens token balance, monthly claim, and purchase options"
     >
       <LinearGradient colors={headerColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
         <SmoothPulsingEmoji emoji={golferEmoji} fontSize={22} containerStyle={styles.headerEmojiWrap} />
@@ -151,8 +158,14 @@ export default function BrowseConnectLandingTokenStrip({
             </LinearGradient>
           </TouchableOpacity>
         ) : null}
+
+        {onOpenTokenSheet ? (
+          <Text style={[styles.tapHint, midnight && styles.tapHintMidnight]}>
+            Tap card for token details
+          </Text>
+        ) : null}
       </View>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -277,6 +290,17 @@ const styles = StyleSheet.create({
   },
   cannotClaimMidnight: {
     color: '#e2e8f0',
+  },
+  tapHint: {
+    marginTop: 2,
+    fontSize: 11,
+    lineHeight: 15,
+    color: '#64748b',
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  tapHintMidnight: {
+    color: '#94a3b8',
   },
   claimBtn: {
     borderRadius: 14,

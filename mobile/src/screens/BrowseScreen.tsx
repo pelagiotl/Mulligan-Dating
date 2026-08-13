@@ -2074,20 +2074,6 @@ export default function BrowseScreen() {
         </TouchableOpacity>
       ) : null;
 
-  const mulliganTokenControls = (
-    <View style={styles.tokenOverlayInner}>
-      {claimTokenBannerEl}
-      <TokenDisplay
-        compact={true}
-        premium={true}
-        connectShell={connectShellMode}
-        openModalRef={openTokenModalRef}
-        performClaimRef={performClaimRef}
-        onTokensUpdated={refreshConnectLandingEconomy}
-      />
-    </View>
-  );
-
   return (
     <View style={[styles.container, showLandingPage && styles.containerLanding]}>
       {showLandingPage ? (
@@ -2099,32 +2085,12 @@ export default function BrowseScreen() {
         />
       ) : null}
 
-      {/* Fixed token strip when browsing (all platforms); landing uses compact badge on Android */}
-      {!showLandingPage && (
+      {/* Claim banner while browsing — Play tab no longer shows the corner quantity badge */}
+      {!showLandingPage && claimTokenBannerEl ? (
         <View style={styles.tokenOverlay} pointerEvents="box-none">
-          {mulliganTokenControls}
+          <View style={styles.tokenOverlayInner}>{claimTokenBannerEl}</View>
         </View>
-      )}
-
-      {/* Android Connect landing: navigator-level overlay sits under the tab screen — pin badge here */}
-      {showLandingPage && Platform.OS === 'android' && (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.androidConnectLandingTokenBadge,
-            { top: Math.max(insets.top, 8) + 4 },
-          ]}
-        >
-          <TokenDisplay
-            compact
-            connectShell={connectShellMode}
-            compactNavbarChrome
-            openModalRef={openTokenModalRef}
-            performClaimRef={performClaimRef}
-            onTokensUpdated={refreshConnectLandingEconomy}
-          />
-        </View>
-      )}
+      ) : null}
 
       <ScrollView
         style={[styles.scrollView, showLandingPage && styles.scrollViewLanding]}

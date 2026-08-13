@@ -14,6 +14,7 @@ export default function HangoutPlanHeaderButton({ onPress }: Props) {
       label="Smart date ideas"
       priority={40}
       glowColor="rgba(251, 191, 36, 0.4)"
+      enablePulse={false}
     >
       {({ onPressWithHintDismiss }) => (
         <TouchableOpacity
@@ -33,8 +34,6 @@ const styles = StyleSheet.create({
   button: {
     width: 40,
     height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.22)',
     alignItems: 'center',
     justifyContent: 'center',
   },
