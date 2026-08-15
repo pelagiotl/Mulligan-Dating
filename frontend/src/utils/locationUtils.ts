@@ -14,6 +14,17 @@ export function compactCityState(raw: string): string {
   const t = normalizeLocationInput(raw);
   if (!t) return "";
 
+  // "Gold Hill Oregon" / "Medford OR" (no comma yet) → insert comma before the state.
+  if (!t.includes(",")) {
+    const stateMatch = t.match(/^(.+?)\s+(or|oregon|ore|ca|california)\.?$/i);
+    if (stateMatch) {
+      const city = trimEndWords(stateMatch[1].trim(), MAX_CITY_LEN);
+      const state = trimEndWords(stateMatch[2].trim(), MAX_STATE_LEN);
+      if (city && state) return `${city}, ${state}`;
+    }
+    return trimEndWords(t, MAX_CITY_LEN + MAX_STATE_LEN + 2);
+  }
+
   const parts = t.split(",").map((p) => p.trim()).filter(Boolean);
   if (parts.length >= 2) {
     const city = trimEndWords(parts[0], MAX_CITY_LEN);
@@ -112,13 +123,9 @@ export function isLikelyInSouthernOregonByText(location: string | null | undefin
 }
 
 /**
- * When the user types a space after the city (no comma yet), replace with ", "
- * so they get "City, " and can type state.
+ * Spaces are kept so multi-word cities (Gold Hill, Central Point, etc.) can be typed.
+ * Comma is typed by the user (or added on blur/save via compactCityState when a trailing state is present).
  */
 export function handleLocationChange(newValue: string, setValue: (v: string) => void): void {
-  if (newValue.endsWith(" ") && !newValue.slice(0, -1).includes(",")) {
-    setValue(newValue.slice(0, -1).trimEnd() + ", ");
-  } else {
-    setValue(newValue);
-  }
+  setValue(newValue);
 }

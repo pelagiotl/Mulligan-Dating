@@ -1,9 +1,13 @@
 /**
- * Location input helpers: require "City, State" and auto-insert comma after city.
+ * Location input helpers: require "City, State".
+ * Multi-word cities (e.g. Gold Hill) are allowed — do not auto-insert a comma on every space.
  */
 
 const MAX_CITY_LEN = 36;
 const MAX_STATE_LEN = 22;
+
+/** Recognized trailing state tokens for "City State" → "City, State" normalization. */
+const TRAILING_STATE_RE = /^(.+?)\s+(or|oregon|ore|ca|california)\.?$/i;
 
 function trimEndWords(text: string, maxLen: number): string {
   const t = text.trim();
@@ -22,6 +26,17 @@ export function compactCityState(raw: string): string {
     .replace(/\s+/g, ' ')
     .trim();
   if (!t) return '';
+
+  // "Gold Hill Oregon" / "Medford OR" (no comma yet) → insert comma before the state.
+  if (!t.includes(',')) {
+    const stateMatch = t.match(TRAILING_STATE_RE);
+    if (stateMatch) {
+      const city = trimEndWords(stateMatch[1].trim(), MAX_CITY_LEN);
+      const state = trimEndWords(stateMatch[2].trim(), MAX_STATE_LEN);
+      if (city && state) return `${city}, ${state}`;
+    }
+    return trimEndWords(t, MAX_CITY_LEN + MAX_STATE_LEN + 2);
+  }
 
   const parts = t.split(',').map((p) => p.trim()).filter(Boolean);
   if (parts.length >= 2) {
@@ -122,13 +137,10 @@ export function isLikelyInSouthernOregonByText(location: string | null | undefin
   return hasRegionalCity && !/\b(new jersey|ma|massachusetts)\b/.test(normalized);
 }
 /**
- * Use as onChangeText for location fields. When the user types a space after the city
- * (and there's no comma yet), replaces that space with ", " so they get "City, " and can type state.
+ * Use as onChangeText for location fields.
+ * Spaces are kept so multi-word cities (Gold Hill, Central Point, etc.) can be typed.
+ * Comma is typed by the user (or added on blur/save via compactCityState when a trailing state is present).
  */
 export function handleLocationChange(newValue: string, setValue: (v: string) => void): void {
-  if (newValue.endsWith(' ') && !newValue.slice(0, -1).includes(',')) {
-    setValue(newValue.slice(0, -1).trimEnd() + ', ');
-  } else {
-    setValue(newValue);
-  }
+  setValue(newValue);
 }

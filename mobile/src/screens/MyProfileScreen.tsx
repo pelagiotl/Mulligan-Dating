@@ -45,6 +45,7 @@ import GolfVibeSection, {
   type GolfVibe,
   type GolfVibeValues,
 } from '../components/GolfVibeSection';
+import SmoothPulsingEmoji from '../components/SmoothPulsingEmoji';
 import { useAuth } from '../context/AuthContext';
 import { useConnectShellTheme } from '../context/ConnectShellThemeContext';
 import LegalFooter from '../components/LegalFooter';
@@ -298,6 +299,8 @@ export default function MyProfileScreen() {
   const photoGalleryScrollRef = useRef<FlatList<Photo>>(null);
   const photoGalleryProgrammaticScrollRef = useRef(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  const scrollOffsetRef = useRef(0);
+  const golfVibeSectionRef = useRef<View>(null);
   const photosSectionYRef = useRef<number>(0);
   const lookingForSectionYRef = useRef<number>(0);
   const profileSectionYRef = useRef<
@@ -1588,6 +1591,22 @@ export default function MyProfileScreen() {
   const profilePhotoUrl = primaryPhoto ? getPhotoUrl(primaryPhoto.url) : null;
   // Use cached URL so avatar shows immediately when opening Profile tab (before fetchPhotos returns)
   const displayPhotoUrl = profilePhotoUrl || cachedPrimaryPhotoUrl;
+  const golfVibeIncomplete =
+    !profile.golf_format || !profile.golf_transport || !profile.golf_vibe || !profile.golf_level;
+
+  const scrollToGolfVibe = () => {
+    const section = golfVibeSectionRef.current;
+    const scroll = scrollViewRef.current;
+    if (!section || !scroll) return;
+    section.measureInWindow((_x, windowY) => {
+      const deltaFromTop = windowY - 110;
+      scroll.scrollTo({
+        y: Math.max(0, scrollOffsetRef.current + deltaFromTop),
+        animated: true,
+      });
+      Vibration.vibrate(40);
+    });
+  };
 
   return (
     <GestureHandlerRootView style={styles.wrapper}>
@@ -1605,6 +1624,10 @@ export default function MyProfileScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
+        onScroll={(e) => {
+          scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={16}
       >
       {/* Header with photo and basic info */}
       <Animated.View
@@ -2153,6 +2176,37 @@ export default function MyProfileScreen() {
                   <Text style={styles.viewProfilePreviewChevron}>›</Text>
                 </LinearGradient>
               </TouchableOpacity>
+
+              {golfVibeIncomplete ? (
+                <TouchableOpacity
+                  style={styles.golfVibeScrollCue}
+                  onPress={scrollToGolfVibe}
+                  activeOpacity={0.88}
+                  accessibilityRole="button"
+                  accessibilityLabel="Scroll down to set your Golf Dates vibe preferences"
+                >
+                  <LinearGradient
+                    colors={['#ccfbf1', '#99f6e4', '#5eead4']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.golfVibeScrollCueGrad}
+                  >
+                    <SmoothPulsingEmoji
+                      emoji="⛳"
+                      fontSize={18}
+                      variant="prominent"
+                      containerStyle={styles.golfVibeScrollCueEmoji}
+                    />
+                    <View style={styles.golfVibeScrollCueCopy}>
+                      <Text style={styles.golfVibeScrollCueTitle}>Set your Golf vibe</Text>
+                      <Text style={styles.golfVibeScrollCueSub}>
+                        Scroll down to fill out how you like to play
+                      </Text>
+                    </View>
+                    <Text style={styles.golfVibeScrollCueChevron}>↓</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : null}
               
               <ProfileEditableCardBorder
                 delay={180}
@@ -2174,8 +2228,8 @@ export default function MyProfileScreen() {
                     style={styles.infoCardFull}
                   >
                     <ProfileCardAnimatedEmoji
-                      emoji="✨"
-                      variant="shimmer"
+                      emoji="🪪"
+                      variant="pulse"
                       fontSize={36}
                       delay={0}
                       containerStyle={styles.infoCardEmojiWrap}
@@ -2466,7 +2520,11 @@ export default function MyProfileScreen() {
                 </TouchableOpacity>
               </ProfileEditableCardBorder>
 
-              <View style={{ marginTop: 14, marginHorizontal: 4 }}>
+              <View
+                ref={golfVibeSectionRef}
+                style={{ marginTop: 14, marginHorizontal: 4 }}
+                collapsable={false}
+              >
                 <GolfVibeSection
                   values={{
                     golfFormat: (profile.golf_format as GolfFormat) || null,
@@ -2759,7 +2817,8 @@ export default function MyProfileScreen() {
                   style={styles.editModalInput}
                   value={editLocation}
                   onChangeText={(t) => handleLocationChange(t, setEditLocation)}
-                  placeholder="e.g. Medford, Oregon"
+                  onBlur={() => setEditLocation((prev) => compactCityState(prev))}
+                  placeholder="e.g. Gold Hill, Oregon"
                   placeholderTextColor="#94a3b8"
                   editable={!detectingLocation}
                 />
@@ -5551,6 +5610,55 @@ const styles = StyleSheet.create({
     fontSize: 26,
     fontWeight: '300',
     marginTop: -2,
+  },
+  golfVibeScrollCue: {
+    marginTop: 2,
+    marginBottom: 18,
+    alignSelf: 'center',
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 18,
+    overflow: 'hidden',
+    borderWidth: 1.5,
+    borderColor: 'rgba(20, 184, 166, 0.55)',
+    shadowColor: '#0f766e',
+    shadowOffset: { width: 0, height: 5 },
+    shadowOpacity: 0.18,
+    shadowRadius: 10,
+    elevation: 4,
+  },
+  golfVibeScrollCueGrad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    gap: 10,
+  },
+  golfVibeScrollCueEmoji: {
+    marginBottom: 0,
+  },
+  golfVibeScrollCueCopy: {
+    flex: 1,
+    gap: 2,
+  },
+  golfVibeScrollCueTitle: {
+    color: '#115e59',
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.1,
+  },
+  golfVibeScrollCueSub: {
+    color: '#0f766e',
+    fontSize: 12,
+    fontWeight: '600',
+    lineHeight: 16,
+    opacity: 0.92,
+  },
+  golfVibeScrollCueChevron: {
+    color: '#0f766e',
+    fontSize: 18,
+    fontWeight: '800',
+    paddingHorizontal: 4,
   },
   viewPhotosButton: {
     marginTop: 16,
