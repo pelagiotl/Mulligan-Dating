@@ -51,6 +51,7 @@ type HolePromptState = {
   partnerHasAnswered?: boolean;
   bothAnswered?: boolean;
   sharedInsight?: string | null;
+  sharedToChat?: boolean;
   myRating?: 'up' | 'down' | null;
   canAdvance?: boolean;
   completed: boolean;
@@ -619,7 +620,7 @@ export default function GolfHolePrompts({
   };
 
   const shareCurrent = async () => {
-    if (!state || busy) return;
+    if (!state || busy || state.sharedToChat) return;
     setBusy(true);
     try {
       const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/share`, {});
@@ -1268,6 +1269,21 @@ export default function GolfHolePrompts({
                               )}
                             </LinearGradient>
                           </TouchableOpacity>
+                        ) : state?.sharedToChat ? (
+                          <View
+                            accessibilityRole="text"
+                            accessibilityLabel="This hole prompt has been shared to chat"
+                            style={[styles.primaryWrap, styles.sharedWrap]}
+                          >
+                            <LinearGradient
+                              colors={['#134e4a', '#115e59', '#0f766e']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 1 }}
+                              style={styles.primaryGrad}
+                            >
+                              <Text style={[styles.primaryText, styles.sharedText]}>✓ Shared to chat</Text>
+                            </LinearGradient>
+                          </View>
                         ) : (
                           <TouchableOpacity
                             activeOpacity={0.9}
@@ -1770,6 +1786,12 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     fontSize: 16,
     letterSpacing: 0.2,
+  },
+  sharedWrap: {
+    opacity: 0.94,
+  },
+  sharedText: {
+    color: '#ccfbf1',
   },
   nextBtn: {
     paddingVertical: 13,

@@ -64,6 +64,7 @@ export type GolfHolePromptState = {
   partnerHasAnswered: boolean;
   bothAnswered: boolean;
   sharedInsight: string | null;
+  sharedToChat: boolean;
   myRating: 'up' | 'down' | null;
   completed: boolean;
   canAdvance: boolean;
@@ -238,6 +239,17 @@ async function loadMyRating(
   return null;
 }
 
+async function isHolePromptShared(matchId: string, hole: number): Promise<boolean> {
+  const row = (await db
+    .prepare(
+      `SELECT 1 as ok
+       FROM golf_hole_prompt_shares
+       WHERE match_id = ? AND hole = ?`,
+    )
+    .get([matchId, hole])) as { ok?: number } | undefined;
+  return !!row?.ok;
+}
+
 async function toState(
   session: SessionRow,
   userId: string,
@@ -256,6 +268,7 @@ async function toState(
   let partnerHasAnswered = false;
   let bothAnswered = false;
   let sharedInsight: string | null = null;
+  let sharedToChat = false;
   let myRating: 'up' | 'down' | null = null;
 
   if (!needsHoleSelection && totalHoles) {
@@ -289,6 +302,7 @@ async function toState(
       }
     }
     myRating = await loadMyRating(session.match_id, hole, userId);
+    sharedToChat = await isHolePromptShared(session.match_id, hole);
   }
 
   return {
@@ -306,6 +320,7 @@ async function toState(
     partnerHasAnswered,
     bothAnswered,
     sharedInsight,
+    sharedToChat,
     myRating,
     completed,
     canAdvance: !!myAnswer && !completed && !needsHoleSelection,
@@ -474,6 +489,7 @@ export async function restartGolfHolePromptSession(
   await getOrCreateGolfHolePromptSession(matchId, userId);
   await db.prepare(`DELETE FROM golf_hole_prompt_answers WHERE match_id = ?`).run([matchId]);
   await db.prepare(`DELETE FROM golf_hole_prompt_ratings WHERE match_id = ?`).run([matchId]);
+  await db.prepare(`DELETE FROM golf_hole_prompt_shares WHERE match_id = ?`).run([matchId]);
 
   const preference: DepthPreference = 'auto';
   const ids = buildPromptIds(totalHoles, preference, 0, []);
@@ -656,20 +672,56 @@ export async function shareCurrentGolfHolePrompt(
   userId: string,
 ): Promise<GolfHolePromptState> {
   const state = await getOrCreateGolfHolePromptSession(matchId, userId);
-  await sendHolePromptToChat(matchId, userId, state.currentHole, state.prompt);
-  return state;
+  if (state.needsHoleSelection) {
+    const err = new Error('Pick 9 or 18 holes first') as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+  if (!state.myAnswer) {
+    const err = new Error('Answer this hole before sharing it') as Error & { status?: number };
+    err.status = 400;
+    throw err;
+  }
+
+  await sendHolePromptToChat(matchId, userId, state.currentHole, state.prompt, state.promptId);
+  const session = await getSessionRow(matchId);
+  const match = await requireGolfMatch(matchId, userId);
+  return toState(session!, userId, match);
 }
 
+/** Post one copy of a hole prompt into match chat. Retries are intentionally idempotent. */
 export async function sendHolePromptToChat(
   matchId: string,
   userId: string,
   hole: number,
   promptText?: string,
+  promptId = '',
 ): Promise<void> {
+  const shareId = uuidv4();
+  try {
+    await db
+      .prepare(
+        `INSERT INTO golf_hole_prompt_shares
+         (id, match_id, hole, prompt_id, shared_by, created_at)
+         VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+      )
+      .run([shareId, matchId, hole, promptId, userId]);
+  } catch (error) {
+    // The unique match/hole constraint makes retries and simultaneous taps safe;
+    // propagate any other database failure instead of pretending the share succeeded.
+    if (await isHolePromptShared(matchId, hole)) return;
+    throw error;
+  }
+
   const text = promptText || `Hole ${hole}`;
   const content = `⛳ Hole ${hole}: ${text}`;
-  const id = uuidv4();
-  await db
-    .prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`)
-    .run([id, matchId, userId, content]);
+  try {
+    await db
+      .prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`)
+      .run([uuidv4(), matchId, userId, content]);
+  } catch (error) {
+    // A failed write must leave the prompt eligible to share again.
+    await db.prepare(`DELETE FROM golf_hole_prompt_shares WHERE id = ?`).run([shareId]);
+    throw error;
+  }
 }

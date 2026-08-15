@@ -2745,18 +2745,10 @@ matchesRouter.get("/:matchId/hole-prompts", authenticateToken, async (req: AuthR
 
 matchesRouter.post("/:matchId/hole-prompts/advance", authenticateToken, rateLimitAPI, async (req: AuthRequest, res) => {
   try {
-    const { advanceGolfHolePrompt, sendHolePromptToChat } = await import('../services/golfHolePrompts.js');
+    const { advanceGolfHolePrompt } = await import('../services/golfHolePrompts.js');
     const matchId = req.params.matchId;
     const userId = req.userId!;
     const state = await advanceGolfHolePrompt(matchId, userId);
-    const shareToChat = req.body?.shareToChat !== false;
-    if (shareToChat) {
-      try {
-        await sendHolePromptToChat(matchId, userId, state.currentHole);
-      } catch (e) {
-        console.warn('Failed to share hole prompt to chat:', e);
-      }
-    }
     const { getIO } = await import('../socket.js');
     const io = getIO();
     if (io) {

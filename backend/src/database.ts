@@ -515,6 +515,19 @@ export async function initDatabase() {
   `);
 
   await execSQL(`
+    CREATE TABLE IF NOT EXISTS golf_hole_prompt_shares (
+      id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
+      match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      hole ${usePostgres ? 'INT' : 'INTEGER'} NOT NULL,
+      prompt_id ${usePostgres ? 'VARCHAR(64)' : 'TEXT'} NOT NULL,
+      shared_by ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
+      created_at ${usePostgres ? 'TIMESTAMP' : 'DATETIME'} DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(match_id, hole),
+      FOREIGN KEY (match_id) REFERENCES matches(id) ON DELETE CASCADE
+    )
+  `);
+
+  await execSQL(`
     CREATE TABLE IF NOT EXISTS golf_date_plans (
       id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} PRIMARY KEY,
       match_id ${usePostgres ? 'VARCHAR(255)' : 'TEXT'} NOT NULL,
