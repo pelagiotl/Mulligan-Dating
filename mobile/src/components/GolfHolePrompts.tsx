@@ -676,7 +676,11 @@ export default function GolfHolePrompts({
       const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/depth`, {
         preference: nextPref,
       });
-      applyPromptContent(next);
+      if (next.promptId && next.promptId !== state.promptId) {
+        runPromptReveal(next, 'advance');
+      } else {
+        applyPromptContent(next);
+      }
     } catch (e: unknown) {
       Alert.alert('Golf Dates', e instanceof Error ? e.message : 'Failed to update depth');
     } finally {

@@ -45,13 +45,13 @@ try {
 }
 
 try {
-  // v4 — whoosh + soft hit + warm mid resolve (no bright high chime)
-  // Rollback: require('../../assets/mulligan-boot-sound-v3.wav')
-  //   (archive: assets/sound-archive/mulligan-boot-sound-v3.wav)
-  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v4.wav');
+  // v6 — whoosh only (no soft hit / pitched resolve)
+  // Rollback: require('../../assets/mulligan-boot-sound-v5.wav')
+  //   (archive: assets/sound-archive/mulligan-boot-sound-v5.wav)
+  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v6.wav');
 } catch {
   try {
-    mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v3.wav');
+    mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v5.wav');
   } catch {
     try {
       mulliganBootSoundModule = require('../../assets/mulligan-boot-sound.wav');

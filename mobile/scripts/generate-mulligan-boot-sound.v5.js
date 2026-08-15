@@ -1,17 +1,16 @@
 /**
- * Mulligan boot splash SFX v6 — whoosh only.
- * No soft hit, pitched resolve, or sparkle (cleanest every-launch opener).
+ * Mulligan boot splash SFX v5 — whoosh → soft hit only.
+ * No pitched resolve / sparkle (cleaner every-launch opener).
  *
  * Run: node scripts/generate-mulligan-boot-sound.js
- * Output: mobile/assets/mulligan-boot-sound-v6.wav
+ * Output: mobile/assets/mulligan-boot-sound-v5.wav
  *
- * Rollback to v5 (whoosh + soft hit):
- *   cp assets/sound-archive/mulligan-boot-sound-v5.wav assets/mulligan-boot-sound-v5.wav
- *   point sounds.ts require back to mulligan-boot-sound-v5.wav
- *   (generator backup: scripts/generate-mulligan-boot-sound.v5.js)
+ * Rollback to v4:
+ *   cp assets/sound-archive/mulligan-boot-sound-v4.wav assets/mulligan-boot-sound-v4.wav
+ *   point sounds.ts require back to mulligan-boot-sound-v4.wav
+ *   (generator backup: scripts/generate-mulligan-boot-sound.v4.js)
  *
  * Older rollbacks:
- *   v4: assets/sound-archive/mulligan-boot-sound-v4.wav
  *   v3: assets/sound-archive/mulligan-boot-sound-v3.wav
  *   v2: assets/sound-archive/mulligan-boot-sound-v2.wav
  *   pre: assets/sound-archive/mulligan-boot-sound.pre-addictive.wav
@@ -22,8 +21,8 @@ const path = require('path');
 
 const TAU = 2 * Math.PI;
 
-/** Whoosh crest (sync splash timing to this). */
-const REWARD_PEAK_SEC = 0.22;
+/** Peak of the hit (sync splash timing to this). */
+const REWARD_PEAK_SEC = 0.2;
 
 function encodeWav(rawFloat, sampleRate = 44100) {
   const numChannels = 1;
@@ -43,7 +42,7 @@ function encodeWav(rawFloat, sampleRate = 44100) {
       const x = (duration - t) / tailLen;
       master = x * x;
     }
-    let s = Math.tanh(rawFloat[i] * 1.12) * master;
+    let s = Math.tanh(rawFloat[i] * 1.15) * master;
     s = Math.max(-1, Math.min(1, s));
     const int16 = Math.floor(s * 32767);
     samples.push(int16 & 0xff);
@@ -70,15 +69,15 @@ function encodeWav(rawFloat, sampleRate = 44100) {
 }
 
 function softReverb(raw, sampleRate) {
-  const d1 = Math.floor(0.02 * sampleRate);
-  const d2 = Math.floor(0.028 * sampleRate);
+  const d1 = Math.floor(0.022 * sampleRate);
+  const d2 = Math.floor(0.031 * sampleRate);
   const buf1 = new Float32Array(d1);
   const buf2 = new Float32Array(d2);
   let i1 = 0;
   let i2 = 0;
   const out = new Float32Array(raw.length);
-  const g = 0.26;
-  const wet = 0.12;
+  const g = 0.28;
+  const wet = 0.14;
   for (let i = 0; i < raw.length; i++) {
     const x = raw[i];
     const r1 = buf1[i1];
@@ -93,9 +92,9 @@ function softReverb(raw, sampleRate) {
 }
 
 /**
- * Pure golf whoosh — crest at REWARD_PEAK_SEC, then soft decay.
+ * Whoosh → soft thwack (no pitched resolve).
  */
-function generateBootReward(sampleRate = 44100, duration = 0.48) {
+function generateBootReward(sampleRate = 44100, duration = 0.52) {
   const numSamples = Math.floor(sampleRate * duration);
   const raw = new Float32Array(numSamples);
 
@@ -109,31 +108,48 @@ function generateBootReward(sampleRate = 44100, duration = 0.48) {
   let mid = 0;
   let bright = 0;
 
-  const crest = REWARD_PEAK_SEC;
+  const impact = 0.2;
 
   for (let i = 0; i < numSamples; i++) {
     const t = i / sampleRate;
     const n = noise();
 
-    let speed = t < crest ? Math.pow(t / crest, 1.65) : Math.exp(-(t - crest) * 8);
+    let speed = t < impact ? Math.pow(t / impact, 1.7) : Math.exp(-(t - impact) * 10);
     slow += (0.04 + speed * 0.03) * (n - slow);
     mid += (0.14 + speed * 0.1) * (n - mid);
-    bright += (0.3 + speed * 0.22) * (n - bright);
+    bright += (0.32 + speed * 0.25) * (n - bright);
 
     let sample = 0;
 
-    if (t < crest + 0.22) {
-      const x = Math.min(1, t / crest);
+    // 1) Short whoosh into the hit
+    if (t < impact + 0.14) {
+      const x = Math.min(1, t / impact);
       const env =
-        t < crest
-          ? Math.pow(x, 2.1) * 0.75 + (x > 0.45 ? Math.pow((x - 0.45) / 0.55, 1.25) * 0.5 : 0)
-          : Math.exp(-(t - crest) * 9) * 0.72;
-      // Low body only — no bright ascending pitch or hit
-      const tone = 100 + Math.pow(Math.min(1, t / crest), 1.7) * 180;
-      sample += slow * env * 0.65;
-      sample += mid * env * 1.15;
-      sample += bright * env * speed * 0.32;
-      sample += Math.sin(TAU * tone * t) * env * 0.1;
+        t < impact
+          ? Math.pow(x, 2.2) * 0.7 + (x > 0.5 ? Math.pow((x - 0.5) / 0.5, 1.3) * 0.45 : 0)
+          : Math.exp(-(t - impact) * 12) * 0.5;
+      // Low body tone only — no bright ascending pitch
+      const tone = 110 + Math.pow(Math.min(1, t / impact), 1.8) * 220;
+      sample += slow * env * 0.6;
+      sample += mid * env * 1.05;
+      sample += bright * env * speed * 0.28;
+      sample += Math.sin(TAU * tone * t) * env * 0.12;
+    }
+
+    // 2) Soft body hit (punctuation for the lip-out beat)
+    if (t >= impact && t < impact + 0.09) {
+      const local = t - impact;
+      const hit = (1 - Math.exp(-local * 650)) * Math.exp(-local * 40);
+      sample += Math.sin(TAU * 140 * t) * hit * 0.5;
+      sample += Math.sin(TAU * 210 * t) * hit * 0.22;
+      sample += mid * Math.exp(-local * 160) * 0.28;
+    }
+
+    // Brief low rumble under the hit (not a melodic resolve)
+    if (t >= impact && t < impact + 0.22) {
+      const local = t - impact;
+      const env = Math.exp(-local * 9) * (1 - Math.exp(-local * 40)) * 0.18;
+      sample += Math.sin(TAU * 75 * t) * env;
     }
 
     raw[i] = sample;
@@ -151,9 +167,9 @@ function generateBootReward(sampleRate = 44100, duration = 0.48) {
 
 const assetsDir = path.join(__dirname, '../assets');
 const wav = generateBootReward();
-const mobilePath = path.join(assetsDir, 'mulligan-boot-sound-v6.wav');
+const mobilePath = path.join(assetsDir, 'mulligan-boot-sound-v5.wav');
 fs.writeFileSync(mobilePath, wav);
 fs.writeFileSync(path.join(assetsDir, 'mulligan-boot-sound.wav'), wav);
 console.log('✅ Mulligan boot sound →', mobilePath);
-console.log(`   Whoosh crest ~${REWARD_PEAK_SEC}s`);
-console.log('   Rollback: sound-archive/mulligan-boot-sound-v5.wav + sounds.ts → v5');
+console.log(`   Reward peak ~${REWARD_PEAK_SEC}s`);
+console.log('   Rollback: sound-archive/mulligan-boot-sound-v4.wav + sounds.ts → v4');

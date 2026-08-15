@@ -380,7 +380,13 @@ export async function setGolfHoleDepthPreference(
 
   const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), totalHoles);
   const ids = parsePromptIds(session.prompt_ids_json);
-  const nextIds = buildPromptIds(totalHoles, preference, hole, ids);
+  // Keep past holes only. Replace the current prompt (and futures) so "Go a bit deeper"
+  // actually swaps the visible question — unless someone already answered this hole.
+  const answersOnCurrent = await loadAnswers(matchId, hole);
+  const keepThroughHole = answersOnCurrent.length > 0 ? hole : Math.max(0, hole - 1);
+  const nextIds = buildPromptIds(totalHoles, preference, keepThroughHole, ids);
+  const currentPromptChanged =
+    keepThroughHole < hole && (nextIds[hole - 1] || '') !== (ids[hole - 1] || '');
 
   await db
     .prepare(
@@ -389,6 +395,12 @@ export async function setGolfHoleDepthPreference(
        WHERE match_id = ?`,
     )
     .run([preference, JSON.stringify(nextIds), matchId]);
+
+  if (currentPromptChanged) {
+    await db
+      .prepare(`DELETE FROM golf_hole_prompt_ratings WHERE match_id = ? AND hole = ?`)
+      .run([matchId, hole]);
+  }
 
   session = await getSessionRow(matchId);
   return toState(session!, userId, match);
