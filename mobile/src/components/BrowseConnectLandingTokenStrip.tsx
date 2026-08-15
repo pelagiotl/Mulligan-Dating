@@ -1,5 +1,15 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ActivityIndicator,
+  Animated,
+  AccessibilityInfo,
+  Easing,
+  Platform,
+} from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import type { ConnectShellMode } from '../lib/connectShellTheme';
 import SmoothPulsingEmoji from './SmoothPulsingEmoji';
@@ -7,6 +17,8 @@ import { useAuth } from '../context/AuthContext';
 import { golferEmojiForGender } from '../utils/golferEmoji';
 
 const TOKEN_MAX = 7;
+/** Soft breathe half-cycle — readable as “tappable,” not flashy. */
+const GLOW_HALF_MS = 2100;
 
 export interface BrowseConnectLandingTokenStripProps {
   availableTokens: number;
@@ -20,6 +32,25 @@ export interface BrowseConnectLandingTokenStripProps {
   onBuyPress: () => void;
   /** Opens the same token management sheet as the navbar quantity badge. */
   onOpenTokenSheet?: () => void;
+}
+
+function glowChrome(shell: ConnectShellMode) {
+  if (shell === 'midnight') {
+    return {
+      border: 'rgba(196, 181, 253, 0.85)',
+      shadow: '#c4b5fd',
+    };
+  }
+  if (shell === 'sunny') {
+    return {
+      border: 'rgba(251, 191, 36, 0.9)',
+      shadow: '#fb923c',
+    };
+  }
+  return {
+    border: 'rgba(165, 180, 252, 0.9)',
+    shadow: '#818cf8',
+  };
 }
 
 /**
@@ -43,6 +74,53 @@ export default function BrowseConnectLandingTokenStrip({
   const meterPct = Math.min(100, (availableTokens / TOKEN_MAX) * 100);
   const shell = connectShell;
   const midnight = shell === 'midnight';
+  const isButton = !!onOpenTokenSheet;
+  const chrome = glowChrome(shell);
+  const glowPulse = useRef(new Animated.Value(0.42)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+    AccessibilityInfo.isReduceMotionEnabled().then((v) => {
+      if (mounted) setReduceMotion(!!v);
+    });
+    const sub = AccessibilityInfo.addEventListener('reduceMotionChanged', (v) => {
+      setReduceMotion(!!v);
+    });
+    return () => {
+      mounted = false;
+      sub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isButton) {
+      glowPulse.setValue(0);
+      return;
+    }
+    if (reduceMotion) {
+      glowPulse.setValue(0.55);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glowPulse, {
+          toValue: 1,
+          duration: GLOW_HALF_MS,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(glowPulse, {
+          toValue: 0.38,
+          duration: GLOW_HALF_MS,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [glowPulse, isButton, reduceMotion]);
 
   const refillFormatted =
     nextRefillDate &&
@@ -85,99 +163,146 @@ export default function BrowseConnectLandingTokenStrip({
       ? (['#ea580c', '#fb923c', '#fbbf24'] as const)
       : (['#667eea', '#764ba2', '#f093fb'] as const);
 
+  const glowOpacity = glowPulse.interpolate({
+    inputRange: [0.38, 1],
+    outputRange: [0.35, 0.92],
+  });
+
   return (
-    <TouchableOpacity
-      style={[styles.cardOuter, cardOuterStyle]}
-      activeOpacity={0.92}
-      onPress={onOpenTokenSheet}
-      disabled={!onOpenTokenSheet}
-      accessibilityRole="button"
-      accessibilityLabel={`Mulligan tokens: ${availableTokens} of ${TOKEN_MAX}. Tap to manage tokens.`}
-      accessibilityHint="Opens token balance, monthly claim, and purchase options"
-    >
-      <LinearGradient colors={headerColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
-        <SmoothPulsingEmoji emoji={golferEmoji} fontSize={22} containerStyle={styles.headerEmojiWrap} />
-        <View style={styles.countRow}>
-          <Text style={styles.headerNumber}>{availableTokens}</Text>
-          <Text style={styles.headerCap}>/ {TOKEN_MAX}</Text>
-        </View>
-        <Text style={styles.headerLabel}>
-          Mulligan Token{availableTokens !== 1 ? 's' : ''} available
-        </Text>
-        <View style={styles.meterTrack}>
-          <View style={[styles.meterFill, { width: `${meterPct}%` }]} />
-        </View>
-      </LinearGradient>
+    <View style={styles.wrap}>
+      {isButton ? (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.perimeterGlow,
+            {
+              borderColor: chrome.border,
+              shadowColor: chrome.shadow,
+              opacity: glowOpacity,
+              ...(Platform.OS === 'ios'
+                ? {
+                    shadowOpacity: 0.65,
+                    shadowRadius: 12,
+                    shadowOffset: { width: 0, height: 0 },
+                  }
+                : null),
+            },
+          ]}
+        />
+      ) : null}
 
-      <View style={[styles.body, bodyStyle]}>
-        {error ? (
-          <View style={styles.banner}>
-            <Text style={[styles.bannerText, midnight && styles.bannerTextMidnight]}>⚠️ {error}</Text>
+      <TouchableOpacity
+        style={[styles.cardOuter, cardOuterStyle, isButton && styles.cardOuterInteractive]}
+        activeOpacity={0.92}
+        onPress={onOpenTokenSheet}
+        disabled={!onOpenTokenSheet}
+        accessibilityRole="button"
+        accessibilityLabel={`Mulligan tokens: ${availableTokens} of ${TOKEN_MAX}. Tap to manage tokens.`}
+        accessibilityHint="Opens token balance, monthly claim, and purchase options"
+      >
+        <LinearGradient colors={headerColors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.header}>
+          <SmoothPulsingEmoji emoji={golferEmoji} fontSize={22} containerStyle={styles.headerEmojiWrap} />
+          <View style={styles.countRow}>
+            <Text style={styles.headerNumber}>{availableTokens}</Text>
+            <Text style={styles.headerCap}>/ {TOKEN_MAX}</Text>
           </View>
-        ) : null}
-
-        {success ? (
-          <View style={styles.bannerSuccess}>
-            <Text style={[styles.bannerText, midnight && styles.bannerTextMidnight]}>✅ {success}</Text>
-          </View>
-        ) : null}
-
-        {canClaimWeeklyToken ? (
-          <TouchableOpacity
-            style={[styles.claimBtn, claiming && styles.claimBtnDisabled]}
-            onPress={onClaim}
-            disabled={claiming}
-            activeOpacity={0.9}
-          >
-            <LinearGradient
-              colors={claimBtnColors}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.claimGradient}
-            >
-              {claiming ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.claimBtnText}>✨ Claim Monthly Tokens</Text>
-              )}
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : (
-          <Text style={[styles.cannotClaim, midnight && styles.cannotClaimMidnight]}>{cannotClaimFull}</Text>
-        )}
-
-        {availableTokens <= 1 ? (
-          <TouchableOpacity onPress={onBuyPress} activeOpacity={0.9} style={styles.buyWrap}>
-            <LinearGradient
-              colors={['#10b981', '#059669']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.buyGradient}
-            >
-              <Text style={styles.buyText}>💳 Cop some more</Text>
-            </LinearGradient>
-          </TouchableOpacity>
-        ) : null}
-
-        {onOpenTokenSheet ? (
-          <Text style={[styles.tapHint, midnight && styles.tapHintMidnight]}>
-            Tap card for token details
+          <Text style={styles.headerLabel}>
+            Mulligan Token{availableTokens !== 1 ? 's' : ''} available
           </Text>
-        ) : null}
-      </View>
-    </TouchableOpacity>
+          <View style={styles.meterTrack}>
+            <View style={[styles.meterFill, { width: `${meterPct}%` }]} />
+          </View>
+        </LinearGradient>
+
+        <View style={[styles.body, bodyStyle]}>
+          {error ? (
+            <View style={styles.banner}>
+              <Text style={[styles.bannerText, midnight && styles.bannerTextMidnight]}>⚠️ {error}</Text>
+            </View>
+          ) : null}
+
+          {success ? (
+            <View style={styles.bannerSuccess}>
+              <Text style={[styles.bannerText, midnight && styles.bannerTextMidnight]}>✅ {success}</Text>
+            </View>
+          ) : null}
+
+          {canClaimWeeklyToken ? (
+            <TouchableOpacity
+              style={[styles.claimBtn, claiming && styles.claimBtnDisabled]}
+              onPress={onClaim}
+              disabled={claiming}
+              activeOpacity={0.9}
+            >
+              <LinearGradient
+                colors={claimBtnColors}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.claimGradient}
+              >
+                {claiming ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.claimBtnText}>✨ Claim Monthly Tokens</Text>
+                )}
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : (
+            <Text style={[styles.cannotClaim, midnight && styles.cannotClaimMidnight]}>{cannotClaimFull}</Text>
+          )}
+
+          {availableTokens <= 1 ? (
+            <TouchableOpacity onPress={onBuyPress} activeOpacity={0.9} style={styles.buyWrap}>
+              <LinearGradient
+                colors={['#10b981', '#059669']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.buyGradient}
+              >
+                <Text style={styles.buyText}>💳 Cop some more</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          ) : null}
+
+          {onOpenTokenSheet ? (
+            <Text style={[styles.tapHint, midnight && styles.tapHintMidnight]}>
+              Tap card for token details
+            </Text>
+          ) : null}
+        </View>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  wrap: {
+    width: '100%',
+    position: 'relative',
+  },
+  /** Soft halo just outside the card — reads as a pressable perimeter. */
+  perimeterGlow: {
+    position: 'absolute',
+    top: -3,
+    left: -3,
+    right: -3,
+    bottom: -3,
+    borderRadius: 29,
+    borderWidth: 2.5,
+    backgroundColor: 'transparent',
+  },
   cardOuter: {
     width: '100%',
     borderRadius: 26,
     overflow: 'hidden',
   },
+  cardOuterInteractive: {
+    // Slightly brighter rim so the pulse has something to rim-light
+    borderWidth: 2,
+  },
   cardOuterMidnight: {
     borderWidth: 2,
-    borderColor: 'rgba(167, 139, 250, 0.35)',
+    borderColor: 'rgba(167, 139, 250, 0.45)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.35,
@@ -186,7 +311,7 @@ const styles = StyleSheet.create({
   },
   cardOuterSoft: {
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.92)',
+    borderColor: 'rgba(129, 140, 248, 0.55)',
     shadowColor: '#667eea',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.18,
@@ -195,7 +320,7 @@ const styles = StyleSheet.create({
   },
   cardOuterSunny: {
     borderWidth: 2,
-    borderColor: 'rgba(251, 191, 36, 0.45)',
+    borderColor: 'rgba(251, 191, 36, 0.55)',
     shadowColor: '#fb923c',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.22,

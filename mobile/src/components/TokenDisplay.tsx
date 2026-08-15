@@ -1799,6 +1799,10 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignSelf: 'stretch',
     width: '100%',
+    // Room for the token card’s perimeter glow
+    paddingHorizontal: 3,
+    paddingVertical: 3,
+    overflow: 'visible',
   },
   browseLandingLoadingText: {
     fontSize: 13,
