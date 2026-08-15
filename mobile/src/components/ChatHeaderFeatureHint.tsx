@@ -239,6 +239,8 @@ export default function ChatHeaderFeatureHint({
             {
               width: tipWidth,
               opacity: hintLabelOpacity,
+              borderColor: glowColor,
+              shadowColor: glowColor,
               transform: [
                 {
                   translateY: hintPulse.interpolate({
@@ -247,13 +249,51 @@ export default function ChatHeaderFeatureHint({
                   }),
                 },
               ],
+              ...(Platform.OS === 'ios'
+                ? {
+                    shadowOpacity: shouldPulse
+                      ? hintPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.35, 0.85],
+                        })
+                      : 0.55,
+                    shadowRadius: shouldPulse
+                      ? hintPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [6, 12],
+                        })
+                      : 8,
+                  }
+                : null),
             },
           ]}
         >
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.bubbleGlowRing,
+              {
+                borderColor: glowColor,
+                opacity: shouldPulse
+                  ? hintPulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.35, 0.9],
+                    })
+                  : 0.55,
+              },
+            ]}
+          />
           <Text style={styles.label} numberOfLines={1}>
             {label}
           </Text>
-          <View style={[styles.caret, caretPositionStyle, caretVerticalStyle]} />
+          <View
+            style={[
+              styles.caret,
+              caretPositionStyle,
+              caretVerticalStyle,
+              { borderColor: glowColor, backgroundColor: 'rgba(15, 23, 42, 0.96)' },
+            ]}
+          />
         </Animated.View>
       ) : null}
 
@@ -265,7 +305,7 @@ export default function ChatHeaderFeatureHint({
                   {
                     scale: hintPulse.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [1, 1.1],
+                      outputRange: [1, 1.06],
                     }),
                   },
                 ],
@@ -273,29 +313,6 @@ export default function ChatHeaderFeatureHint({
             : undefined
         }
       >
-        {shouldPulse ? (
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.glow,
-              {
-                backgroundColor: glowColor,
-                opacity: hintPulse.interpolate({
-                  inputRange: [0, 1],
-                  outputRange: [0.3, 0.8],
-                }),
-                transform: [
-                  {
-                    scale: hintPulse.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 1.32],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          />
-        ) : null}
         {children({ onPressWithHintDismiss })}
       </Animated.View>
     </View>
@@ -310,41 +327,38 @@ const styles = StyleSheet.create({
     overflow: 'visible',
     zIndex: 8,
   },
-  glow: {
-    position: 'absolute',
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    alignSelf: 'center',
-  },
   bubble: {
     position: 'absolute',
     backgroundColor: 'rgba(15, 23, 42, 0.96)',
-    paddingHorizontal: 8,
-    paddingVertical: 5,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1.5,
     borderColor: 'rgba(148, 163, 184, 0.35)',
     alignItems: 'center',
     zIndex: 30,
+    overflow: 'visible',
     ...Platform.select({
       ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.24,
-        shadowRadius: 6,
+        shadowOffset: { width: 0, height: 0 },
       },
-      android: { elevation: 6 },
+      android: { elevation: 8 },
       default: {},
     }),
+  },
+  bubbleGlowRing: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    transform: [{ scale: 1.06 }],
   },
   label: {
     color: '#f1f5f9',
     fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 0.1,
+    fontWeight: '800',
+    letterSpacing: 0.3,
     textAlign: 'center',
-    lineHeight: 12,
+    lineHeight: 13,
   },
   caret: {
     position: 'absolute',

@@ -1,54 +1,89 @@
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { StyleSheet, Text, TouchableOpacity, View, Animated, Platform } from 'react-native';
 import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 
 type Props = {
   onPress: () => void;
 };
 
-/** Prominent chat header CTA for Plan Golf Date. */
+/** Prominent chat header CTA for Plan Golf Date — one-time tip, then quiet. */
 export default function GolfDatePlanHeaderButton({ onPress }: Props) {
+  const pulse = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1100, useNativeDriver: false }),
+        Animated.timing(pulse, { toValue: 0, duration: 1100, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse]);
+
+  const borderColor = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['rgba(94, 234, 212, 0.4)', 'rgba(94, 234, 212, 0.95)'],
+  });
+  const shadowOpacity = pulse.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.25, 0.7],
+  });
+
   return (
     <ChatHeaderFeatureHint
-      storageKey="mulligan_chat_hint_golf_date_plan_v2"
+      storageKey="mulligan_chat_hint_golf_date_plan_v3"
       label="Plan Golf Date"
-      priority={20}
-      glowColor="rgba(45, 212, 191, 0.45)"
+      priority={10}
+      glowColor="rgba(45, 212, 191, 0.55)"
       alwaysPulse
-      alwaysShowTip
       tipPlacement="above"
       tipAlign="center"
-      tipLift={42}
-      tipWidth={118}
+      tipLift={40}
+      tipWidth={104}
     >
       {({ onPressWithHintDismiss }) => (
-        <TouchableOpacity
-          onPress={() => onPressWithHintDismiss(onPress)}
-          activeOpacity={0.85}
-          style={styles.button}
-          accessibilityLabel="Plan Golf Date"
+        <Animated.View
+          style={[
+            styles.buttonShell,
+            {
+              borderColor,
+              ...(Platform.OS === 'ios'
+                ? { shadowOpacity, shadowColor: '#2dd4bf', shadowRadius: 8, shadowOffset: { width: 0, height: 0 } }
+                : null),
+            },
+          ]}
         >
-          <Text style={styles.emoji}>⛳</Text>
-          <View style={styles.labelWrap}>
-            <Text style={styles.label} numberOfLines={1}>
-              Plan
-            </Text>
-          </View>
-        </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => onPressWithHintDismiss(onPress)}
+            activeOpacity={0.85}
+            style={styles.button}
+            accessibilityLabel="Plan Golf Date"
+          >
+            <Text style={styles.emoji}>🏌️</Text>
+            <View style={styles.labelWrap}>
+              <Text style={styles.label} numberOfLines={1}>
+                Plan
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
       )}
     </ChatHeaderFeatureHint>
   );
 }
 
 const styles = StyleSheet.create({
+  buttonShell: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(15, 118, 110, 0.55)',
+    overflow: 'hidden',
+  },
   button: {
     minWidth: 52,
     height: 40,
-    borderRadius: 20,
     paddingHorizontal: 10,
-    backgroundColor: 'rgba(15, 118, 110, 0.55)',
-    borderWidth: 1.5,
-    borderColor: 'rgba(94, 234, 212, 0.55)',
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',

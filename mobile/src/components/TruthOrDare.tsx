@@ -20,7 +20,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import { filterBannedGamePrompts } from '../utils/gamePromptGuards';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
-import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
@@ -592,26 +591,14 @@ export default function TruthOrDare({
   };
 
   const headerButton = (
-    <ChatHeaderFeatureHint
-      storageKey="mulligan_chat_hint_truth_or_dare_v1"
-      label="Truth or Dare"
-      priority={20}
-      glowColor="rgba(167, 139, 250, 0.45)"
-      enablePulse={false}
+    <TouchableOpacity
+      onPress={isUnlocked ? handleOpen : handleLockedPress}
+      activeOpacity={0.8}
+      style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+      accessibilityLabel="Truth or Dare"
     >
-      {({ onPressWithHintDismiss }) => (
-        <TouchableOpacity
-          onPress={() =>
-            onPressWithHintDismiss(isUnlocked ? handleOpen : handleLockedPress)
-          }
-          activeOpacity={0.8}
-          style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-          accessibilityLabel="Truth or Dare"
-        >
-          <Text style={styles.headerIconEmoji}>🎲</Text>
-        </TouchableOpacity>
-      )}
-    </ChatHeaderFeatureHint>
+      <Text style={styles.headerIconEmoji}>🎲</Text>
+    </TouchableOpacity>
   );
 
   if (headerMode) {

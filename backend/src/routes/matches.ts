@@ -35,6 +35,7 @@ function datePlanSnapshotFromJoin(m: Record<string, unknown>) {
     budgetRange: (m.dp_budget_range as 'low' | 'medium' | 'high' | null) || undefined,
   };
 }
+import { golfDatePlanSnapshotFromJoin } from '../services/golfDatePlanMessage.js';
 import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
 import {
   getActiveMatchCount,
@@ -1178,10 +1179,15 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
              dp.venue_address as dp_venue_address,
              dp.suggested_date as dp_suggested_date,
              dp.suggested_time as dp_suggested_time,
-             dp.budget_range as dp_budget_range
+             dp.budget_range as dp_budget_range,
+             gdp.course_id as gdp_course_id,
+             gdp.proposed_at as gdp_proposed_at,
+             gdp.notes_json as gdp_notes_json,
+             gdp.status as gdp_status
            FROM messages m
            LEFT JOIN profiles p ON p.user_id = m.sender_id
            LEFT JOIN date_plans dp ON dp.id = m.date_plan_id
+           LEFT JOIN golf_date_plans gdp ON gdp.id = m.golf_date_plan_id
            WHERE m.match_id = ?
            ORDER BY m.sent_at DESC
            LIMIT ?
@@ -1243,6 +1249,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         laughedBy: m.laughed_by_id || null,
         heartEyesBy: m.heart_eyes_by_id || null,
         datePlan: datePlanSnapshotFromJoin(m),
+        golfDatePlan: golfDatePlanSnapshotFromJoin(m),
       })),
     });
   } catch (error) {

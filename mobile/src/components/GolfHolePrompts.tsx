@@ -255,7 +255,20 @@ export default function GolfHolePrompts({
   const flagFloat = useRef(new Animated.Value(0)).current;
   const shimmer = useRef(new Animated.Value(0)).current;
   const shareFlash = useRef(new Animated.Value(0)).current;
+  const headerBorderPulse = useRef(new Animated.Value(0)).current;
   const animatingPrompt = useRef(false);
+
+  useEffect(() => {
+    if (!headerMode) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(headerBorderPulse, { toValue: 1, duration: 1100, useNativeDriver: false }),
+        Animated.timing(headerBorderPulse, { toValue: 0, duration: 1100, useNativeDriver: false }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [headerMode, headerBorderPulse]);
 
   const maybeCelebrateRoundComplete = useCallback(
     async (next: HolePromptState) => {
@@ -828,30 +841,52 @@ export default function GolfHolePrompts({
     <>
       {headerMode ? (
         <ChatHeaderFeatureHint
-          storageKey="mulligan_chat_hint_hole_prompts_v2"
+          storageKey="mulligan_chat_hint_hole_prompts_v3"
           label="Hole prompts"
           priority={15}
-          glowColor="rgba(45, 212, 191, 0.4)"
-          alwaysShowTip
+          glowColor="rgba(45, 212, 191, 0.55)"
           alwaysPulse
           tipPlacement="below"
           tipAlign="center"
-          tipLift={44}
+          tipLift={40}
           tipWidth={104}
         >
           {({ onPressWithHintDismiss }) => (
-            <TouchableOpacity
-              onPress={() => onPressWithHintDismiss(open)}
-              activeOpacity={0.85}
-              style={styles.headerBtn}
-              accessibilityLabel="Golf hole prompts"
-              accessibilityHint="Opens shared golf hole questions for this match"
+            <Animated.View
+              style={[
+                styles.headerBtnShell,
+                {
+                  borderColor: headerBorderPulse.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: ['rgba(45, 212, 191, 0.35)', 'rgba(45, 212, 191, 0.95)'],
+                  }),
+                  ...(Platform.OS === 'ios'
+                    ? {
+                        shadowColor: '#2dd4bf',
+                        shadowRadius: 8,
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: headerBorderPulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.22, 0.65],
+                        }),
+                      }
+                    : null),
+                },
+              ]}
             >
-              <Text style={styles.headerBtnEmoji}>⛳</Text>
-              <Text style={styles.headerBtnLabel} numberOfLines={1}>
-                Holes
-              </Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onPressWithHintDismiss(open)}
+                activeOpacity={0.85}
+                style={styles.headerBtn}
+                accessibilityLabel="Golf hole prompts"
+                accessibilityHint="Opens shared golf hole questions for this match"
+              >
+                <Text style={styles.headerBtnEmoji}>⛳</Text>
+                <Text style={styles.headerBtnLabel} numberOfLines={1}>
+                  Holes
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           )}
         </ChatHeaderFeatureHint>
       ) : (
@@ -1368,16 +1403,18 @@ export default function GolfHolePrompts({
 }
 
 const styles = StyleSheet.create({
+  headerBtnShell: {
+    borderRadius: 20,
+    borderWidth: 1.5,
+    backgroundColor: 'rgba(15, 118, 110, 0.35)',
+    overflow: 'hidden',
+  },
   headerBtn: {
     minWidth: 52,
     height: 40,
-    borderRadius: 20,
     paddingHorizontal: 10,
-    backgroundColor: 'rgba(15, 118, 110, 0.35)',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: 'rgba(45, 212, 191, 0.5)',
     flexDirection: 'row',
     gap: 4,
   },

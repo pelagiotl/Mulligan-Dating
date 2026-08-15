@@ -13172,6 +13172,144 @@ button.chat-avatar-btn .chat-avatar img {
   font-weight: 600;
 }
 
+.chat-golf-date-plan-card {
+  width: 100%;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(15, 118, 110, 0.28);
+  box-shadow: 0 8px 28px rgba(15, 118, 110, 0.14);
+}
+
+.chat-golf-date-plan-hero {
+  position: relative;
+  padding: 1rem 1rem 1.1rem;
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 55%, #134e4a 100%);
+  color: #fff;
+  overflow: hidden;
+}
+
+.chat-golf-date-plan-hero::after {
+  content: "";
+  position: absolute;
+  top: -2rem;
+  right: -1.25rem;
+  width: 7.5rem;
+  height: 7.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.chat-golf-date-plan-hero-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.chat-golf-date-plan-hero-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.chat-golf-date-plan-hero-sub {
+  margin: 0.25rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chat-golf-date-plan-body {
+  padding: 0.85rem 0.9rem 1rem;
+}
+
+.chat-golf-date-plan-course {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #134e4a;
+  line-height: 1.3;
+}
+
+.chat-golf-date-plan-city {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.chat-golf-date-plan-when {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f766e;
+}
+
+.chat-golf-date-plan-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.55rem;
+}
+
+.chat-golf-date-plan-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #334155;
+  background: #f0fdfa;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+}
+
+.chat-golf-date-plan-chip--first {
+  background: #ecfdf5;
+  border-color: rgba(16, 185, 129, 0.35);
+}
+
+.chat-golf-date-plan-chip--bring {
+  background: #fff7ed;
+  border-color: rgba(251, 146, 60, 0.28);
+}
+
+.chat-golf-date-plan-bringing-label {
+  margin: 0.75rem 0 0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  color: #64748b;
+  letter-spacing: 0.02em;
+}
+
+.chat-golf-date-plan-tbd {
+  margin: 0.35rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.chat-golf-date-plan-book {
+  display: block;
+  margin-top: 0.85rem;
+  text-align: center;
+  text-decoration: none;
+  color: #fff;
+  font-weight: 800;
+  font-size: 0.9rem;
+  padding: 0.75rem 1rem;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+}
+
+.chat-golf-date-plan-book:hover {
+  filter: brightness(1.05);
+}
+
 .message-content {
   padding: var(--space-4) var(--space-5);
   border-radius: var(--radius-xl);

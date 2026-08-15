@@ -1470,6 +1470,11 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists
   }
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN golf_date_plan_id ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists
+  }
 
   try {
     const { syncAccountStatusFromProfileReadiness } = await import('./utils/accountStatus.js');

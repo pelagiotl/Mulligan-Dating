@@ -1,6 +1,5 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 
 type Props = {
   onPress: () => void;
@@ -9,24 +8,14 @@ type Props = {
 /** Chat header entry point for Smart Intentional Date Planner — always available. */
 export default function HangoutPlanHeaderButton({ onPress }: Props) {
   return (
-    <ChatHeaderFeatureHint
-      storageKey="mulligan_chat_hint_hangout_plan_v1"
-      label="Smart date ideas"
-      priority={40}
-      glowColor="rgba(251, 191, 36, 0.4)"
-      enablePulse={false}
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={styles.button}
+      accessibilityLabel="Smart hangout ideas"
     >
-      {({ onPressWithHintDismiss }) => (
-        <TouchableOpacity
-          onPress={() => onPressWithHintDismiss(onPress)}
-          activeOpacity={0.8}
-          style={styles.button}
-          accessibilityLabel="Smart hangout ideas"
-        >
-          <Text style={styles.emoji}>📅</Text>
-        </TouchableOpacity>
-      )}
-    </ChatHeaderFeatureHint>
+      <Text style={styles.emoji}>📅</Text>
+    </TouchableOpacity>
   );
 }
 

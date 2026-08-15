@@ -75,9 +75,15 @@ import IntentionalDatePlanner from '../components/IntentionalDatePlanner';
 import DatePlanProposalMessageCard, {
   type DatePlanMessageSnapshot,
 } from '../components/DatePlanProposalMessageCard';
+import GolfDatePlanMessageCard, {
+  type GolfDatePlanMessageSnapshot,
+} from '../components/GolfDatePlanMessageCard';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
+import PhotoUnlockHintButton from '../components/PhotoUnlockHintButton';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
 import DateReflectionModal from '../components/DateReflectionModal';
+import DateReflectionPillButton from '../components/DateReflectionPillButton';
+import ChatHeaderAvatarGlow from '../components/ChatHeaderAvatarGlow';
 import BlockMatchConfirmModal from '../components/BlockMatchConfirmModal';
 import BlockMatchSuccessModal from '../components/BlockMatchSuccessModal';
 import AnimatedLaunchHourglass from '../components/AnimatedLaunchHourglass';
@@ -179,6 +185,7 @@ interface Message {
   laughedBy?: string | null;
   heartEyesBy?: string | null;
   datePlan?: DatePlanMessageSnapshot;
+  golfDatePlan?: GolfDatePlanMessageSnapshot;
 }
 
 type MessageReaction = 'like' | 'laugh' | 'heart-eyes';
@@ -286,7 +293,22 @@ const MessageBubble = React.memo(function MessageBubble({
   const isLikedByMe = !item.isOwn && item.likedBy === currentUserId;
   const isLaughedByMe = !item.isOwn && item.laughedBy === currentUserId;
   const isHeartEyesByMe = !item.isOwn && item.heartEyesBy === currentUserId;
-  const canReact = !item.isOwn && matchId && currentUserId && onReactionPress && !item.datePlan;
+  const canReact =
+    !item.isOwn &&
+    matchId &&
+    currentUserId &&
+    onReactionPress &&
+    !item.datePlan &&
+    !item.golfDatePlan;
+
+  if (item.golfDatePlan) {
+    return (
+      <View style={s.datePlanMessageWrap}>
+        <GolfDatePlanMessageCard plan={item.golfDatePlan} proposerName={item.senderName} />
+        <Text style={s.datePlanMessageTime}>{formattedTime}</Text>
+      </View>
+    );
+  }
 
   if (item.datePlan) {
     return (
@@ -1331,64 +1353,95 @@ function PhotoUnlockStage1BannerAndroid({
   const iconBubbleColors = midnight
     ? (['#9d174d', '#c2410c'] as const)
     : (['#db2777', '#ea580c'] as const);
+  const haloColor = midnight ? '#fb7185' : '#f472b6';
+
+  const glow = useRef(new Animated.Value(0.55)).current;
+  useEffect(() => {
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glow, { toValue: 1, duration: 1500, useNativeDriver: true }),
+        Animated.timing(glow, { toValue: 0.4, duration: 1500, useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [glow]);
+
+  const haloOpacity = glow.interpolate({
+    inputRange: [0.4, 1],
+    outputRange: [0.28, 0.75],
+  });
 
   return (
-    <TouchableOpacity activeOpacity={0.92} onPress={onPress} style={styles.photoUnlockBannerOuter}>
-      <LinearGradient
-        colors={[...rimColors]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.photoUnlockBannerRim}
-      >
-        <View style={[styles.photoUnlockBannerInner, { backgroundColor: innerBg }]}>
-          <View style={styles.photoUnlockBannerHeaderRow}>
-            <LinearGradient colors={[...iconBubbleColors]} style={styles.photoUnlockBannerIconBubble}>
-              <Text style={styles.photoUnlockBannerIconEmoji}>✨</Text>
-            </LinearGradient>
-            <View style={styles.photoUnlockBannerTitleBlock}>
-              <Text style={[styles.photoUnlockBannerTitle, { color: titleColor }]}>Unlock all photos</Text>
-              <Text style={[styles.photoUnlockBannerSubtitle, { color: subtitleColor }]}>
-                One preview now · full galleries after you both chat
-              </Text>
+    <View style={styles.photoUnlockBannerOuter}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.photoUnlockBannerHalo,
+          {
+            opacity: haloOpacity,
+            borderColor: haloColor,
+            shadowColor: haloColor,
+          },
+        ]}
+      />
+      <TouchableOpacity activeOpacity={0.92} onPress={onPress}>
+        <LinearGradient
+          colors={[...rimColors]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.photoUnlockBannerRim}
+        >
+          <View style={[styles.photoUnlockBannerInner, { backgroundColor: innerBg }]}>
+            <View style={styles.photoUnlockBannerHeaderRow}>
+              <LinearGradient colors={[...iconBubbleColors]} style={styles.photoUnlockBannerIconBubble}>
+                <Text style={styles.photoUnlockBannerIconEmoji}>✨</Text>
+              </LinearGradient>
+              <View style={styles.photoUnlockBannerTitleBlock}>
+                <Text style={[styles.photoUnlockBannerTitle, { color: titleColor }]}>Unlock all photos</Text>
+                <Text style={[styles.photoUnlockBannerSubtitle, { color: subtitleColor }]}>
+                  One preview now · full galleries after you both chat
+                </Text>
+              </View>
             </View>
-          </View>
-          <Text style={[styles.photoUnlockBannerBody, { color: bodyColor }]}>{bodyCopy}</Text>
-          <View style={styles.photoUnlockBannerChips}>
-            <View
-              style={[
-                styles.photoUnlockBannerChip,
-                midnight ? styles.photoUnlockBannerChipMidnight : styles.photoUnlockBannerChipDay,
-              ]}
-            >
-              <Text
+            <Text style={[styles.photoUnlockBannerBody, { color: bodyColor }]}>{bodyCopy}</Text>
+            <View style={styles.photoUnlockBannerChips}>
+              <View
                 style={[
-                  styles.photoUnlockBannerChipText,
-                  midnight ? styles.photoUnlockBannerChipTextMidnight : styles.photoUnlockBannerChipTextDay,
+                  styles.photoUnlockBannerChip,
+                  midnight ? styles.photoUnlockBannerChipMidnight : styles.photoUnlockBannerChipDay,
                 ]}
               >
-                📷 1 photo each
-              </Text>
-            </View>
-            <View
-              style={[
-                styles.photoUnlockBannerChip,
-                midnight ? styles.photoUnlockBannerChipMidnight : styles.photoUnlockBannerChipDay,
-              ]}
-            >
-              <Text
+                <Text
+                  style={[
+                    styles.photoUnlockBannerChipText,
+                    midnight ? styles.photoUnlockBannerChipTextMidnight : styles.photoUnlockBannerChipTextDay,
+                  ]}
+                >
+                  📷 1 photo each
+                </Text>
+              </View>
+              <View
                 style={[
-                  styles.photoUnlockBannerChipText,
-                  midnight ? styles.photoUnlockBannerChipTextMidnight : styles.photoUnlockBannerChipTextDay,
+                  styles.photoUnlockBannerChip,
+                  midnight ? styles.photoUnlockBannerChipMidnight : styles.photoUnlockBannerChipDay,
                 ]}
               >
-                💬 3 msgs each → unlock
-              </Text>
+                <Text
+                  style={[
+                    styles.photoUnlockBannerChipText,
+                    midnight ? styles.photoUnlockBannerChipTextMidnight : styles.photoUnlockBannerChipTextDay,
+                  ]}
+                >
+                  💬 3 msgs each → unlock
+                </Text>
+              </View>
             </View>
+            <Text style={[styles.photoUnlockBannerTapHint, { color: hintColor }]}>Tap for a quick recap</Text>
           </View>
-          <Text style={[styles.photoUnlockBannerTapHint, { color: hintColor }]}>Tap for a quick recap</Text>
-        </View>
-      </LinearGradient>
-    </TouchableOpacity>
+        </LinearGradient>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -1989,13 +2042,10 @@ export default function MatchesScreen() {
               onPress={() => setPhotoUnlockExplainerVisible(true)}
             />
           ) : (
-            <TouchableOpacity
-              activeOpacity={0.85}
-              style={styles.photoUnlockHintTouchable}
+            <PhotoUnlockHintButton
+              midnight={connectShellMode === 'midnight'}
               onPress={() => setPhotoUnlockExplainerVisible(true)}
-            >
-              <Text style={styles.photoUnlockHintText}>📷 How photos unlock</Text>
-            </TouchableOpacity>
+            />
           )
         ) : null}
         {typingUsers.size > 0 ? <TypingIndicator /> : null}
@@ -3539,7 +3589,7 @@ export default function MatchesScreen() {
         ]}
       >
         <View style={[styles.chatHeader, isSmallScreen && { padding: 10, paddingBottom: 26 }]}>
-          {/* Top row: Back | Photo | Name */}
+          {/* Top row: Back | spacer | Name + Photo (right cluster) */}
           <View style={[styles.chatHeaderTopRow, isSmallScreen && { marginBottom: 6 }]}>
             <TouchableOpacity
               onPress={() => {
@@ -3555,51 +3605,114 @@ export default function MatchesScreen() {
             >
               <Text style={styles.backButton}>← Back</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setShowProfileModal(true)}
-              activeOpacity={0.8}
-              style={styles.chatHeaderPhotoTouch}
-            >
-              {(() => {
-                const chatPhotoUrl = getMatchPhoto(selectedMatch);
-                const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
-                const photoStyle = isSmallScreen ? { width: 46, height: 46, borderRadius: 23, borderWidth: 2 } : undefined;
-                return photoUri ? (
-                  <OptimizedImage
-                    source={chatPhotoUrl}
-                    style={[styles.chatHeaderPhoto, photoStyle]}
-                    resizeMode="cover"
-                    showLoadingIndicator={false}
-                  />
-                ) : (
-                  <LinearGradient
-                    colors={['#667eea', '#764ba2', '#f093fb']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={[styles.chatHeaderPhotoPlaceholder, photoStyle]}
-                  >
-                    <Text style={[styles.chatHeaderPhotoPlaceholderText, isSmallScreen && { fontSize: 20 }]} numberOfLines={1}>
-                      {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
+            <View style={styles.chatHeaderTopSpacer} />
+            <View style={styles.chatHeaderIdentityCluster}>
+              <View style={styles.chatHeaderIdentityTextCol}>
+                <TouchableOpacity
+                  onPress={() => setShowProfileModal(true)}
+                  activeOpacity={0.8}
+                  style={styles.chatHeaderTitleTouch}
+                  accessibilityLabel={`View ${selectedMatch.otherUser.displayName}'s profile`}
+                >
+                  <View style={styles.chatHeaderTitleRow}>
+                    <Text
+                      style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {selectedMatch.otherUser.displayName}
                     </Text>
-                  </LinearGradient>
-                );
-              })()}
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setShowProfileModal(true)}
-              activeOpacity={0.8}
-              style={styles.chatHeaderTitleTouch}
-            >
-              <View style={styles.chatHeaderTitleRow}>
-                <Text style={[styles.chatHeaderTitle, isSmallScreen && { fontSize: 16 }]} numberOfLines={1} ellipsizeMode="tail">{selectedMatch.otherUser.displayName}</Text>
-                <VerifiedBadge verified={selectedMatch.otherUser.photoVerified} size={16} />
+                    <VerifiedBadge verified={selectedMatch.otherUser.photoVerified} size={16} />
+                  </View>
+                </TouchableOpacity>
+                {profileCompatibility != null && selectedMatch.stage !== 'pending' ? (
+                  <TouchableOpacity
+                    activeOpacity={0.85}
+                    onPress={() => setShowCompatibilityCardModal(true)}
+                    style={styles.chatHeaderCompatChipWrap}
+                    accessibilityLabel={`${profileCompatibility} percent interest match`}
+                    accessibilityHint="Opens shared interests"
+                  >
+                    <LinearGradient
+                      colors={
+                        profileCompatibility >= 80
+                          ? ['rgba(244, 114, 182, 0.92)', 'rgba(167, 139, 250, 0.88)']
+                          : profileCompatibility >= 60
+                            ? ['rgba(129, 140, 248, 0.92)', 'rgba(167, 139, 250, 0.88)']
+                            : ['rgba(99, 102, 241, 0.88)', 'rgba(139, 92, 246, 0.85)']
+                      }
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 1 }}
+                      style={[
+                        styles.chatHeaderCompatChip,
+                        isSmallScreen && styles.chatHeaderCompatChipSmall,
+                      ]}
+                    >
+                      <Text style={styles.chatHeaderCompatChipIcon}>🎯</Text>
+                      <Text
+                        style={[
+                          styles.chatHeaderCompatChipText,
+                          isSmallScreen && styles.chatHeaderCompatChipTextSmall,
+                        ]}
+                      >
+                        {profileCompatibility}%
+                      </Text>
+                    </LinearGradient>
+                  </TouchableOpacity>
+                ) : null}
               </View>
-            </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setShowProfileModal(true)}
+                activeOpacity={0.8}
+                accessibilityLabel={`View ${selectedMatch.otherUser.displayName}'s profile`}
+              >
+                {(() => {
+                  const chatPhotoUrl = getMatchPhoto(selectedMatch);
+                  const photoUri = chatPhotoUrl ? getPhotoUrl(chatPhotoUrl) : null;
+                  const avatarSize = isSmallScreen ? 46 : 56;
+                  const photoStyle = {
+                    width: avatarSize,
+                    height: avatarSize,
+                    borderRadius: avatarSize / 2,
+                    borderWidth: 0,
+                  };
+                  return (
+                    <ChatHeaderAvatarGlow size={avatarSize}>
+                      {photoUri ? (
+                        <OptimizedImage
+                          source={chatPhotoUrl}
+                          style={[styles.chatHeaderPhoto, photoStyle]}
+                          resizeMode="cover"
+                          showLoadingIndicator={false}
+                        />
+                      ) : (
+                        <LinearGradient
+                          colors={['#667eea', '#764ba2', '#f093fb']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 1 }}
+                          style={[styles.chatHeaderPhotoPlaceholder, photoStyle]}
+                        >
+                          <Text
+                            style={[
+                              styles.chatHeaderPhotoPlaceholderText,
+                              isSmallScreen && { fontSize: 20 },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {selectedMatch.otherUser.displayName.charAt(0).toUpperCase()}
+                          </Text>
+                        </LinearGradient>
+                      )}
+                    </ChatHeaderAvatarGlow>
+                  );
+                })()}
+              </TouchableOpacity>
+            </View>
           </View>
-          {/* Bottom row: stage/compatibility + game icons */}
+          {/* Bottom row: stage pill (if pending) + game icons */}
           <View style={[styles.chatHeaderBottomRow, isSmallScreen && { gap: 6 }]}>
-            <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 4 }]}>
-              {selectedMatch.stage === 'pending' ? (
+            {selectedMatch.stage === 'pending' ? (
+              <View style={[styles.chatHeaderPillRow, isSmallScreen && { gap: 4 }]}>
                 <View style={styles.chatHeaderStagePillWrap}>
                   <LinearGradient
                     colors={['rgba(255,255,255,0.25)', 'rgba(255,255,255,0.12)']}
@@ -3610,31 +3723,15 @@ export default function MatchesScreen() {
                     <Text style={styles.chatHeaderStagePillText}>Pending</Text>
                   </LinearGradient>
                 </View>
-              ) : null}
-              {profileCompatibility != null && selectedMatch.stage !== 'pending' && (
-                <TouchableOpacity
-                  activeOpacity={0.85}
-                  onPress={() => setShowCompatibilityCardModal(true)}
-                  style={styles.chatHeaderCompatibilityBadgeWrap}
-                >
-                  <LinearGradient
-                    colors={
-                      profileCompatibility >= 80 ? ['#ff6b9d', '#c44569', '#f093fb'] :
-                      profileCompatibility >= 60 ? ['#667eea', '#764ba2', '#a855f7'] :
-                      ['#6366f1', '#8b5cf6', '#a78bfa']
-                    }
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 1 }}
-                    style={styles.chatHeaderCompatibilityBadge}
-                  >
-                    <Text style={styles.chatHeaderCompatibilityIcon}>🎯</Text>
-                    <Text style={styles.chatHeaderCompatibilityText}>{profileCompatibility}%</Text>
-                  </LinearGradient>
-                </TouchableOpacity>
-              )}
-            </View>
+              </View>
+            ) : (
+              <View style={styles.chatHeaderBottomSpacer} />
+            )}
             {selectedMatch.stage !== 'pending' && (
               <View style={styles.chatHeaderActionsRow}>
+                {selectedMatch.connectedVia === 'golf_date' ? (
+                  <GolfDatePlanHeaderButton onPress={() => setGolfDatePlannerOpen(true)} />
+                ) : null}
                 {selectedMatch.connectedVia === 'golf_date' ? (
                   <GolfHolePrompts
                     matchId={selectedMatch.id}
@@ -3645,9 +3742,6 @@ export default function MatchesScreen() {
                     }}
                     onPlanAnotherRound={() => setGolfDatePlannerOpen(true)}
                   />
-                ) : null}
-                {selectedMatch.connectedVia === 'golf_date' ? (
-                  <GolfDatePlanHeaderButton onPress={() => setGolfDatePlannerOpen(true)} />
                 ) : null}
                 <TruthOrDare
                     matchId={selectedMatch.id}
@@ -4381,18 +4475,10 @@ export default function MatchesScreen() {
           collapsable={false}
         >
           {selectedMatch && selectedMatch.stage !== 'pending' ? (
-            <TouchableOpacity
-              style={[
-                styles.dateReflectionPill,
-                selectedMatch.mutualSecondDate ? styles.dateReflectionPillMutual : null,
-              ]}
+            <DateReflectionPillButton
+              mutualSecondDate={!!selectedMatch.mutualSecondDate}
               onPress={() => setDateReflectionOpen(true)}
-              activeOpacity={0.85}
-            >
-              <Text style={styles.dateReflectionPillText}>
-                {selectedMatch.mutualSecondDate ? 'Date 2 ready ✨' : '💑 We went on a date'}
-              </Text>
-            </TouchableOpacity>
+            />
           ) : null}
           {isRecordingVoice ? (
             <View style={[styles.pendingImagePreview, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12 }]}>
@@ -5173,6 +5259,7 @@ const styles = StyleSheet.create({
   },
   chatHeaderBackTouch: {
     marginRight: 12,
+    flexShrink: 0,
   },
   backButton: {
     fontSize: 16,
@@ -5182,8 +5269,27 @@ const styles = StyleSheet.create({
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
+  chatHeaderTopSpacer: {
+    flex: 1,
+    minWidth: 8,
+  },
+  chatHeaderIdentityCluster: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexShrink: 1,
+    maxWidth: '72%',
+    gap: 10,
+    zIndex: 1,
+  },
+  chatHeaderIdentityTextCol: {
+    flexShrink: 1,
+    minWidth: 0,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    gap: 4,
+  },
   chatHeaderPhotoTouch: {
-    marginRight: 12,
+    marginLeft: 0,
     flexShrink: 0,
     zIndex: 1,
   },
@@ -5222,15 +5328,18 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   chatHeaderTitleTouch: {
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
     justifyContent: 'center',
   },
   chatHeaderTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'flex-end',
     minWidth: 0,
-    flex: 1,
+    flexShrink: 1,
+    maxWidth: 168,
+    gap: 4,
   },
   chatHeaderTitle: {
     fontSize: 18,
@@ -5241,6 +5350,39 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
     flexShrink: 1,
     minWidth: 0,
+    textAlign: 'right',
+  },
+  chatHeaderCompatChipWrap: {
+    alignSelf: 'flex-end',
+  },
+  chatHeaderCompatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.45)',
+  },
+  chatHeaderCompatChipSmall: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+  chatHeaderCompatChipIcon: {
+    fontSize: 9,
+    marginRight: 3,
+  },
+  chatHeaderCompatChipText: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#fff',
+    letterSpacing: 0.2,
+    textShadowColor: 'rgba(0, 0, 0, 0.25)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1.5,
+  },
+  chatHeaderCompatChipTextSmall: {
+    fontSize: 10,
   },
   chatHeaderCompatibilityBadgeWrap: {
     marginLeft: 0,
@@ -5281,6 +5423,10 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.95)',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  chatHeaderBottomSpacer: {
+    flex: 1,
+    minWidth: 0,
   },
   compatCardTouchable: {
     width: '100%',
@@ -5818,22 +5964,6 @@ const styles = StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.9)',
     fontWeight: '600',
   },
-  photoUnlockHintTouchable: {
-    alignSelf: 'center',
-    marginBottom: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    backgroundColor: 'rgba(102, 126, 234, 0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.35)',
-  },
-  photoUnlockHintText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#4c51bf',
-    letterSpacing: 0.2,
-  },
   photoUnlockBannerOuter: {
     alignSelf: 'stretch',
     marginHorizontal: 12,
@@ -5843,6 +5973,16 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
     shadowRadius: 14,
+    position: 'relative',
+  },
+  photoUnlockBannerHalo: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 22,
+    borderWidth: 2,
+    transform: [{ scale: 1.02 }],
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.65,
+    shadowRadius: 12,
   },
   photoUnlockBannerRim: {
     borderRadius: 18,
@@ -5956,25 +6096,6 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: 4,
     backgroundColor: '#667eea',
-  },
-  dateReflectionPill: {
-    alignSelf: 'center',
-    backgroundColor: 'rgba(102, 126, 234, 0.12)',
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 999,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(102, 126, 234, 0.28)',
-  },
-  dateReflectionPillMutual: {
-    backgroundColor: 'rgba(245, 87, 108, 0.12)',
-    borderColor: 'rgba(245, 87, 108, 0.35)',
-  },
-  dateReflectionPillText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#5b21b6',
   },
   date2ReadyBadge: {
     paddingHorizontal: 10,

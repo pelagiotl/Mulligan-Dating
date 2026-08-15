@@ -27,7 +27,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
 import GameUnlockPlayModal from './GameUnlockPlayModal';
-import ChatHeaderFeatureHint from './ChatHeaderFeatureHint';
 import {
   MATCH_CHAT_DEPTH_MIN_EACH,
   matchChatDepthCounts,
@@ -1033,27 +1032,17 @@ export default function NeverHaveIEver({
   };
 
   const headerButton = (
-    <ChatHeaderFeatureHint
-      storageKey="mulligan_chat_hint_never_have_i_ever_v1"
-      label="Never Have I Ever"
-      priority={30}
-      glowColor="rgba(52, 211, 153, 0.45)"
-      enablePulse={false}
+    <TouchableOpacity
+      onPress={handleMonkeyPress}
+      activeOpacity={0.8}
+      style={[
+        styles.headerIconButton,
+        (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
+      ]}
+      accessibilityLabel="Never Have I Ever"
     >
-      {({ onPressWithHintDismiss }) => (
-        <TouchableOpacity
-          onPress={() => onPressWithHintDismiss(handleMonkeyPress)}
-          activeOpacity={0.8}
-          style={[
-            styles.headerIconButton,
-            (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
-          ]}
-          accessibilityLabel="Never Have I Ever"
-        >
-          <Text style={styles.headerIconEmoji}>🙊</Text>
-        </TouchableOpacity>
-      )}
-    </ChatHeaderFeatureHint>
+      <Text style={styles.headerIconEmoji}>🙊</Text>
+    </TouchableOpacity>
   );
 
   // Modal is shared - needed for headerMode when User B accepts (openForAccept)

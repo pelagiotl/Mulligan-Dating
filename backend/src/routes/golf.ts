@@ -5,19 +5,17 @@ import { rateLimitAPI } from '../middleware/security.js';
 import { db } from '../database.js';
 import { getMedfordGolfCourse, MEDFORD_GOLF_COURSES } from '../data/medfordGolfCourses.js';
 import { MATCH_POOL_GOLF_DATE } from '../utils/matchPools.js';
+import {
+  golfDatePlanFallbackContent,
+  serializeGolfDatePlanForMessage,
+  type GolfDatePlanBringingNotes,
+} from '../services/golfDatePlanMessage.js';
 
 export const golfRouter = Router();
 
 golfRouter.get('/courses', authenticateToken, async (_req: AuthRequest, res) => {
   res.json({ courses: MEDFORD_GOLF_COURSES });
 });
-
-type BringingNotes = {
-  balls?: boolean;
-  tees?: boolean;
-  snacks?: boolean;
-  other?: string;
-};
 
 async function requireGolfMatchMember(matchId: string, userId: string) {
   const row = (await db
@@ -41,15 +39,6 @@ async function requireGolfMatchMember(matchId: string, userId: string) {
     throw err;
   }
   return row;
-}
-
-function formatBringing(notes: BringingNotes): string {
-  const parts: string[] = [];
-  if (notes.balls) parts.push('balls');
-  if (notes.tees) parts.push('tees');
-  if (notes.snacks) parts.push('snacks');
-  if (notes.other?.trim()) parts.push(notes.other.trim());
-  return parts.length ? parts.join(', ') : 'TBD';
 }
 
 golfRouter.get('/date-plans/:matchId', authenticateToken, async (req: AuthRequest, res) => {
@@ -97,7 +86,7 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
       return res.status(400).json({ error: 'Invalid day/time' });
     }
 
-    const notes: BringingNotes = {
+    const notes: GolfDatePlanBringingNotes = {
       balls: !!req.body?.notes?.balls,
       tees: !!req.body?.notes?.tees,
       snacks: !!req.body?.notes?.snacks,
@@ -105,6 +94,7 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
     };
 
     const id = uuidv4();
+    const proposedAtIso = proposedAt ? proposedAt.toISOString() : null;
     await db
       .prepare(
         `INSERT INTO golf_date_plans
@@ -115,7 +105,7 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
         id,
         matchId,
         courseId,
-        proposedAt ? proposedAt.toISOString() : null,
+        proposedAtIso,
         JSON.stringify(notes),
         userId,
       ]);
@@ -130,28 +120,48 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
         })
       : 'time TBD';
 
-    const content =
-      `⛳ Golf date plan\n` +
-      `${course.name} · ${whenLabel}\n` +
-      `Bringing: ${formatBringing(notes)}\n` +
-      `Book tee time: ${course.bookingUrl}`;
+    const golfDatePlan = serializeGolfDatePlanForMessage({
+      id,
+      courseId,
+      course,
+      proposedAt: proposedAtIso,
+      notes,
+      status: 'proposed',
+    });
+    if (!golfDatePlan) {
+      return res.status(500).json({ error: 'Failed to build golf date plan message' });
+    }
+
+    const content = golfDatePlanFallbackContent(golfDatePlan, whenLabel);
+
+    const profileResult = await db
+      .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+      .get([userId]);
+    const profile = profileResult as { display_name: string | null } | undefined;
+    const proposerName = profile?.display_name || 'Someone';
 
     const msgId = uuidv4();
     await db
-      .prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`)
-      .run([msgId, matchId, userId, content]);
+      .prepare(
+        `INSERT INTO messages (id, match_id, sender_id, content, golf_date_plan_id) VALUES (?, ?, ?, ?, ?)`,
+      )
+      .run([msgId, matchId, userId, content, id]);
 
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
       if (io) {
-        io.to(`match:${matchId}`).emit('new_message', {
+        const payload = {
           id: msgId,
           matchId,
           senderId: userId,
+          senderName: proposerName,
           content,
           sentAt: new Date().toISOString(),
-        });
+          readAt: null,
+          golfDatePlan,
+        };
+        io.to(`match:${matchId}`).emit('new_message', payload);
       }
     } catch {
       /* non-fatal */
@@ -163,7 +173,7 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
         matchId,
         courseId,
         course,
-        proposedAt: proposedAt ? proposedAt.toISOString() : null,
+        proposedAt: proposedAtIso,
         notes,
         createdBy: userId,
         status: 'proposed',

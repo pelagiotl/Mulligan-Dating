@@ -19,6 +19,9 @@ import VerifiedBadge from "../components/VerifiedBadge";
 import DatePlanProposalMessageCard, {
   type DatePlanMessageSnapshot,
 } from "../components/DatePlanProposalMessageCard";
+import GolfDatePlanMessageCard, {
+  type GolfDatePlanMessageSnapshot,
+} from "../components/GolfDatePlanMessageCard";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
 import ReportUserModal from "../components/ReportUserModal";
@@ -194,6 +197,7 @@ interface Message {
   videoUrl?: string | null;
   audioUrl?: string | null;
   datePlan?: DatePlanMessageSnapshot;
+  golfDatePlan?: GolfDatePlanMessageSnapshot;
 }
 
 const CHAT_MEDIA_LOCKED_HINT =
@@ -2745,6 +2749,22 @@ export default function Matches() {
                     <div className="messages-list" key={selectedMatch.id}>
                       {messages.map((msg) => {
                         const hasMedia = !!(msg.imageUrl || msg.videoUrl || msg.audioUrl);
+                        if (msg.golfDatePlan) {
+                          return (
+                            <div key={msg.id} className="message message--date-plan">
+                              <GolfDatePlanMessageCard
+                                plan={msg.golfDatePlan}
+                                proposerName={msg.senderName}
+                              />
+                              <div className="chat-date-plan-time">
+                                {new Date(msg.sentAt).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
                         if (msg.datePlan) {
                           return (
                             <div key={msg.id} className="message message--date-plan">
