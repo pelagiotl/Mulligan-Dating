@@ -36,6 +36,7 @@ function datePlanSnapshotFromJoin(m: Record<string, unknown>) {
   };
 }
 import { golfDatePlanSnapshotFromJoin } from '../services/golfDatePlanMessage.js';
+import { chatPromptFromMessageRow } from '../services/chatPromptMessage.js';
 import { DEFAULT_MATCH_SLOT_LIMIT } from "../config/matchSlots.js";
 import {
   getActiveMatchCount,
@@ -1183,7 +1184,8 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
              gdp.course_id as gdp_course_id,
              gdp.proposed_at as gdp_proposed_at,
              gdp.notes_json as gdp_notes_json,
-             gdp.status as gdp_status
+             gdp.status as gdp_status,
+             gdp.created_by as gdp_created_by
            FROM messages m
            LEFT JOIN profiles p ON p.user_id = m.sender_id
            LEFT JOIN date_plans dp ON dp.id = m.date_plan_id
@@ -1250,6 +1252,7 @@ matchesRouter.get("/:matchId/messages", authenticateToken, async (req: AuthReque
         heartEyesBy: m.heart_eyes_by_id || null,
         datePlan: datePlanSnapshotFromJoin(m),
         golfDatePlan: golfDatePlanSnapshotFromJoin(m),
+        chatPrompt: chatPromptFromMessageRow(m),
       })),
     });
   } catch (error) {
@@ -2460,15 +2463,45 @@ matchesRouter.post("/:matchId/unlock-game", authenticateToken, rateLimitAPI, asy
       try {
         const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
         const notifyMsgId = uuidv4();
-        const notifyContent = '🎲 Truth or Dare is ready! Pick Truth or Dare anytime.';
-        const runInsert = db.prepare('INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)').run([notifyMsgId, matchId, userId, notifyContent]);
+        const {
+          todUnlockContent,
+          chatPromptMetaJson,
+          serializeChatPrompt,
+        } = await import('../services/chatPromptMessage.js');
+        const notifyContent = todUnlockContent();
+        const chatPrompt = serializeChatPrompt({
+          kind: 'tod_unlock',
+          text: notifyContent,
+          title: 'Truth or Dare unlocked',
+        });
+        const metaJson = chatPromptMetaJson({
+          text: notifyContent,
+          title: 'Truth or Dare unlocked',
+        });
+        const runInsert = db
+          .prepare(
+            'INSERT INTO messages (id, match_id, sender_id, content, prompt_kind, prompt_meta_json) VALUES (?, ?, ?, ?, ?, ?)',
+          )
+          .run([notifyMsgId, matchId, userId, notifyContent, 'tod_unlock', metaJson]);
         if (runInsert instanceof Promise) await runInsert;
         const senderProfileResult = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]);
         const senderProfile = (senderProfileResult instanceof Promise ? await senderProfileResult : senderProfileResult) as { display_name: string } | undefined;
         const senderName = senderProfile?.display_name || 'Someone';
         const { getIO } = await import('../socket.js');
         const io = getIO();
-        if (io) io.to(`match:${matchId}`).emit('new_message', { id: notifyMsgId, matchId, content: notifyContent, imageUrl: null, senderId: userId, senderName, sentAt: new Date().toISOString(), readAt: null });
+        if (io) {
+          io.to(`match:${matchId}`).emit('new_message', {
+            id: notifyMsgId,
+            matchId,
+            content: notifyContent,
+            imageUrl: null,
+            senderId: userId,
+            senderName,
+            sentAt: new Date().toISOString(),
+            readAt: null,
+            chatPrompt,
+          });
+        }
         const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
         const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
         if (isPushNotificationConfigured()) {
@@ -3219,11 +3252,59 @@ matchesRouter.post("/:matchId/truth-or-dare/send-to-chat", authenticateToken, ra
   try {
     const userId = req.userId!;
     const { matchId } = req.params;
+    const promptTypeRaw = req.body?.promptType;
+    const promptRaw = req.body?.prompt;
+    const promptType =
+      promptTypeRaw === 'truth' || promptTypeRaw === 'dare' ? promptTypeRaw : null;
+    const promptText =
+      typeof promptRaw === 'string' ? promptRaw.trim().slice(0, 500) : '';
+
+    if (!promptType || !promptText) {
+      return res.status(400).json({ error: 'promptType and prompt are required' });
+    }
 
     const matchResult = db.prepare('SELECT user1_id, user2_id FROM matches WHERE id = ? AND (user1_id = ? OR user2_id = ?)')
       .get([matchId, userId, userId]);
     const match = (matchResult instanceof Promise ? await matchResult : matchResult) as { user1_id: string; user2_id: string } | undefined;
     if (!match) return res.status(404).json({ error: "Match not found" });
+
+    const {
+      todKindFromPromptType,
+      todPromptContent,
+      chatPromptMetaJson,
+      serializeChatPrompt,
+    } = await import('../services/chatPromptMessage.js');
+    const { sanitizeText } = await import('../middleware/security.js');
+    const sanitizedPrompt = sanitizeText(promptText, 500);
+    const kind = todKindFromPromptType(promptType);
+    const content = todPromptContent(promptType, sanitizedPrompt);
+    const chatPrompt = serializeChatPrompt({ kind, text: sanitizedPrompt });
+    const metaJson = chatPromptMetaJson({ text: sanitizedPrompt });
+    const messageId = uuidv4();
+
+    const insertMsg = db
+      .prepare(
+        `INSERT INTO messages (id, match_id, sender_id, content, prompt_kind, prompt_meta_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run([messageId, matchId, userId, content, kind, metaJson]);
+    if (insertMsg instanceof Promise) await insertMsg;
+
+    const senderProfileResult = db.prepare('SELECT display_name FROM profiles WHERE user_id = ?').get([userId]);
+    const senderProfile = (senderProfileResult instanceof Promise ? await senderProfileResult : senderProfileResult) as { display_name: string } | undefined;
+    const senderName = senderProfile?.display_name || 'Someone';
+    const sentAt = new Date().toISOString();
+    const messagePayload = {
+      id: messageId,
+      matchId,
+      content,
+      imageUrl: null as null,
+      senderId: userId,
+      senderName,
+      sentAt,
+      readAt: null as null,
+      chatPrompt,
+    };
 
     const gameResult = db.prepare('SELECT current_turn_user_id, round_count FROM truth_or_dare_games WHERE match_id = ?').get([matchId]);
     const game = (gameResult instanceof Promise ? await gameResult : gameResult) as { current_turn_user_id?: string | null; round_count?: number | string | null } | undefined;
@@ -3235,11 +3316,47 @@ matchesRouter.post("/:matchId/truth-or-dare/send-to-chat", authenticateToken, ra
       .run([nextTurnUserId, nextRoundCount, matchId]);
     if (updateTurnResult instanceof Promise) await updateTurnResult;
 
+    const otherUserId = match.user1_id === userId ? match.user2_id : match.user1_id;
+
     try {
       const { getIO } = await import('../socket.js');
       const io = getIO();
-      if (io) io.to(`match:${matchId}`).emit('truth_or_dare_updated', { matchId, currentTurnUserId: nextTurnUserId, roundCount: nextRoundCount });
+      if (io) {
+        io.to(`match:${matchId}`).emit('new_message', messagePayload);
+        io.to(`user:${otherUserId}`).emit('new_message', messagePayload);
+        io.to(`match:${matchId}`).emit('truth_or_dare_updated', {
+          matchId,
+          currentTurnUserId: nextTurnUserId,
+          roundCount: nextRoundCount,
+        });
+      }
     } catch (e) { /* ignore */ }
+
+    try {
+      const { sendMessagePushNotification, isPushNotificationConfigured, isExpoPushToken } = await import('../services/pushNotifications.js');
+      const { sendWebPushToUser, isWebPushConfigured } = await import('../services/webPushDelivery.js');
+      if (isPushNotificationConfigured()) {
+        let otherTokenRow = db.prepare('SELECT push_token, push_notify_messages FROM users WHERE id = ?').get([otherUserId]);
+        if (otherTokenRow instanceof Promise) otherTokenRow = await otherTokenRow;
+        const row = otherTokenRow as { push_token: string | null; push_notify_messages: number | null } | undefined;
+        const wants = row?.push_notify_messages === undefined || row?.push_notify_messages === null || row.push_notify_messages !== 0;
+        if (wants && row?.push_token && isExpoPushToken(row.push_token)) {
+          await sendMessagePushNotification(row.push_token, senderName, content, matchId, userId);
+        }
+        if (wants && isWebPushConfigured()) {
+          await sendWebPushToUser(otherUserId, {
+            title: senderName,
+            body: content,
+            tag: `msg-${matchId}`,
+            url: '/matches',
+            data: { type: 'new_message', matchId, senderId: userId },
+          });
+        }
+      }
+    } catch (pushErr) {
+      console.warn('ToD send-to-chat push failed (non-critical):', pushErr);
+    }
+
     res.json({
       success: true,
       currentPrompt: null,
@@ -3247,6 +3364,7 @@ matchesRouter.post("/:matchId/truth-or-dare/send-to-chat", authenticateToken, ra
       currentTurnUserId: nextTurnUserId,
       isYourTurn: nextTurnUserId === userId,
       roundCount: nextRoundCount,
+      message: messagePayload,
     });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);

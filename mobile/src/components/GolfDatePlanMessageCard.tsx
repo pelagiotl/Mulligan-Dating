@@ -2,7 +2,7 @@
  * In-chat Golf Date invitation card — richer than a plain text bubble.
  */
 
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,8 +10,12 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { api } from '../utils/api';
+import DayTimePickerModal from './DayTimePickerModal';
+import { dateToDatetimeLocal, datetimeLocalToDate } from '../utils/datetimeLocal';
 
 export type GolfDatePlanMessageSnapshot = {
   id: string;
@@ -30,6 +34,7 @@ export type GolfDatePlanMessageSnapshot = {
     other?: string;
   };
   status?: string;
+  createdBy?: string;
 };
 
 function formatWhen(iso?: string | null): string {
@@ -43,6 +48,11 @@ function formatWhen(iso?: string | null): string {
     hour: 'numeric',
     minute: '2-digit',
   });
+}
+
+function firstNamePossessive(fullName: string): string {
+  const first = fullName.trim().split(/\s+/)[0] || 'They';
+  return /s$/i.test(first) ? `${first}'` : `${first}'s`;
 }
 
 function holesLabel(h?: GolfDatePlanMessageSnapshot['holes']): string | null {
@@ -71,18 +81,66 @@ function bringingChips(notes: GolfDatePlanMessageSnapshot['notes']): string[] {
 export default function GolfDatePlanMessageCard({
   plan,
   proposerName,
+  matchId,
+  currentUserId,
+  isOwnInvite,
+  onPlanUpdated,
 }: {
   plan: GolfDatePlanMessageSnapshot;
   proposerName: string;
+  matchId?: string;
+  currentUserId?: string | null;
+  /** True when the viewer sent this invite (they cannot retune their own proposal here). */
+  isOwnInvite?: boolean;
+  onPlanUpdated?: (next: GolfDatePlanMessageSnapshot) => void;
 }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+
   const holes = holesLabel(plan.holes);
   const difficulty = difficultyLabel(plan.difficulty);
   const bringing = bringingChips(plan.notes);
+  const bringingTitle = `🎒 ${firstNamePossessive(proposerName)} bringing`;
+
+  const canAdjustDate = Boolean(
+    matchId &&
+      currentUserId &&
+      (isOwnInvite === false ||
+        (plan.createdBy != null && plan.createdBy !== currentUserId)),
+  );
+
+  const pickerValue = useMemo(() => {
+    if (plan.proposedAt) {
+      const d = new Date(plan.proposedAt);
+      if (!Number.isNaN(d.getTime())) return dateToDatetimeLocal(d);
+    }
+    return dateToDatetimeLocal(new Date());
+  }, [plan.proposedAt]);
 
   const openBooking = () => {
     void Linking.openURL(plan.bookingUrl).catch(() => {
       Alert.alert('Golf Date', 'Could not open booking link');
     });
+  };
+
+  const submitNewTime = async (value: string) => {
+    if (!matchId || saving) return;
+    setSaving(true);
+    try {
+      const data = await api.put<{
+        golfDatePlan?: GolfDatePlanMessageSnapshot;
+      }>(`/golf/date-plans/${matchId}/${plan.id}`, {
+        proposedAt: datetimeLocalToDate(value).toISOString(),
+      });
+      setPickerOpen(false);
+      if (data.golfDatePlan) {
+        onPlanUpdated?.(data.golfDatePlan);
+      }
+    } catch (e) {
+      Alert.alert('Golf Date', e instanceof Error ? e.message : 'Could not update tee time');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -102,7 +160,22 @@ export default function GolfDatePlanMessageCard({
       <View style={styles.body}>
         <Text style={styles.courseName}>{plan.courseName}</Text>
         <Text style={styles.courseCity}>📍 {plan.courseCity}</Text>
-        <Text style={styles.when}>📅 {formatWhen(plan.proposedAt)}</Text>
+
+        {canAdjustDate ? (
+          <TouchableOpacity
+            onPress={() => setPickerOpen(true)}
+            activeOpacity={0.85}
+            style={styles.whenBtn}
+            disabled={saving}
+            accessibilityLabel="Suggest a different tee time"
+            accessibilityHint="Opens a date and time picker"
+          >
+            <Text style={styles.when}>📅 {formatWhen(plan.proposedAt)}</Text>
+            <Text style={styles.whenHint}>{saving ? 'Saving…' : 'Tap to suggest a new time'}</Text>
+          </TouchableOpacity>
+        ) : (
+          <Text style={styles.when}>📅 {formatWhen(plan.proposedAt)}</Text>
+        )}
 
         {(holes || difficulty || plan.bestForFirstDate) && (
           <View style={styles.metaRow}>
@@ -124,7 +197,7 @@ export default function GolfDatePlanMessageCard({
           </View>
         )}
 
-        <Text style={styles.bringingLabel}>🎒 Who's bringing</Text>
+        <Text style={styles.bringingLabel}>{bringingTitle}</Text>
         {bringing.length > 0 ? (
           <View style={styles.metaRow}>
             {bringing.map((chip) => (
@@ -144,10 +217,24 @@ export default function GolfDatePlanMessageCard({
             end={{ x: 1, y: 1 }}
             style={styles.bookGrad}
           >
-            <Text style={styles.bookBtnText}>📅 Book Tee Time</Text>
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.bookBtnText}>📅 Book Tee Time</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       </View>
+
+      <DayTimePickerModal
+        visible={pickerOpen}
+        value={pickerValue}
+        title="Suggest a new tee time"
+        onCancel={() => setPickerOpen(false)}
+        onConfirm={(value) => {
+          void submitNewTime(value);
+        }}
+      />
     </View>
   );
 }
@@ -218,11 +305,23 @@ const styles = StyleSheet.create({
     color: '#475569',
     fontWeight: '600',
   },
+  whenBtn: {
+    alignSelf: 'flex-start',
+    marginTop: 2,
+    paddingVertical: 4,
+    paddingRight: 8,
+  },
   when: {
     fontSize: 13,
     fontWeight: '700',
     color: '#0f766e',
     marginTop: 2,
+  },
+  whenHint: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#14b8a6',
   },
   metaRow: {
     flexDirection: 'row',

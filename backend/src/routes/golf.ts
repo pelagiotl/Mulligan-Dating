@@ -6,6 +6,7 @@ import { db } from '../database.js';
 import { getMedfordGolfCourse, MEDFORD_GOLF_COURSES } from '../data/medfordGolfCourses.js';
 import { MATCH_POOL_GOLF_DATE } from '../utils/matchPools.js';
 import {
+  formatGolfWhenLabel,
   golfDatePlanFallbackContent,
   serializeGolfDatePlanForMessage,
   type GolfDatePlanBringingNotes,
@@ -110,15 +111,7 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
         userId,
       ]);
 
-    const whenLabel = proposedAt
-      ? proposedAt.toLocaleString('en-US', {
-          weekday: 'short',
-          month: 'short',
-          day: 'numeric',
-          hour: 'numeric',
-          minute: '2-digit',
-        })
-      : 'time TBD';
+    const whenLabel = formatGolfWhenLabel(proposedAtIso);
 
     const golfDatePlan = serializeGolfDatePlanForMessage({
       id,
@@ -127,6 +120,7 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
       proposedAt: proposedAtIso,
       notes,
       status: 'proposed',
+      createdBy: userId,
     });
     if (!golfDatePlan) {
       return res.status(500).json({ error: 'Failed to build golf date plan message' });
@@ -187,3 +181,150 @@ golfRouter.post('/date-plans/:matchId', authenticateToken, rateLimitAPI, async (
     res.status(500).json({ error: 'Failed to create golf date plan' });
   }
 });
+
+/** Recipient (not the creator) can suggest a new tee time on an invite. */
+golfRouter.put(
+  '/date-plans/:matchId/:planId',
+  authenticateToken,
+  rateLimitAPI,
+  async (req: AuthRequest, res) => {
+    try {
+      const matchId = req.params.matchId;
+      const planId = req.params.planId;
+      const userId = req.userId!;
+      await requireGolfMatchMember(matchId, userId);
+
+      const planRow = (await db
+        .prepare(`SELECT * FROM golf_date_plans WHERE id = ? AND match_id = ?`)
+        .get([planId, matchId])) as
+        | {
+            id: string;
+            match_id: string;
+            course_id: string;
+            proposed_at: string | null;
+            notes_json: string | null;
+            created_by: string;
+            status: string;
+          }
+        | undefined;
+
+      if (!planRow) {
+        return res.status(404).json({ error: 'Golf date plan not found' });
+      }
+      if (planRow.created_by === userId) {
+        return res.status(400).json({
+          error: 'Only your match can suggest a different tee time on this invite',
+        });
+      }
+
+      const proposedAt = req.body?.proposedAt ? new Date(req.body.proposedAt) : null;
+      if (!proposedAt || Number.isNaN(proposedAt.getTime())) {
+        return res.status(400).json({ error: 'Pick a valid day and time' });
+      }
+      const proposedAtIso = proposedAt.toISOString();
+
+      await db
+        .prepare(
+          `UPDATE golf_date_plans
+           SET proposed_at = ?, updated_at = CURRENT_TIMESTAMP, status = 'proposed'
+           WHERE id = ?`,
+        )
+        .run([proposedAtIso, planId]);
+
+      let notes: GolfDatePlanBringingNotes = {};
+      if (planRow.notes_json) {
+        try {
+          notes = JSON.parse(planRow.notes_json) as GolfDatePlanBringingNotes;
+        } catch {
+          notes = {};
+        }
+      }
+
+      const golfDatePlan = serializeGolfDatePlanForMessage({
+        id: planId,
+        courseId: planRow.course_id,
+        proposedAt: proposedAtIso,
+        notes,
+        status: 'proposed',
+        createdBy: planRow.created_by,
+      });
+      if (!golfDatePlan) {
+        return res.status(500).json({ error: 'Failed to update golf date plan' });
+      }
+
+      const whenLabel = formatGolfWhenLabel(proposedAtIso);
+      const content = golfDatePlanFallbackContent(golfDatePlan, whenLabel);
+
+      const inviteMsg = (await db
+        .prepare(
+          `SELECT id FROM messages WHERE match_id = ? AND golf_date_plan_id = ? ORDER BY sent_at ASC LIMIT 1`,
+        )
+        .get([matchId, planId])) as { id: string } | undefined;
+
+      if (inviteMsg?.id) {
+        await db
+          .prepare(`UPDATE messages SET content = ? WHERE id = ?`)
+          .run([content, inviteMsg.id]);
+      }
+
+      const profileResult = await db
+        .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+        .get([userId]);
+      const profile = profileResult as { display_name: string | null } | undefined;
+      const adjusterName = profile?.display_name || 'Someone';
+
+      const noteId = uuidv4();
+      const noteContent = `🗓️ ${adjusterName} suggested a new tee time: ${whenLabel}`;
+      await db
+        .prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`)
+        .run([noteId, matchId, userId, noteContent]);
+
+      try {
+        const { getIO } = await import('../socket.js');
+        const io = getIO();
+        if (io) {
+          if (inviteMsg?.id) {
+            io.to(`match:${matchId}`).emit('golf_date_plan_updated', {
+              matchId,
+              messageId: inviteMsg.id,
+              content,
+              golfDatePlan,
+            });
+          }
+          io.to(`match:${matchId}`).emit('new_message', {
+            id: noteId,
+            matchId,
+            senderId: userId,
+            senderName: adjusterName,
+            content: noteContent,
+            sentAt: new Date().toISOString(),
+            readAt: null,
+          });
+        }
+      } catch {
+        /* non-fatal */
+      }
+
+      res.json({
+        plan: {
+          id: planId,
+          matchId,
+          courseId: planRow.course_id,
+          course: getMedfordGolfCourse(planRow.course_id) || null,
+          proposedAt: proposedAtIso,
+          notes,
+          createdBy: planRow.created_by,
+          status: 'proposed',
+        },
+        messageId: inviteMsg?.id || null,
+        golfDatePlan,
+        message: 'Tee time updated',
+      });
+    } catch (error: unknown) {
+      const err = error as { status?: number; message?: string };
+      if (err.status) return res.status(err.status).json({ error: err.message });
+      console.error('Golf date plan PUT error:', error);
+      res.status(500).json({ error: 'Failed to update tee time' });
+    }
+  },
+);

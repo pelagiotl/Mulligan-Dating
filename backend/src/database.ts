@@ -1475,6 +1475,16 @@ export async function initDatabase() {
   } catch (e) {
     // Column already exists
   }
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN prompt_kind ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists
+  }
+  try {
+    await execSQL(`ALTER TABLE messages ADD COLUMN prompt_meta_json ${usePostgres ? 'TEXT' : 'TEXT'}`);
+  } catch (e) {
+    // Column already exists
+  }
 
   try {
     const { syncAccountStatusFromProfileReadiness } = await import('./utils/accountStatus.js');

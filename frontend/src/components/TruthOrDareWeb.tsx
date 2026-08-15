@@ -457,15 +457,15 @@ export default function TruthOrDareWeb({
   };
 
   const handleSendToChat = async () => {
-    if (prompt) {
-      const prefix = promptType === "truth" ? "Truth: " : "Dare: ";
-      await onSendToChat(`${prefix}${prompt}`);
-      try {
-        const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/send-to-chat`, {});
-        setGameState((prev) => (prev ? { ...prev, ...data } : data));
-      } catch (e) {
-        console.warn("Truth or Dare send-to-chat:", e);
-      }
+    if (!prompt) return;
+    try {
+      const data = await api.post<GameState & { message?: unknown }>(
+        `/matches/${matchId}/truth-or-dare/send-to-chat`,
+        { promptType, prompt },
+      );
+      setGameState((prev) => (prev ? { ...prev, ...data } : data));
+    } catch (e) {
+      console.warn("Truth or Dare send-to-chat:", e);
     }
     closeModal();
   };

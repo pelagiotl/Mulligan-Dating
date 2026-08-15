@@ -11,6 +11,13 @@ import {
   type GolfPromptDepth,
 } from '../constants/golfHolePrompts.js';
 import { MATCH_POOL_GOLF_DATE } from '../utils/matchPools.js';
+import {
+  chatPromptMetaJson,
+  formatGolfHoleAnswerLabel,
+  golfHolePromptContent,
+  parseChatPromptMeta,
+  serializeChatPrompt,
+} from './chatPromptMessage.js';
 
 export type DepthPreference = 'light' | 'deeper' | 'auto';
 export type GolfRoundHoleCount = 9 | 18;
@@ -778,20 +785,45 @@ export async function shareCurrentGolfHolePrompt(
     throw err;
   }
 
-  await sendHolePromptToChat(matchId, userId, state.currentHole, state.prompt, state.promptId);
+  await sendHolePromptToChat(
+    matchId,
+    userId,
+    state.currentHole,
+    state.prompt,
+    state.promptId,
+    formatGolfHoleAnswerLabel(state.myAnswer),
+  );
   const session = await getSessionRow(matchId);
   const match = await requireGolfMatch(matchId, userId);
   return toState(session!, userId, match);
 }
 
-/** Post one copy of a hole prompt into match chat. Retries are intentionally idempotent. */
+/** Post one copy of a hole prompt into match chat. Retries update the existing card with the answer. */
 export async function sendHolePromptToChat(
   matchId: string,
   userId: string,
   hole: number,
   promptText?: string,
   promptId = '',
+  answerLabel = '',
 ): Promise<void> {
+  const text = promptText || `Hole ${hole}`;
+  const answer = answerLabel.trim() || undefined;
+  const content = golfHolePromptContent(hole, text, answer);
+  const chatPrompt = serializeChatPrompt({
+    kind: 'golf_hole',
+    text,
+    hole,
+    answer,
+  });
+  const metaJson = chatPromptMetaJson({
+    text,
+    hole,
+    promptId: promptId || undefined,
+    answer,
+  });
+
+  let shareInserted = false;
   const shareId = uuidv4();
   try {
     await db
@@ -801,22 +833,136 @@ export async function sendHolePromptToChat(
          VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
       )
       .run([shareId, matchId, hole, promptId, userId]);
+    shareInserted = true;
   } catch (error) {
-    // The unique match/hole constraint makes retries and simultaneous taps safe;
-    // propagate any other database failure instead of pretending the share succeeded.
-    if (await isHolePromptShared(matchId, hole)) return;
+    if (!(await isHolePromptShared(matchId, hole))) throw error;
+  }
+
+  let senderName = 'Someone';
+  try {
+    const profileResult = await db
+      .prepare('SELECT display_name FROM profiles WHERE user_id = ?')
+      .get([userId]);
+    const profile = profileResult as { display_name: string | null } | undefined;
+    if (profile?.display_name) senderName = profile.display_name;
+  } catch {
+    /* ignore */
+  }
+
+  const existing = await findGolfHoleChatMessage(matchId, hole);
+  if (existing?.id) {
+    await db
+      .prepare(
+        `UPDATE messages
+         SET content = ?, prompt_kind = 'golf_hole', prompt_meta_json = ?
+         WHERE id = ?`,
+      )
+      .run([content, metaJson, existing.id]);
+    await emitChatPromptMessage(matchId, {
+      id: existing.id,
+      content,
+      senderId: userId,
+      senderName,
+      chatPrompt,
+      updated: true,
+    });
+    return;
+  }
+
+  const messageId = uuidv4();
+  try {
+    await db
+      .prepare(
+        `INSERT INTO messages (id, match_id, sender_id, content, prompt_kind, prompt_meta_json)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+      )
+      .run([messageId, matchId, userId, content, 'golf_hole', metaJson]);
+  } catch (error) {
+    if (shareInserted) {
+      await db.prepare(`DELETE FROM golf_hole_prompt_shares WHERE id = ?`).run([shareId]);
+    }
     throw error;
   }
 
-  const text = promptText || `Hole ${hole}`;
-  const content = `⛳ Hole ${hole}: ${text}`;
+  await emitChatPromptMessage(matchId, {
+    id: messageId,
+    content,
+    senderId: userId,
+    senderName,
+    chatPrompt,
+    updated: false,
+  });
+}
+
+async function findGolfHoleChatMessage(
+  matchId: string,
+  hole: number,
+): Promise<{ id: string } | undefined> {
+  const rows = (await db
+    .prepare(
+      `SELECT id, content, prompt_kind, prompt_meta_json
+       FROM messages
+       WHERE match_id = ?
+       ORDER BY sent_at DESC
+       LIMIT 80`,
+    )
+    .all([matchId])) as Array<{
+    id: string;
+    content?: string;
+    prompt_kind?: string | null;
+    prompt_meta_json?: string | null;
+  }>;
+
+  for (const row of rows || []) {
+    if (row.prompt_kind === 'golf_hole') {
+      const meta = parseChatPromptMeta(row.prompt_meta_json);
+      if (meta.hole === hole) return { id: row.id };
+    }
+    const content = typeof row.content === 'string' ? row.content : '';
+    if (new RegExp(`^⛳\\s*Hole\\s+${hole}:`, 'i').test(content.trim())) {
+      return { id: row.id };
+    }
+  }
+  return undefined;
+}
+
+async function emitChatPromptMessage(
+  matchId: string,
+  payload: {
+    id: string;
+    content: string;
+    senderId: string;
+    senderName: string;
+    chatPrompt: ReturnType<typeof serializeChatPrompt>;
+    updated: boolean;
+  },
+): Promise<void> {
   try {
-    await db
-      .prepare(`INSERT INTO messages (id, match_id, sender_id, content) VALUES (?, ?, ?, ?)`)
-      .run([uuidv4(), matchId, userId, content]);
-  } catch (error) {
-    // A failed write must leave the prompt eligible to share again.
-    await db.prepare(`DELETE FROM golf_hole_prompt_shares WHERE id = ?`).run([shareId]);
-    throw error;
+    const { getIO } = await import('../socket.js');
+    const io = getIO();
+    if (!io) return;
+    const body = {
+      id: payload.id,
+      matchId,
+      content: payload.content,
+      imageUrl: null,
+      senderId: payload.senderId,
+      senderName: payload.senderName,
+      sentAt: new Date().toISOString(),
+      readAt: null,
+      chatPrompt: payload.chatPrompt,
+    };
+    if (payload.updated) {
+      io.to(`match:${matchId}`).emit('chat_prompt_updated', {
+        matchId,
+        messageId: payload.id,
+        content: payload.content,
+        chatPrompt: payload.chatPrompt,
+      });
+    } else {
+      io.to(`match:${matchId}`).emit('new_message', body);
+    }
+  } catch {
+    /* non-fatal */
   }
 }

@@ -13249,6 +13249,101 @@ button.chat-avatar-btn .chat-avatar img {
   color: #0f766e;
 }
 
+.chat-golf-date-plan-when-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.15rem;
+  margin: 0.35rem 0 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.chat-golf-date-plan-when-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.chat-golf-date-plan-when-btn .chat-golf-date-plan-when {
+  margin: 0;
+}
+
+.chat-golf-date-plan-when-hint {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #14b8a6;
+}
+
+.chat-golf-date-plan-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.chat-golf-date-plan-modal {
+  width: min(100%, 22rem);
+  border-radius: 16px;
+  background: #fff;
+  padding: 1.1rem 1rem 1rem;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.22);
+}
+
+.chat-golf-date-plan-modal-title {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+  font-weight: 800;
+  color: #134e4a;
+}
+
+.chat-golf-date-plan-modal-error {
+  margin: 0.65rem 0 0;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #b91c1c;
+}
+
+.chat-golf-date-plan-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.chat-golf-date-plan-modal-cancel,
+.chat-golf-date-plan-modal-save {
+  border-radius: 10px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-golf-date-plan-modal-cancel {
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #475569;
+}
+
+.chat-golf-date-plan-modal-save {
+  border: none;
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  color: #fff;
+}
+
+.chat-golf-date-plan-modal-cancel:disabled,
+.chat-golf-date-plan-modal-save:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .chat-golf-date-plan-chips {
   display: flex;
   flex-wrap: wrap;
@@ -13308,6 +13403,150 @@ button.chat-avatar-btn .chat-avatar img {
 
 .chat-golf-date-plan-book:hover {
   filter: brightness(1.05);
+}
+
+.chat-prompt-card {
+  width: 100%;
+  max-width: 22rem;
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+}
+
+.chat-prompt-card-hero {
+  position: relative;
+  padding: 1rem 1rem 1.1rem;
+  color: #fff;
+  overflow: hidden;
+}
+
+.chat-prompt-card-hero::after {
+  content: "";
+  position: absolute;
+  top: -2rem;
+  right: -1.25rem;
+  width: 7.5rem;
+  height: 7.5rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  pointer-events: none;
+}
+
+.chat-prompt-card--golf .chat-prompt-card-hero {
+  background: linear-gradient(135deg, #0f766e 0%, #0d9488 55%, #134e4a 100%);
+}
+
+.chat-prompt-card--truth .chat-prompt-card-hero {
+  background: linear-gradient(135deg, #4338ca 0%, #6366f1 55%, #312e81 100%);
+}
+
+.chat-prompt-card--dare .chat-prompt-card-hero {
+  background: linear-gradient(135deg, #be185d 0%, #ec4899 55%, #9d174d 100%);
+}
+
+.chat-prompt-card--unlock .chat-prompt-card-hero {
+  background: linear-gradient(135deg, #7c3aed 0%, #a855f7 55%, #db2777 100%);
+}
+
+.chat-prompt-card--golf {
+  border-color: rgba(15, 118, 110, 0.28);
+  box-shadow: 0 8px 28px rgba(15, 118, 110, 0.14);
+}
+
+.chat-prompt-card--truth {
+  border-color: rgba(99, 102, 241, 0.32);
+  box-shadow: 0 8px 28px rgba(67, 56, 202, 0.14);
+}
+
+.chat-prompt-card--dare {
+  border-color: rgba(236, 72, 153, 0.32);
+  box-shadow: 0 8px 28px rgba(190, 24, 93, 0.14);
+}
+
+.chat-prompt-card--unlock {
+  border-color: rgba(168, 85, 247, 0.32);
+  box-shadow: 0 8px 28px rgba(124, 58, 237, 0.14);
+}
+
+.chat-prompt-card-eyebrow {
+  margin: 0 0 0.2rem;
+  font-size: 0.65rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.chat-prompt-card-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.chat-prompt-card-sub {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.chat-prompt-card-body {
+  padding: 0.85rem 1rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.chat-prompt-card-badge {
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #64748b;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+}
+
+.chat-prompt-card-text {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #1e293b;
+  line-height: 1.45;
+}
+
+.chat-prompt-card-answer {
+  padding: 0.65rem 0.75rem;
+  border-radius: 12px;
+  background: #f0fdfa;
+  border: 1px solid rgba(15, 118, 110, 0.18);
+}
+
+.chat-prompt-card-answer-label {
+  margin: 0 0 0.25rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
+
+.chat-prompt-card-answer-body {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #134e4a;
+  line-height: 1.4;
+}
+
+.chat-prompt-card-footer {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #94a3b8;
 }
 
 .message-content {

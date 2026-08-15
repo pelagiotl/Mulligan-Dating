@@ -21,6 +21,7 @@ export type GolfDatePlanMessageSnapshot = {
   proposedAt?: string | null;
   notes: GolfDatePlanBringingNotes;
   status?: string;
+  createdBy?: string;
 };
 
 export function formatGolfBringing(notes: GolfDatePlanBringingNotes): string {
@@ -32,6 +33,19 @@ export function formatGolfBringing(notes: GolfDatePlanBringingNotes): string {
   return parts.length ? parts.join(', ') : 'TBD';
 }
 
+export function formatGolfWhenLabel(iso?: string | null): string {
+  if (!iso) return 'time TBD';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return 'time TBD';
+  return d.toLocaleString('en-US', {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
 export function serializeGolfDatePlanForMessage(params: {
   id: string;
   courseId: string;
@@ -39,6 +53,7 @@ export function serializeGolfDatePlanForMessage(params: {
   proposedAt?: string | null;
   notes: GolfDatePlanBringingNotes;
   status?: string;
+  createdBy?: string;
 }): GolfDatePlanMessageSnapshot | undefined {
   const course = params.course || getMedfordGolfCourse(params.courseId);
   if (!course) return undefined;
@@ -54,6 +69,7 @@ export function serializeGolfDatePlanForMessage(params: {
     proposedAt: params.proposedAt ?? null,
     notes: params.notes || {},
     status: params.status,
+    createdBy: params.createdBy,
   };
 }
 
@@ -78,6 +94,7 @@ export function golfDatePlanSnapshotFromJoin(
     proposedAt: m.gdp_proposed_at ? String(m.gdp_proposed_at) : null,
     notes,
     status: m.gdp_status ? String(m.gdp_status) : undefined,
+    createdBy: m.gdp_created_by ? String(m.gdp_created_by) : undefined,
   });
 }
 

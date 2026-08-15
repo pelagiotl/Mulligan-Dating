@@ -633,7 +633,7 @@ export default function GolfHolePrompts({
   };
 
   const shareCurrent = async () => {
-    if (!state || busy || state.sharedToChat) return;
+    if (!state || busy) return;
     setBusy(true);
     try {
       const next = await api.post<HolePromptState>(`/matches/${matchId}/hole-prompts/share`, {});
@@ -1320,10 +1320,13 @@ export default function GolfHolePrompts({
                             </LinearGradient>
                           </TouchableOpacity>
                         ) : state?.sharedToChat ? (
-                          <View
-                            accessibilityRole="text"
-                            accessibilityLabel="This hole prompt has been shared to chat"
-                            style={[styles.primaryWrap, styles.sharedWrap]}
+                          <TouchableOpacity
+                            activeOpacity={0.9}
+                            disabled={busy || loading || !state}
+                            onPress={() => void shareCurrent()}
+                            accessibilityLabel="Refresh this hole prompt in chat"
+                            accessibilityHint="Updates the chat card with your answer"
+                            style={[styles.primaryWrap, styles.sharedWrap, (busy || loading || !state) && styles.disabled]}
                           >
                             <LinearGradient
                               colors={['#134e4a', '#115e59', '#0f766e']}
@@ -1331,9 +1334,15 @@ export default function GolfHolePrompts({
                               end={{ x: 1, y: 1 }}
                               style={styles.primaryGrad}
                             >
-                              <Text style={[styles.primaryText, styles.sharedText]}>✓ Shared to chat</Text>
+                              {busy ? (
+                                <ActivityIndicator color="#ecfdf5" />
+                              ) : (
+                                <Text style={[styles.primaryText, styles.sharedText]}>
+                                  ✓ Shared · tap to refresh
+                                </Text>
+                              )}
                             </LinearGradient>
-                          </View>
+                          </TouchableOpacity>
                         ) : (
                           <TouchableOpacity
                             activeOpacity={0.9}

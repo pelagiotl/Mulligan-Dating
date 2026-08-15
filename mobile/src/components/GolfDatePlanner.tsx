@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import DayTimePickerModal from './DayTimePickerModal';
+import GolfDatePlanSharedCelebration from './GolfDatePlanSharedCelebration';
 import {
   defaultDatetimeLocal,
   formatFriendlyDatetime,
@@ -96,6 +97,8 @@ export default function GolfDatePlanner({
   const [tees, setTees] = useState(true);
   const [snacks, setSnacks] = useState(false);
   const [other, setOther] = useState('');
+  const [sharedSuccess, setSharedSuccess] = useState(false);
+  const [sharedCourseName, setSharedCourseName] = useState<string | null>(null);
 
   const selected = useMemo(
     () => courses.find((c) => c.id === courseId) || null,
@@ -122,6 +125,8 @@ export default function GolfDatePlanner({
     setTees(true);
     setSnacks(false);
     setOther('');
+    setSharedSuccess(false);
+    setSharedCourseName(null);
   }, []);
 
   useEffect(() => {
@@ -158,14 +163,20 @@ export default function GolfDatePlanner({
         proposedAt: datetimeLocalToDate(proposedAt).toISOString(),
         notes: { balls, tees, snacks, other: other.trim() },
       });
+      setSharedCourseName(selected.name);
+      setSharedSuccess(true);
       onPlanSent?.();
-      onClose();
-      Alert.alert('Golf Date', `Plan shared with ${partnerName}.`);
     } catch (e) {
       Alert.alert('Golf Date', e instanceof Error ? e.message : 'Could not save plan');
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const dismissSharedSuccess = () => {
+    setSharedSuccess(false);
+    setSharedCourseName(null);
+    onClose();
   };
 
   const openBooking = (url: string) => {
@@ -175,7 +186,13 @@ export default function GolfDatePlanner({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <>
+    <Modal
+      visible={visible && !sharedSuccess}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <View style={[styles.root, { paddingTop: Math.max(insets.top, 12) }]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -469,6 +486,14 @@ export default function GolfDatePlanner({
         }}
       />
     </Modal>
+
+    <GolfDatePlanSharedCelebration
+      visible={visible && sharedSuccess}
+      partnerName={partnerName}
+      courseName={sharedCourseName}
+      onDismiss={dismissSharedSuccess}
+    />
+    </>
   );
 }
 

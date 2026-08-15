@@ -22,6 +22,10 @@ import DatePlanProposalMessageCard, {
 import GolfDatePlanMessageCard, {
   type GolfDatePlanMessageSnapshot,
 } from "../components/GolfDatePlanMessageCard";
+import ChatPromptMessageCard, {
+  resolveChatPrompt,
+  type ChatPromptSnapshot,
+} from "../components/ChatPromptMessageCard";
 import GameRequestModalWeb, { type PendingGameRequestWeb } from "../components/GameRequestModalWeb";
 import ChatMediaModerationModal, { type ChatMediaKind } from "../components/ChatMediaModerationModal";
 import ReportUserModal from "../components/ReportUserModal";
@@ -198,6 +202,7 @@ interface Message {
   audioUrl?: string | null;
   datePlan?: DatePlanMessageSnapshot;
   golfDatePlan?: GolfDatePlanMessageSnapshot;
+  chatPrompt?: ChatPromptSnapshot;
 }
 
 const CHAT_MEDIA_LOCKED_HINT =
@@ -786,6 +791,44 @@ export default function Matches() {
         prev.map((m) => (m.id === data.messageId ? { ...m, heartEyesBy: null } : m))
       );
     });
+
+    socket.on(
+      "golf_date_plan_updated",
+      (data: {
+        matchId: string;
+        messageId: string;
+        content: string;
+        golfDatePlan: GolfDatePlanMessageSnapshot;
+      }) => {
+        if (data.matchId !== selectedMatchIdRef.current) return;
+        patchThreadMessages(data.matchId, (prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, content: data.content, golfDatePlan: data.golfDatePlan }
+              : m
+          )
+        );
+      }
+    );
+
+    socket.on(
+      "chat_prompt_updated",
+      (data: {
+        matchId: string;
+        messageId: string;
+        content: string;
+        chatPrompt: ChatPromptSnapshot;
+      }) => {
+        if (data.matchId !== selectedMatchIdRef.current) return;
+        patchThreadMessages(data.matchId, (prev) =>
+          prev.map((m) =>
+            m.id === data.messageId
+              ? { ...m, content: data.content, chatPrompt: data.chatPrompt }
+              : m
+          )
+        );
+      }
+    );
 
     // Handle new match notification
     socket.on('new_match', (data: { matchId: string; otherUserId: string; otherUserName: string; message: string; stage: string }) => {
@@ -2755,6 +2798,16 @@ export default function Matches() {
                               <GolfDatePlanMessageCard
                                 plan={msg.golfDatePlan}
                                 proposerName={msg.senderName}
+                                matchId={selectedMatch.id}
+                                currentUserId={user.id}
+                                isOwnInvite={msg.isOwn}
+                                onPlanUpdated={(next) => {
+                                  patchThreadMessages(selectedMatch.id, (prev) =>
+                                    prev.map((m) =>
+                                      m.id === msg.id ? { ...m, golfDatePlan: next } : m
+                                    )
+                                  );
+                                }}
                               />
                               <div className="chat-date-plan-time">
                                 {new Date(msg.sentAt).toLocaleTimeString([], {
@@ -2771,6 +2824,23 @@ export default function Matches() {
                               <DatePlanProposalMessageCard
                                 plan={msg.datePlan}
                                 proposerName={msg.senderName}
+                              />
+                              <div className="chat-date-plan-time">
+                                {new Date(msg.sentAt).toLocaleTimeString([], {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </div>
+                            </div>
+                          );
+                        }
+                        const resolvedChatPrompt = resolveChatPrompt(msg.chatPrompt, msg.content);
+                        if (resolvedChatPrompt) {
+                          return (
+                            <div key={msg.id} className="message message--date-plan">
+                              <ChatPromptMessageCard
+                                prompt={resolvedChatPrompt}
+                                senderName={msg.senderName}
                               />
                               <div className="chat-date-plan-time">
                                 {new Date(msg.sentAt).toLocaleTimeString([], {

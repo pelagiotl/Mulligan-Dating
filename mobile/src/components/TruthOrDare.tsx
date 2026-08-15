@@ -563,17 +563,17 @@ export default function TruthOrDare({
   };
 
   const handleSendToChat = async () => {
-    if (prompt && onSendToChat) {
-      const prefix = promptType === 'truth' ? 'Truth: ' : 'Dare: ';
-      onSendToChat(`${prefix}${prompt}`);
-      try {
-        const data = await api.post<GameState>(`/matches/${matchId}/truth-or-dare/send-to-chat`, {});
-        setGameState((prev) => (prev ? { ...prev, ...data } : data));
-        setPrompt('');
-        setStep('choose');
-      } catch (e) {
-        console.warn('Truth or Dare send-to-chat turn switch failed:', e);
-      }
+    if (!prompt) return;
+    try {
+      const data = await api.post<GameState & { message?: unknown }>(
+        `/matches/${matchId}/truth-or-dare/send-to-chat`,
+        { promptType, prompt },
+      );
+      setGameState((prev) => (prev ? { ...prev, ...data } : data));
+      setPrompt('');
+      setStep('choose');
+    } catch (e) {
+      console.warn('Truth or Dare send-to-chat failed:', e);
     }
     handleClose();
   };
@@ -676,7 +676,7 @@ export default function TruthOrDare({
                       </>
                     )}
                     <View style={styles.promptActions}>
-                      {onSendToChat && !loading && <TouchableOpacity onPress={handleSendToChat} style={styles.sendButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#651fff']} style={styles.sendButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.sendButtonText}>Send to Chat 💬</Text></LinearGradient></TouchableOpacity>}
+                      {!loading && <TouchableOpacity onPress={handleSendToChat} style={styles.sendButton} activeOpacity={0.8}><LinearGradient colors={['#7c4dff', '#651fff']} style={styles.sendButtonGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}><Text style={styles.sendButtonText}>Send to Chat 💬</Text></LinearGradient></TouchableOpacity>}
                       {renderAnotherOneButton()}
                     </View>
                   </>
@@ -889,7 +889,7 @@ export default function TruthOrDare({
                     </>
                   )}
                   <View style={styles.promptActions}>
-                    {onSendToChat && !loading && (
+                    {!loading && (
                       <TouchableOpacity
                         onPress={handleSendToChat}
                         style={styles.sendButton}

@@ -78,6 +78,10 @@ import DatePlanProposalMessageCard, {
 import GolfDatePlanMessageCard, {
   type GolfDatePlanMessageSnapshot,
 } from '../components/GolfDatePlanMessageCard';
+import ChatPromptMessageCard, {
+  resolveChatPrompt,
+  type ChatPromptSnapshot,
+} from '../components/ChatPromptMessageCard';
 import PhotoUnlockExplainerModal from '../components/PhotoUnlockExplainerModal';
 import PhotoUnlockHintButton from '../components/PhotoUnlockHintButton';
 import MatchPartnerProfileModal from '../components/MatchPartnerProfileModal';
@@ -186,6 +190,7 @@ interface Message {
   heartEyesBy?: string | null;
   datePlan?: DatePlanMessageSnapshot;
   golfDatePlan?: GolfDatePlanMessageSnapshot;
+  chatPrompt?: ChatPromptSnapshot;
 }
 
 type MessageReaction = 'like' | 'laugh' | 'heart-eyes';
@@ -275,6 +280,7 @@ const MessageBubble = React.memo(function MessageBubble({
   matchId,
   currentUserId,
   onReactionPress,
+  onGolfDatePlanUpdated,
 }: {
   item: Message;
   animValue: Animated.Value | null;
@@ -283,6 +289,7 @@ const MessageBubble = React.memo(function MessageBubble({
   matchId?: string | null;
   currentUserId?: string | null;
   onReactionPress?: (messageId: string, reaction: MessageReaction, currentlyActive: boolean) => void;
+  onGolfDatePlanUpdated?: (messageId: string, next: GolfDatePlanMessageSnapshot) => void;
 }) {
   const formattedTime = useMemo(
     () => new Date(item.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -293,18 +300,27 @@ const MessageBubble = React.memo(function MessageBubble({
   const isLikedByMe = !item.isOwn && item.likedBy === currentUserId;
   const isLaughedByMe = !item.isOwn && item.laughedBy === currentUserId;
   const isHeartEyesByMe = !item.isOwn && item.heartEyesBy === currentUserId;
+  const resolvedChatPrompt = resolveChatPrompt(item.chatPrompt, item.content);
   const canReact =
     !item.isOwn &&
     matchId &&
     currentUserId &&
     onReactionPress &&
     !item.datePlan &&
-    !item.golfDatePlan;
+    !item.golfDatePlan &&
+    !resolvedChatPrompt;
 
   if (item.golfDatePlan) {
     return (
       <View style={s.datePlanMessageWrap}>
-        <GolfDatePlanMessageCard plan={item.golfDatePlan} proposerName={item.senderName} />
+        <GolfDatePlanMessageCard
+          plan={item.golfDatePlan}
+          proposerName={item.senderName}
+          matchId={matchId || undefined}
+          currentUserId={currentUserId}
+          isOwnInvite={item.isOwn}
+          onPlanUpdated={(next) => onGolfDatePlanUpdated?.(item.id, next)}
+        />
         <Text style={s.datePlanMessageTime}>{formattedTime}</Text>
       </View>
     );
@@ -314,6 +330,15 @@ const MessageBubble = React.memo(function MessageBubble({
     return (
       <View style={s.datePlanMessageWrap}>
         <DatePlanProposalMessageCard plan={item.datePlan} proposerName={item.senderName} />
+        <Text style={s.datePlanMessageTime}>{formattedTime}</Text>
+      </View>
+    );
+  }
+
+  if (resolvedChatPrompt) {
+    return (
+      <View style={s.datePlanMessageWrap}>
+        <ChatPromptMessageCard prompt={resolvedChatPrompt} senderName={item.senderName} />
         <Text style={s.datePlanMessageTime}>{formattedTime}</Text>
       </View>
     );
@@ -1987,6 +2012,15 @@ export default function MatchesScreen() {
     [selectedMatch?.id, user?.id]
   );
 
+  const handleGolfDatePlanUpdated = useCallback(
+    (messageId: string, next: GolfDatePlanMessageSnapshot) => {
+      setMessages((prev) =>
+        prev.map((m) => (m.id === messageId ? { ...m, golfDatePlan: next } : m)),
+      );
+    },
+    [],
+  );
+
   // Memoized renderItem - with inverted list, index 0 = newest; animate last N (first N in reversed)
   const renderMessageItem = useCallback(
     ({ item, index }: { item: Message; index: number }) => {
@@ -2016,10 +2050,18 @@ export default function MatchesScreen() {
           matchId={selectedMatch?.id}
           currentUserId={user?.id}
           onReactionPress={handleReactionPress}
+          onGolfDatePlanUpdated={handleGolfDatePlanUpdated}
         />
       );
     },
-    [messages.length, onImagePress, selectedMatch?.id, user?.id, handleReactionPress]
+    [
+      messages.length,
+      onImagePress,
+      selectedMatch?.id,
+      user?.id,
+      handleReactionPress,
+      handleGolfDatePlanUpdated,
+    ],
   );
 
   // Prune old message animations when list changes (prevents memory leak)
@@ -2280,6 +2322,46 @@ export default function MatchesScreen() {
         setMessages((prev) => prev.map((m) => (m.id === data.messageId ? { ...m, heartEyesBy: null } : m)));
       });
 
+      socket.on(
+        'golf_date_plan_updated',
+        (data: {
+          matchId: string;
+          messageId: string;
+          content: string;
+          golfDatePlan: GolfDatePlanMessageSnapshot;
+        }) => {
+          const currentMatchId = selectedMatchRef.current?.id;
+          if (currentMatchId !== data.matchId) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.messageId
+                ? { ...m, content: data.content, golfDatePlan: data.golfDatePlan }
+                : m,
+            ),
+          );
+        },
+      );
+
+      socket.on(
+        'chat_prompt_updated',
+        (data: {
+          matchId: string;
+          messageId: string;
+          content: string;
+          chatPrompt: ChatPromptSnapshot;
+        }) => {
+          const currentMatchId = selectedMatchRef.current?.id;
+          if (currentMatchId !== data.matchId) return;
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === data.messageId
+                ? { ...m, content: data.content, chatPrompt: data.chatPrompt }
+                : m,
+            ),
+          );
+        },
+      );
+
       // Match notification: refresh list (match sound played by AuthContext for both users)
       socket.on('new_match', () => {
         fetchMatches();
@@ -2358,6 +2440,8 @@ export default function MatchesScreen() {
           socketRef.current.off('message_unlaughed');
           socketRef.current.off('message_heart_eyes');
           socketRef.current.off('message_unheart_eyes');
+          socketRef.current.off('golf_date_plan_updated');
+          socketRef.current.off('chat_prompt_updated');
           socketRef.current.off('new_match');
           socketRef.current.off('stage_advanced');
           socketRef.current.off('game_request_received');
@@ -4255,7 +4339,6 @@ export default function MatchesScreen() {
           matchId={selectedMatch.id}
           partnerName={selectedMatch.otherUser.displayName || 'your match'}
           onPlanSent={() => {
-            setGolfDatePlannerOpen(false);
             void fetchMessages(selectedMatch.id);
           }}
         />
