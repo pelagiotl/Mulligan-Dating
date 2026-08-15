@@ -10,7 +10,7 @@ import { playMulliganBootSound } from '../utils/sounds';
 
 const { width: SCREEN_W } = Dimensions.get('window');
 
-/** Whoosh crest of boot SFX (~220ms on v6) lands on the lip-out / “Just missed…”. */
+/** Whoosh crest of boot SFX (~220ms on v8) lands on the lip-out / “Just missed…”. Rising bells follow. */
 const MISS_SOUND_AT_MS = 280 + 900 - 220;
 
 type Props = {

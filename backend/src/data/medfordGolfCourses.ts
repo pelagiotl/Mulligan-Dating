@@ -53,7 +53,7 @@ export const MEDFORD_GOLF_COURSES: readonly MedfordGolfCourse[] = [
     holes: '18',
     difficulty: 'moderate',
     bestForFirstDate: true,
-    bookingUrl: 'https://www.quailpointgolf.com/',
+    bookingUrl: 'https://www.golfrev.com/go/tee_times/?htc=354&courseid=1800&r=1',
     note: FIRST_DATE_NOTE,
     phone: '541-857-7000',
   },

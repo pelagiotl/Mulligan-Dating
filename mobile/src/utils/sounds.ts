@@ -45,13 +45,13 @@ try {
 }
 
 try {
-  // v6 — whoosh only (no soft hit / pitched resolve)
-  // Rollback: require('../../assets/mulligan-boot-sound-v5.wav')
-  //   (archive: assets/sound-archive/mulligan-boot-sound-v5.wav)
-  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v6.wav');
+  // v8 — whoosh → rising bell arpeggio (payoff after “Just missed…”)
+  // Rollback: require('../../assets/mulligan-boot-sound-v7.wav')
+  //   (archive: assets/sound-archive/mulligan-boot-sound-v7.wav)
+  mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v8.wav');
 } catch {
   try {
-    mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v5.wav');
+    mulliganBootSoundModule = require('../../assets/mulligan-boot-sound-v7.wav');
   } catch {
     try {
       mulliganBootSoundModule = require('../../assets/mulligan-boot-sound.wav');
