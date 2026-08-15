@@ -1214,24 +1214,39 @@ export default function GolfHolePrompts({
 
                           {state?.myAnswer || state?.completed ? (
                             <View style={styles.rateRow}>
-                              <Text style={styles.rateLabel}>Rate this prompt</Text>
+                              <View style={styles.rateCopy}>
+                                <Text style={styles.rateLabel}>Shape the next holes</Text>
+                                <Text style={styles.rateHint}>
+                                  {state?.myRating === 'up'
+                                    ? 'We’ll lean into this vibe.'
+                                    : state?.myRating === 'down'
+                                      ? 'We’ll avoid this kind of prompt.'
+                                      : 'Your feedback tunes the remaining prompts.'}
+                                </Text>
+                              </View>
                               <TouchableOpacity
                                 onPress={() => void ratePrompt('up')}
+                                accessibilityRole="button"
+                                accessibilityLabel="More prompts like this"
                                 style={[
                                   styles.rateBtn,
                                   state?.myRating === 'up' && styles.rateBtnOn,
                                 ]}
                               >
                                 <Text style={styles.rateBtnText}>👍</Text>
+                                <Text style={styles.rateBtnLabel}>More</Text>
                               </TouchableOpacity>
                               <TouchableOpacity
                                 onPress={() => void ratePrompt('down')}
+                                accessibilityRole="button"
+                                accessibilityLabel="Fewer prompts like this"
                                 style={[
                                   styles.rateBtn,
                                   state?.myRating === 'down' && styles.rateBtnOn,
                                 ]}
                               >
                                 <Text style={styles.rateBtnText}>👎</Text>
+                                <Text style={styles.rateBtnLabel}>Less</Text>
                               </TouchableOpacity>
                             </View>
                           ) : null}
@@ -1651,16 +1666,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  rateCopy: {
+    flex: 1,
+    gap: 2,
+  },
   rateLabel: {
     color: 'rgba(204, 251, 241, 0.7)',
     fontSize: 12,
-    fontWeight: '600',
-    marginRight: 4,
+    fontWeight: '700',
+  },
+  rateHint: {
+    color: 'rgba(153, 246, 228, 0.64)',
+    fontSize: 10,
+    fontWeight: '500',
+    lineHeight: 14,
   },
   rateBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 48,
+    height: 44,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.06)',
@@ -1673,6 +1697,12 @@ const styles = StyleSheet.create({
   },
   rateBtnText: {
     fontSize: 16,
+  },
+  rateBtnLabel: {
+    color: 'rgba(204, 251, 241, 0.8)',
+    fontSize: 9,
+    fontWeight: '800',
+    marginTop: 1,
   },
   shareFlash: {
     ...StyleSheet.absoluteFillObject,

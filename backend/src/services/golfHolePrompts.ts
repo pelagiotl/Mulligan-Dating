@@ -108,9 +108,49 @@ function shuffle<T>(arr: T[]): T[] {
   return out;
 }
 
-function pickPromptId(depth: GolfPromptDepth, used: Set<string>): string {
+type PromptFeedback = {
+  likedTags: Set<string>;
+  dislikedTags: Set<string>;
+};
+
+function promptTags(prompt: GolfPrompt): string[] {
+  return Array.from(
+    new Set([
+      ...prompt.choices.flatMap((choice) => choice.tags),
+      ...prompt.insightTemplates.flatMap((template) => template.tags),
+    ]),
+  );
+}
+
+function promptScore(prompt: GolfPrompt, feedback?: PromptFeedback): number {
+  if (!feedback || (feedback.likedTags.size === 0 && feedback.dislikedTags.size === 0)) return 0;
+
+  return promptTags(prompt).reduce((score, tag) => {
+    // A single "less like this" vote wins over a conflicting like, so the shared
+    // deck never pushes either person toward a topic they opted away from.
+    if (feedback.dislikedTags.has(tag)) return score - 6;
+    if (feedback.likedTags.has(tag)) return score + 2;
+    return score;
+  }, 0);
+}
+
+function pickPromptId(
+  depth: GolfPromptDepth,
+  used: Set<string>,
+  feedback?: PromptFeedback,
+): string {
   const pool = shuffle(promptsForDepth(depth).map((p) => p.id)).filter((id) => !used.has(id));
-  if (pool.length > 0) return pool[0];
+  if (pool.length > 0) {
+    if (!feedback || (feedback.likedTags.size === 0 && feedback.dislikedTags.size === 0)) {
+      return pool[0];
+    }
+    return pool.reduce((bestId, id) => {
+      const best = getPromptById(bestId);
+      const candidate = getPromptById(id);
+      if (!best || !candidate) return bestId;
+      return promptScore(candidate, feedback) > promptScore(best, feedback) ? id : bestId;
+    });
+  }
   const anyUnused = shuffle(GOLF_PROMPT_CATALOG.map((p) => p.id)).find((id) => !used.has(id));
   if (anyUnused) return anyUnused;
   return promptsForDepth(depth)[0]?.id || GOLF_PROMPT_CATALOG[0].id;
@@ -138,6 +178,7 @@ function buildPromptIds(
   preference: DepthPreference,
   keepThroughHole: number,
   existingIds: string[],
+  feedback?: PromptFeedback,
 ): string[] {
   const used = new Set(existingIds.slice(0, Math.max(0, keepThroughHole)));
   const nextIds: string[] = [];
@@ -147,7 +188,7 @@ function buildPromptIds(
       used.add(existingIds[h - 1]);
     } else {
       const depth = depthForHole(h, preference, totalHoles);
-      const id = pickPromptId(depth, used);
+      const id = pickPromptId(depth, used, feedback);
       used.add(id);
       nextIds.push(id);
     }
@@ -184,7 +225,8 @@ async function ensurePromptIds(
 ): Promise<string[]> {
   let ids = parsePromptIds(session.prompt_ids_json);
   const hole = Math.min(Math.max(Number(session.current_hole) || 1, 1), totalHoles);
-  const nextIds = buildPromptIds(totalHoles, preference, hole, ids);
+  const feedback = await loadPromptFeedback(session.match_id);
+  const nextIds = buildPromptIds(totalHoles, preference, hole, ids, feedback);
   const changed =
     nextIds.length !== ids.length || nextIds.some((id, i) => id !== ids[i]) || !session.prompt_ids_json;
 
@@ -237,6 +279,28 @@ async function loadMyRating(
     .get([matchId, hole, userId])) as { rating?: string } | undefined;
   if (row?.rating === 'up' || row?.rating === 'down') return row.rating;
   return null;
+}
+
+async function loadPromptFeedback(matchId: string): Promise<PromptFeedback> {
+  const rows = (await db
+    .prepare(
+      `SELECT prompt_id, rating
+       FROM golf_hole_prompt_ratings
+       WHERE match_id = ?`,
+    )
+    .all([matchId])) as { prompt_id?: string; rating?: string }[];
+  const likedTags = new Set<string>();
+  const dislikedTags = new Set<string>();
+
+  for (const row of rows || []) {
+    if (row.rating !== 'up' && row.rating !== 'down') continue;
+    const prompt = row.prompt_id ? getPromptById(row.prompt_id) : null;
+    if (!prompt) continue;
+    const target = row.rating === 'up' ? likedTags : dislikedTags;
+    for (const tag of promptTags(prompt)) target.add(tag);
+  }
+
+  return { likedTags, dislikedTags };
 }
 
 async function isHolePromptShared(matchId: string, hole: number): Promise<boolean> {
@@ -612,7 +676,38 @@ export async function rateGolfHolePrompt(
   }
 
   const session = await getSessionRow(matchId);
-  return toState(session!, userId, match);
+  if (!session) {
+    const err = new Error('Failed to load hole prompt session') as Error & { status?: number };
+    err.status = 500;
+    throw err;
+  }
+
+  // Keep the rated hole and every past answer unchanged. Rebuild only future holes
+  // with the pair's combined feedback: likes are favored, while either person's
+  // dislike takes priority so the shared deck stays comfortable for both people.
+  const totalHoles = sessionHoleCount(session);
+  if (totalHoles && !session.completed_at) {
+    const preference = normalizePreference(session.depth_preference);
+    const existingIds = parsePromptIds(session.prompt_ids_json);
+    const feedback = await loadPromptFeedback(matchId);
+    const nextIds = buildPromptIds(
+      totalHoles,
+      preference,
+      Math.min(state.currentHole, totalHoles),
+      existingIds,
+      feedback,
+    );
+    await db
+      .prepare(
+        `UPDATE golf_hole_prompt_sessions
+         SET prompt_ids_json = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE match_id = ?`,
+      )
+      .run([JSON.stringify(nextIds), matchId]);
+  }
+
+  const updatedSession = await getSessionRow(matchId);
+  return toState(updatedSession!, userId, match);
 }
 
 export async function advanceGolfHolePrompt(

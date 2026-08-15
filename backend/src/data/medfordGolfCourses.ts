@@ -64,12 +64,13 @@ export const MEDFORD_GOLF_COURSES: readonly MedfordGolfCourse[] = [
   {
     id: 'laurel-hill',
     name: 'Laurel Hill Golf Club',
-    city: 'Medford / Phoenix, OR',
+    city: 'Central Point, OR',
     holes: '9',
     difficulty: 'easy',
     bestForFirstDate: true,
-    bookingUrl: 'https://www.laurelhillgc.com/',
+    bookingUrl: 'https://foreupsoftware.com/index.php/booking/index/3742#teetimes',
     note: FIRST_DATE_NOTE,
+    phone: '541-855-7965',
   },
   {
     id: 'eagle-point',
@@ -89,8 +90,9 @@ export const MEDFORD_GOLF_COURSES: readonly MedfordGolfCourse[] = [
     holes: '9',
     difficulty: 'moderate',
     bestForFirstDate: true,
-    bookingUrl: 'https://www.oakknollgolf.com/',
+    bookingUrl: 'https://oak-knoll-golf-course-ashland.book.teeitup.com/',
     note: FIRST_DATE_NOTE,
+    phone: '541-482-4311',
   },
 ] as const;
 

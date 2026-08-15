@@ -40,6 +40,13 @@ export type MedfordGolfCourse = {
 
 type Step = 'course' | 'when' | 'bringing' | 'confirm';
 
+const STEPS: { id: Step; emoji: string; label: string }[] = [
+  { id: 'course', emoji: '⛳', label: 'Course' },
+  { id: 'when', emoji: '📅', label: 'When' },
+  { id: 'bringing', emoji: '🎒', label: 'Bring' },
+  { id: 'confirm', emoji: '✓', label: 'Confirm' },
+];
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -48,15 +55,20 @@ type Props = {
   onPlanSent?: () => void;
 };
 
-function difficultyLabel(d: MedfordGolfCourse['difficulty']) {
-  if (d === 'easy') return 'Easygoing';
-  if (d === 'challenging') return 'Challenging';
-  return 'Moderate';
+function difficultyMeta(d: MedfordGolfCourse['difficulty']): {
+  emoji: string;
+  label: string;
+  tone: 'easy' | 'moderate' | 'challenging';
+} {
+  if (d === 'easy') return { emoji: '🌱', label: 'Easygoing', tone: 'easy' };
+  if (d === 'challenging') return { emoji: '🔥', label: 'Challenging', tone: 'challenging' };
+  return { emoji: '⚖️', label: 'Moderate', tone: 'moderate' };
 }
 
-function holesLabel(h: MedfordGolfCourse['holes']) {
-  if (h === 'both') return '9 or 18';
-  return `${h} holes`;
+function holesMeta(h: MedfordGolfCourse['holes']): { emoji: string; label: string } {
+  if (h === 'both') return { emoji: '🔁', label: '9 or 18' };
+  if (h === '9') return { emoji: '9️⃣', label: '9 holes' };
+  return { emoji: '🏌️', label: '18 holes' };
 }
 
 export default function GolfDatePlanner({
@@ -82,6 +94,15 @@ export default function GolfDatePlanner({
   const selected = useMemo(
     () => courses.find((c) => c.id === courseId) || null,
     [courses, courseId],
+  );
+
+  const sortedCourses = useMemo(
+    () =>
+      [...courses].sort((a, b) => {
+        if (a.bestForFirstDate === b.bestForFirstDate) return a.name.localeCompare(b.name);
+        return a.bestForFirstDate ? -1 : 1;
+      }),
+    [courses],
   );
 
   const reset = useCallback(() => {
@@ -159,11 +180,23 @@ export default function GolfDatePlanner({
         </View>
 
         <View style={styles.steps}>
-          {(['course', 'when', 'bringing', 'confirm'] as Step[]).map((s, i) => (
-            <View key={s} style={[styles.stepDot, step === s && styles.stepDotOn]}>
-              <Text style={[styles.stepDotText, step === s && styles.stepDotTextOn]}>{i + 1}</Text>
-            </View>
-          ))}
+          {STEPS.map((s, i) => {
+            const active = step === s.id;
+            const done = STEPS.findIndex((x) => x.id === step) > i;
+            return (
+              <View key={s.id} style={[styles.stepChip, active && styles.stepChipOn, done && styles.stepChipDone]}>
+                <Text style={[styles.stepChipEmoji, active && styles.stepChipEmojiOn]}>
+                  {done && !active ? '✓' : s.emoji}
+                </Text>
+                <Text
+                  style={[styles.stepChipLabel, active && styles.stepChipLabelOn, done && styles.stepChipLabelDone]}
+                  numberOfLines={1}
+                >
+                  {s.label}
+                </Text>
+              </View>
+            );
+          })}
         </View>
 
         <ScrollView
@@ -177,9 +210,13 @@ export default function GolfDatePlanner({
           {step === 'course' && !loading ? (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Choose a course</Text>
-              <Text style={styles.sectionHint}>Curated Medford-area publics & semi-publics.</Text>
-              {courses.map((c) => {
+              <Text style={styles.sectionHint}>
+                ⭐ = great for a first golf date · chips show pace & length
+              </Text>
+              {sortedCourses.map((c) => {
                 const on = courseId === c.id;
+                const difficulty = difficultyMeta(c.difficulty);
+                const holes = holesMeta(c.holes);
                 return (
                   <TouchableOpacity
                     key={c.id}
@@ -189,21 +226,41 @@ export default function GolfDatePlanner({
                   >
                     <View style={styles.courseTop}>
                       <Text style={styles.courseName}>{c.name}</Text>
+                      {on ? <Text style={styles.courseSelectedMark}>✓</Text> : null}
+                    </View>
+                    <Text style={styles.courseCity}>{c.city}</Text>
+                    <View style={styles.chipRow}>
                       {c.bestForFirstDate ? (
-                        <View style={styles.firstDateBadge}>
-                          <Text style={styles.firstDateBadgeText}>Best for first dates</Text>
+                        <View style={[styles.metaChip, styles.metaChipFirst]}>
+                          <Text style={styles.metaChipText}>⭐ Best for first dates</Text>
                         </View>
                       ) : null}
+                      <View
+                        style={[
+                          styles.metaChip,
+                          difficulty.tone === 'easy'
+                            ? styles.metaChip_easy
+                            : difficulty.tone === 'challenging'
+                              ? styles.metaChip_challenging
+                              : styles.metaChip_moderate,
+                        ]}
+                      >
+                        <Text style={styles.metaChipText}>
+                          {difficulty.emoji} {difficulty.label}
+                        </Text>
+                      </View>
+                      <View style={[styles.metaChip, styles.metaChipHoles]}>
+                        <Text style={styles.metaChipText}>
+                          {holes.emoji} {holes.label}
+                        </Text>
+                      </View>
                     </View>
-                    <Text style={styles.courseMeta}>
-                      {c.city} · {holesLabel(c.holes)} · {difficultyLabel(c.difficulty)}
-                    </Text>
                     <Text style={styles.courseNote}>{c.note}</Text>
                     <TouchableOpacity
                       onPress={() => openBooking(c.bookingUrl)}
                       style={styles.bookBtn}
                     >
-                      <Text style={styles.bookBtnText}>Book Tee Time</Text>
+                      <Text style={styles.bookBtnText}>📅 Book Tee Time</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
                 );
@@ -265,11 +322,37 @@ export default function GolfDatePlanner({
               <Text style={styles.sectionTitle}>Confirm plan</Text>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryLine}>{selected.name}</Text>
+                {(() => {
+                  const difficulty = difficultyMeta(selected.difficulty);
+                  return (
+                    <View style={[styles.chipRow, { marginTop: 8 }]}>
+                      {selected.bestForFirstDate ? (
+                        <View style={[styles.metaChip, styles.metaChipFirst]}>
+                          <Text style={styles.metaChipText}>⭐ First-date friendly</Text>
+                        </View>
+                      ) : null}
+                      <View
+                        style={[
+                          styles.metaChip,
+                          difficulty.tone === 'easy'
+                            ? styles.metaChip_easy
+                            : difficulty.tone === 'challenging'
+                              ? styles.metaChip_challenging
+                              : styles.metaChip_moderate,
+                        ]}
+                      >
+                        <Text style={styles.metaChipText}>
+                          {difficulty.emoji} {difficulty.label}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })()}
                 <Text style={styles.summaryMeta}>
-                  {formatFriendlyDatetime(proposedAt)}
+                  📅 {formatFriendlyDatetime(proposedAt)}
                 </Text>
                 <Text style={styles.summaryMeta}>
-                  Bringing:{' '}
+                  🎒 Bringing:{' '}
                   {[
                     balls ? 'balls' : null,
                     tees ? 'tees' : null,
@@ -283,7 +366,7 @@ export default function GolfDatePlanner({
                   onPress={() => openBooking(selected.bookingUrl)}
                   style={[styles.bookBtn, { marginTop: 12 }]}
                 >
-                  <Text style={styles.bookBtnText}>Book Tee Time</Text>
+                  <Text style={styles.bookBtnText}>📅 Book Tee Time</Text>
                 </TouchableOpacity>
               </View>
             </View>
@@ -387,25 +470,50 @@ const styles = StyleSheet.create({
   closeText: { color: '#334155', fontWeight: '700' },
   steps: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 18,
-    marginBottom: 8,
+    gap: 6,
+    paddingHorizontal: 14,
+    marginBottom: 10,
   },
-  stepDot: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
+  stepChip: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
     backgroundColor: '#e2e8f0',
     alignItems: 'center',
     justifyContent: 'center',
+    paddingVertical: 6,
+    paddingHorizontal: 4,
+    gap: 1,
   },
-  stepDotOn: { backgroundColor: '#0f766e' },
-  stepDotText: { color: '#64748b', fontWeight: '800', fontSize: 12 },
-  stepDotTextOn: { color: '#fff' },
+  stepChipOn: {
+    backgroundColor: '#0f766e',
+  },
+  stepChipDone: {
+    backgroundColor: '#ccfbf1',
+  },
+  stepChipEmoji: {
+    fontSize: 13,
+    color: '#64748b',
+  },
+  stepChipEmojiOn: {
+    color: '#fff',
+  },
+  stepChipLabel: {
+    color: '#64748b',
+    fontWeight: '800',
+    fontSize: 10,
+    letterSpacing: 0.1,
+  },
+  stepChipLabelOn: {
+    color: '#fff',
+  },
+  stepChipLabelDone: {
+    color: '#0f766e',
+  },
   body: { paddingHorizontal: 18, paddingTop: 8 },
   section: { gap: 10 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
-  sectionHint: { color: '#64748b', fontSize: 13, marginBottom: 4 },
+  sectionHint: { color: '#64748b', fontSize: 13, marginBottom: 4, lineHeight: 18 },
   courseCard: {
     backgroundColor: '#fff',
     borderRadius: 16,
@@ -420,21 +528,54 @@ const styles = StyleSheet.create({
   },
   courseTop: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     alignItems: 'center',
     gap: 8,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  courseName: { fontSize: 16, fontWeight: '800', color: '#0f172a', flexShrink: 1 },
-  firstDateBadge: {
-    backgroundColor: '#ccfbf1',
+  courseName: { fontSize: 16, fontWeight: '800', color: '#0f172a', flex: 1 },
+  courseSelectedMark: {
+    color: '#0f766e',
+    fontWeight: '900',
+    fontSize: 16,
+  },
+  courseCity: {
+    color: '#64748b',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+  },
+  metaChip: {
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingHorizontal: 9,
+    paddingVertical: 4,
+    backgroundColor: '#f1f5f9',
   },
-  firstDateBadgeText: { color: '#0f766e', fontSize: 11, fontWeight: '700' },
-  courseMeta: { color: '#475569', fontSize: 13, fontWeight: '600' },
-  courseNote: { color: '#64748b', fontSize: 12, marginTop: 4 },
+  metaChipFirst: {
+    backgroundColor: '#fef3c7',
+  },
+  metaChip_easy: {
+    backgroundColor: '#d1fae5',
+  },
+  metaChip_moderate: {
+    backgroundColor: '#e0e7ff',
+  },
+  metaChip_challenging: {
+    backgroundColor: '#ffe4e6',
+  },
+  metaChipHoles: {
+    backgroundColor: '#ecfeff',
+  },
+  metaChipText: {
+    color: '#0f172a',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  courseNote: { color: '#64748b', fontSize: 12, marginTop: 8 },
   bookBtn: {
     alignSelf: 'flex-start',
     marginTop: 10,
