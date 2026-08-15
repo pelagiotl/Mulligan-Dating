@@ -30,6 +30,7 @@ export type MedfordGolfCourse = {
   id: string;
   name: string;
   city: string;
+  area?: 'Medford' | 'Ashland' | 'Grants Pass';
   holes: '9' | '18' | 'both';
   difficulty: 'easy' | 'moderate' | 'challenging';
   bestForFirstDate: boolean;
@@ -37,6 +38,10 @@ export type MedfordGolfCourse = {
   note: string;
   phone?: string;
 };
+
+type CourseAreaFilter = 'All' | 'Medford' | 'Ashland' | 'Grants Pass';
+
+const AREA_FILTERS: CourseAreaFilter[] = ['All', 'Medford', 'Ashland', 'Grants Pass'];
 
 type Step = 'course' | 'when' | 'bringing' | 'confirm';
 
@@ -83,6 +88,7 @@ export default function GolfDatePlanner({
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [courses, setCourses] = useState<MedfordGolfCourse[]>([]);
+  const [areaFilter, setAreaFilter] = useState<CourseAreaFilter>('All');
   const [courseId, setCourseId] = useState<string | null>(null);
   const [proposedAt, setProposedAt] = useState<string>(defaultDatetimeLocal());
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -96,17 +102,20 @@ export default function GolfDatePlanner({
     [courses, courseId],
   );
 
-  const sortedCourses = useMemo(
-    () =>
-      [...courses].sort((a, b) => {
-        if (a.bestForFirstDate === b.bestForFirstDate) return a.name.localeCompare(b.name);
-        return a.bestForFirstDate ? -1 : 1;
-      }),
-    [courses],
-  );
+  const sortedCourses = useMemo(() => {
+    const filtered =
+      areaFilter === 'All'
+        ? courses
+        : courses.filter((c) => (c.area || 'Medford') === areaFilter);
+    return [...filtered].sort((a, b) => {
+      if (a.bestForFirstDate === b.bestForFirstDate) return a.name.localeCompare(b.name);
+      return a.bestForFirstDate ? -1 : 1;
+    });
+  }, [courses, areaFilter]);
 
   const reset = useCallback(() => {
     setStep('course');
+    setAreaFilter('All');
     setCourseId(null);
     setProposedAt(defaultDatetimeLocal());
     setBalls(true);
@@ -213,6 +222,28 @@ export default function GolfDatePlanner({
               <Text style={styles.sectionHint}>
                 ⭐ = great for a first golf date · chips show pace & length
               </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.areaFilterRow}
+              >
+                {AREA_FILTERS.map((area) => {
+                  const on = areaFilter === area;
+                  return (
+                    <TouchableOpacity
+                      key={area}
+                      onPress={() => {
+                        setAreaFilter(area);
+                        setCourseId(null);
+                      }}
+                      style={[styles.areaChip, on && styles.areaChipOn]}
+                      activeOpacity={0.85}
+                    >
+                      <Text style={[styles.areaChipText, on && styles.areaChipTextOn]}>{area}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
               {sortedCourses.map((c) => {
                 const on = courseId === c.id;
                 const difficulty = difficultyMeta(c.difficulty);
@@ -265,6 +296,9 @@ export default function GolfDatePlanner({
                   </TouchableOpacity>
                 );
               })}
+              {sortedCourses.length === 0 ? (
+                <Text style={styles.sectionHint}>No courses in this area yet.</Text>
+              ) : null}
             </View>
           ) : null}
 
@@ -514,6 +548,28 @@ const styles = StyleSheet.create({
   section: { gap: 10 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   sectionHint: { color: '#64748b', fontSize: 13, marginBottom: 4, lineHeight: 18 },
+  areaFilterRow: {
+    flexDirection: 'row',
+    gap: 8,
+    paddingBottom: 4,
+  },
+  areaChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: '#e2e8f0',
+  },
+  areaChipOn: {
+    backgroundColor: '#0f766e',
+  },
+  areaChipText: {
+    color: '#475569',
+    fontWeight: '700',
+    fontSize: 13,
+  },
+  areaChipTextOn: {
+    color: '#fff',
+  },
   courseCard: {
     backgroundColor: '#fff',
     borderRadius: 16,

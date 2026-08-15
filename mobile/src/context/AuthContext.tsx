@@ -969,13 +969,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accountActive: data.user?.accountActive,
         accountStatus: data.user?.accountStatus,
       });
-      if (!accountActive) {
+      const serverSaysComplete = data.connectSetupComplete === true;
+      // Stale wizard drafts must not re-open Create Profile for finished accounts.
+      if (serverSaysComplete) {
+        await clearMobileCreateProfileDraft();
+      } else if (!accountActive) {
         const missingForDraft = getProfileActivationMissing(nextProfile);
         if (missingForDraft.length > 0) {
           await ensureMobileOnboardingDraft();
         }
       }
-      const wizardDraftActive = await hasMobileCreateProfileDraft();
+      const wizardDraftActive = serverSaysComplete
+        ? false
+        : await hasMobileCreateProfileDraft();
       let nextConnectSetupComplete = deriveAppRegistrationComplete({
         accountActive,
         profile: nextProfile,

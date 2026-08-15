@@ -149,9 +149,10 @@ export function deriveAppRegistrationComplete(params: {
   serverConnectFlag?: boolean | null;
 }): boolean {
   if (!params.accountActive) return false;
+  // Server says setup is done — never trap on a stale local create-profile draft.
+  if (params.serverConnectFlag === true) return true;
   const profileReady =
-    params.serverConnectFlag === true ||
-    (params.serverConnectFlag !== false && computeProfileActivationComplete(params.profileRow));
+    params.serverConnectFlag !== false && computeProfileActivationComplete(params.profileRow);
   return profileReady && !params.wizardDraftActive;
 }
 

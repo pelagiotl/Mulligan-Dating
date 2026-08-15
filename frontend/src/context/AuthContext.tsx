@@ -195,10 +195,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         accountActive: u.accountActive,
         accountStatus: u.accountStatus,
       })
-      if (!accountActive) {
+      const serverSaysComplete = data.connectSetupComplete === true
+      if (serverSaysComplete) {
+        clearWebCreateProfileDraft()
+      } else if (!accountActive) {
         ensureWebOnboardingDraft()
       }
-      const wizardDraftActive = hasWebCreateProfileDraft()
+      const wizardDraftActive = serverSaysComplete ? false : hasWebCreateProfileDraft()
       const complete = deriveAppRegistrationComplete({
         accountActive,
         profileRow: rawProfile,
