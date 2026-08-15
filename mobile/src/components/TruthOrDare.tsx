@@ -20,6 +20,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import { filterBannedGamePrompts } from '../utils/gamePromptGuards';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
+import ChatHeaderIconGlow from './ChatHeaderIconGlow';
 
 // PG-13 — grown-up flirting (matches server fallbacks)
 const TRUTH_PROMPTS = [
@@ -591,14 +592,16 @@ export default function TruthOrDare({
   };
 
   const headerButton = (
-    <TouchableOpacity
-      onPress={isUnlocked ? handleOpen : handleLockedPress}
-      activeOpacity={0.8}
-      style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
-      accessibilityLabel="Truth or Dare"
-    >
-      <Text style={styles.headerIconEmoji}>🎲</Text>
-    </TouchableOpacity>
+    <ChatHeaderIconGlow tint="rose">
+      <TouchableOpacity
+        onPress={isUnlocked ? handleOpen : handleLockedPress}
+        activeOpacity={0.8}
+        style={[styles.headerIconButton, !isUnlocked && styles.headerIconButtonLocked]}
+        accessibilityLabel="Truth or Dare"
+      >
+        <Text style={styles.headerIconEmoji}>🎲</Text>
+      </TouchableOpacity>
+    </ChatHeaderIconGlow>
   );
 
   if (headerMode) {

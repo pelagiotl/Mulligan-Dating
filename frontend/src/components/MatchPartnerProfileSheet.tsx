@@ -45,6 +45,9 @@ type Props = {
   commonInterests: string[];
   onPhotoSelect: (photos: MatchPartnerPhoto[], photo: MatchPartnerPhoto) => void;
   onReport: () => void;
+  /** Interest-overlap % (same signal as chat header chip). */
+  profileCompatibility?: number | null;
+  onInterestMatchPress?: () => void;
 };
 
 function hasProfileDetailsBeyondBio(ou: MatchPartnerProfileUser): boolean {
@@ -169,6 +172,8 @@ export default function MatchPartnerProfileSheet({
   commonInterests,
   onPhotoSelect,
   onReport,
+  profileCompatibility = null,
+  onInterestMatchPress,
 }: Props) {
   const sortedPhotos = [...photos].sort((a, b) => {
     if (a.isPrimary && !b.isPrimary) return -1;
@@ -275,6 +280,19 @@ export default function MatchPartnerProfileSheet({
             </h2>
 
             <div className="my-profile-preview-meta">
+              {profileCompatibility != null && onInterestMatchPress ? (
+                <button
+                  type="button"
+                  className={`match-partner-preview-compat-chip${
+                    profileCompatibility >= 80 ? " match-partner-preview-compat-chip--high" : ""
+                  }`}
+                  onClick={onInterestMatchPress}
+                  title="Why you match"
+                  aria-label={`${profileCompatibility} percent interest match`}
+                >
+                  🎯 {profileCompatibility}%
+                </button>
+              ) : null}
               {otherUser.gender ? (
                 <span className="my-profile-preview-meta-chip">⚧️ {otherUser.gender}</span>
               ) : null}

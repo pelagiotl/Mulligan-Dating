@@ -3,7 +3,7 @@ export default function HangoutPlanHeaderButton({ onPress }: { onPress: () => vo
   return (
     <button
       type="button"
-      className="tod-web-header-btn"
+      className="tod-web-header-btn hangout-plan-web-header-btn"
       title="Smart hangout ideas"
       aria-label="Smart hangout ideas"
       onClick={onPress}

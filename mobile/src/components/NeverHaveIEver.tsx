@@ -27,6 +27,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { api } from '../utils/api';
 import TruthOrDareMessageGateModal from './TruthOrDareMessageGateModal';
 import GameUnlockPlayModal from './GameUnlockPlayModal';
+import ChatHeaderIconGlow from './ChatHeaderIconGlow';
 import {
   MATCH_CHAT_DEPTH_MIN_EACH,
   matchChatDepthCounts,
@@ -1032,17 +1033,19 @@ export default function NeverHaveIEver({
   };
 
   const headerButton = (
-    <TouchableOpacity
-      onPress={handleMonkeyPress}
-      activeOpacity={0.8}
-      style={[
-        styles.headerIconButton,
-        (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
-      ]}
-      accessibilityLabel="Never Have I Ever"
-    >
-      <Text style={styles.headerIconEmoji}>🙊</Text>
-    </TouchableOpacity>
+    <ChatHeaderIconGlow tint="amber">
+      <TouchableOpacity
+        onPress={handleMonkeyPress}
+        activeOpacity={0.8}
+        style={[
+          styles.headerIconButton,
+          (!nhieEligible || !isUnlocked) && styles.headerIconButtonLocked,
+        ]}
+        accessibilityLabel="Never Have I Ever"
+      >
+        <Text style={styles.headerIconEmoji}>🙊</Text>
+      </TouchableOpacity>
+    </ChatHeaderIconGlow>
   );
 
   // Modal is shared - needed for headerMode when User B accepts (openForAccept)

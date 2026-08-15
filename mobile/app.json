@@ -14,7 +14,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.mulligandating",
-      "buildNumber": "212",
+      "buildNumber": "213",
       "infoPlist": {
         "UISupportedInterfaceOrientations": [
           "UIInterfaceOrientationPortrait"
@@ -37,7 +37,7 @@
       "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#926ce2"
+        "backgroundColor": "#836bdf"
       },
       "permissions": [
         "android.permission.ACCESS_FINE_LOCATION",

@@ -6168,6 +6168,37 @@ button.my-profile-avatar:focus-visible {
   font-size: 1.25rem;
 }
 
+.match-partner-preview-compat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    rgba(99, 102, 241, 0.55),
+    rgba(139, 92, 246, 0.45)
+  );
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.match-partner-preview-compat-chip--high {
+  background: linear-gradient(
+    135deg,
+    rgba(244, 114, 182, 0.58),
+    rgba(167, 139, 250, 0.48)
+  );
+}
+
+.match-partner-preview-compat-chip:hover {
+  filter: brightness(1.06);
+}
+
 .match-partner-preview-root .my-profile-preview-meta {
   margin-top: 0.45rem;
   gap: 0.35rem;
@@ -11783,11 +11814,19 @@ button.my-profile-mini-card:focus-visible {
   gap: var(--space-3);
   padding: var(--space-5) var(--space-6);
   border-bottom: 1px solid rgba(244, 63, 94, 0.1);
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(251, 113, 133, 0.05));
+  /* Putting-green photo under a light wash so dark header text stays readable. */
+  background-color: #ecfdf5;
+  background-image:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(240, 253, 244, 0.72)),
+    url('/images/chat-green-hero.jpg');
+  background-position: center, center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   position: relative;
   flex-shrink: 0;
+  isolation: isolate;
 }
 
 .chat-header::after {

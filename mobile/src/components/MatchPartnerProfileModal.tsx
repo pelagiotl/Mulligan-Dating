@@ -156,6 +156,9 @@ type Props = {
   onReport?: () => void;
   onBlock?: () => void;
   noModal?: boolean;
+  /** Interest-overlap % (same signal as chat header chip). */
+  profileCompatibility?: number | null;
+  onInterestMatchPress?: () => void;
 };
 
 export default function MatchPartnerProfileModal({
@@ -166,6 +169,8 @@ export default function MatchPartnerProfileModal({
   onReport,
   onBlock,
   noModal = false,
+  profileCompatibility = null,
+  onInterestMatchPress,
 }: Props) {
   const { otherUser } = match;
   const { user } = useAuth();
@@ -344,6 +349,37 @@ export default function MatchPartnerProfileModal({
             </View>
 
             <View style={[styles.metaChips, androidCompactHero.metaChips]}>
+              {profileCompatibility != null && onInterestMatchPress ? (
+                <TouchableOpacity
+                  activeOpacity={0.85}
+                  onPress={onInterestMatchPress}
+                  accessibilityLabel={`${profileCompatibility} percent interest match`}
+                  accessibilityHint="Opens shared interests"
+                >
+                  <LinearGradient
+                    colors={
+                      profileCompatibility >= 80
+                        ? ['rgba(244, 114, 182, 0.55)', 'rgba(167, 139, 250, 0.45)']
+                        : profileCompatibility >= 60
+                          ? ['rgba(129, 140, 248, 0.5)', 'rgba(167, 139, 250, 0.4)']
+                          : ['rgba(99, 102, 241, 0.45)', 'rgba(139, 92, 246, 0.4)']
+                    }
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={[styles.metaChip, androidCompactHero.metaChip, quickViewCompatStyles.chip]}
+                  >
+                    <Text
+                      style={[
+                        styles.metaChipText,
+                        androidCompactHero.metaChipText,
+                        quickViewCompatStyles.chipText,
+                      ]}
+                    >
+                      🎯 {profileCompatibility}%
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              ) : null}
               {otherUser.age ? (
                 <TouchableOpacity
                   activeOpacity={0.85}
@@ -880,5 +916,16 @@ const ageChipStyles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.75)',
+  },
+});
+
+const quickViewCompatStyles = StyleSheet.create({
+  chip: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.42)',
+  },
+  chipText: {
+    fontWeight: '800',
+    color: '#fff',
   },
 });

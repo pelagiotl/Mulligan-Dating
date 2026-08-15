@@ -2230,6 +2230,13 @@ export default function Matches() {
           preferredGenders: selectedMatch?.otherUser.preferredGenders,
         }}
         commonInterests={partnerDrawerCommonInterests}
+        profileCompatibility={
+          liveProfileCompatibility ?? selectedMatch?.profileCompatibility ?? null
+        }
+        onInterestMatchPress={() => {
+          setPartnerDrawerOpen(false);
+          setShowInterestCompatModal(true);
+        }}
         onPhotoSelect={(photos, photo) => openPhotoLightbox(photos, photo)}
         onReport={() => {
           if (selectedMatch) openReportForMatch(selectedMatch);
@@ -2540,57 +2547,32 @@ export default function Matches() {
                             Report
                           </button>
                         </div>
-                        {(liveProfileCompatibility != null ||
-                          selectedMatch.profileCompatibility != null ||
-                          pulseScore != null ||
-                          selectedMatch.compatibilityScore != null) && (
+                        {(pulseScore != null ||
+                          (typeof selectedMatch.compatibilityScore === "number" &&
+                            !Number.isNaN(selectedMatch.compatibilityScore))) && (
                           <div className="chat-header-compat-row">
-                            {(liveProfileCompatibility ?? selectedMatch.profileCompatibility) != null ? (
-                              <button
-                                type="button"
-                                className={`chat-header-interest-badge${
-                                  (liveProfileCompatibility ?? selectedMatch.profileCompatibility)! >= 80
-                                    ? " chat-header-interest-badge--high"
-                                    : ""
-                                }`}
-                                onClick={() => setShowInterestCompatModal(true)}
-                                title="Why you match"
-                              >
-                                <span
-                                  className="matches-chat-toolbar-emoji matches-chat-toolbar-emoji--compat"
-                                  aria-hidden
-                                >
-                                  🎯
-                                </span>{" "}
-                                {liveProfileCompatibility ?? selectedMatch.profileCompatibility}%
-                              </button>
-                            ) : null}
-                            {(pulseScore != null ||
-                              (typeof selectedMatch.compatibilityScore === "number" &&
-                                !Number.isNaN(selectedMatch.compatibilityScore))) && (
-                              <button
-                                type="button"
-                                className={`compatibility-pulse-pill compatibility-pulse-pill--${
-                                  pulseEngagement ?? "neutral"
-                                } matches-chat-toolbar-btn--pulse`}
-                                title="Compatibility pulse — tap for details"
-                                aria-label="Compatibility pulse, open details"
-                                onClick={() => setShowPulseCompatModal(true)}
-                              >
-                                <span className="compatibility-pulse-pill-dot" aria-hidden />
-                                <span className="compatibility-pulse-pill-label">Pulse</span>
-                                <span className="compatibility-pulse-pill-value">
-                                  {pulseScore ??
-                                    Math.round(selectedMatch.compatibilityScore as number)}
+                            <button
+                              type="button"
+                              className={`compatibility-pulse-pill compatibility-pulse-pill--${
+                                pulseEngagement ?? "neutral"
+                              } matches-chat-toolbar-btn--pulse`}
+                              title="Compatibility pulse — tap for details"
+                              aria-label="Compatibility pulse, open details"
+                              onClick={() => setShowPulseCompatModal(true)}
+                            >
+                              <span className="compatibility-pulse-pill-dot" aria-hidden />
+                              <span className="compatibility-pulse-pill-label">Pulse</span>
+                              <span className="compatibility-pulse-pill-value">
+                                {pulseScore ??
+                                  Math.round(selectedMatch.compatibilityScore as number)}
+                              </span>
+                              {pulseEngagement && !mobileChatOpen ? (
+                                <span className="compatibility-pulse-pill-tier">
+                                  {" "}
+                                  · {PULSE_ENGAGEMENT_LABEL[pulseEngagement]}
                                 </span>
-                                {pulseEngagement && !mobileChatOpen ? (
-                                  <span className="compatibility-pulse-pill-tier">
-                                    {" "}
-                                    · {PULSE_ENGAGEMENT_LABEL[pulseEngagement]}
-                                  </span>
-                                ) : null}
-                              </button>
-                            )}
+                              ) : null}
+                            </button>
                           </div>
                         )}
                       </div>

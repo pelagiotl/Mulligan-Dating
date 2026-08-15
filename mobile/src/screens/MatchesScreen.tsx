@@ -40,6 +40,7 @@ import {
 } from '../utils/androidConnectShellChrome';
 
 const GOLF_MATCHES_HERO = require('../../assets/golf-matches-hero.jpg');
+const CHAT_GREEN_HERO = require('../../assets/chat-green-hero.jpg');
 
 import { getPhotoUrl } from '../utils/photoUrl';
 import {
@@ -3661,17 +3662,34 @@ export default function MatchesScreen() {
         { backgroundColor: tabBodyBg },
       ]}
     >
-      <LinearGradient
-        colors={[...shellBackdropColors]}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
+      <View
         style={[
-          styles.chatHeaderGradient,
+          styles.chatHeaderShell,
           isSmallScreen && {
             paddingTop: Platform.OS === 'ios' ? Math.max(insets.top, 12) + 4 : 12,
           },
         ]}
       >
+        {!soberCircleMode ? (
+          <Image
+            source={CHAT_GREEN_HERO}
+            style={styles.chatHeaderHeroImage}
+            resizeMode="cover"
+            accessible={false}
+          />
+        ) : null}
+        <LinearGradient
+          colors={
+            soberCircleMode
+              ? [...shellBackdropColors]
+              : ['rgba(11, 61, 46, 0.42)', 'rgba(13, 42, 35, 0.52)', 'rgba(15, 23, 42, 0.66)']
+          }
+          locations={soberCircleMode ? undefined : [0, 0.55, 1]}
+          start={soberCircleMode ? { x: 0, y: 0 } : { x: 0, y: 0 }}
+          end={soberCircleMode ? { x: 1, y: 1 } : { x: 0, y: 1 }}
+          style={styles.chatHeaderHeroScrim}
+          pointerEvents="none"
+        />
         <View style={[styles.chatHeader, isSmallScreen && { padding: 10, paddingBottom: 26 }]}>
           {/* Top row: Back | spacer | Name + Photo (right cluster) */}
           <View style={[styles.chatHeaderTopRow, isSmallScreen && { marginBottom: 6 }]}>
@@ -3709,41 +3727,6 @@ export default function MatchesScreen() {
                     <VerifiedBadge verified={selectedMatch.otherUser.photoVerified} size={16} />
                   </View>
                 </TouchableOpacity>
-                {profileCompatibility != null && selectedMatch.stage !== 'pending' ? (
-                  <TouchableOpacity
-                    activeOpacity={0.85}
-                    onPress={() => setShowCompatibilityCardModal(true)}
-                    style={styles.chatHeaderCompatChipWrap}
-                    accessibilityLabel={`${profileCompatibility} percent interest match`}
-                    accessibilityHint="Opens shared interests"
-                  >
-                    <LinearGradient
-                      colors={
-                        profileCompatibility >= 80
-                          ? ['rgba(244, 114, 182, 0.92)', 'rgba(167, 139, 250, 0.88)']
-                          : profileCompatibility >= 60
-                            ? ['rgba(129, 140, 248, 0.92)', 'rgba(167, 139, 250, 0.88)']
-                            : ['rgba(99, 102, 241, 0.88)', 'rgba(139, 92, 246, 0.85)']
-                      }
-                      start={{ x: 0, y: 0 }}
-                      end={{ x: 1, y: 1 }}
-                      style={[
-                        styles.chatHeaderCompatChip,
-                        isSmallScreen && styles.chatHeaderCompatChipSmall,
-                      ]}
-                    >
-                      <Text style={styles.chatHeaderCompatChipIcon}>🎯</Text>
-                      <Text
-                        style={[
-                          styles.chatHeaderCompatChipText,
-                          isSmallScreen && styles.chatHeaderCompatChipTextSmall,
-                        ]}
-                      >
-                        {profileCompatibility}%
-                      </Text>
-                    </LinearGradient>
-                  </TouchableOpacity>
-                ) : null}
               </View>
               <TouchableOpacity
                 onPress={() => setShowProfileModal(true)}
@@ -3892,7 +3875,7 @@ export default function MatchesScreen() {
             )}
           </View>
         </View>
-      </LinearGradient>
+      </View>
 
       <TruthOrDareMessageGateModal
         visible={truthOrDareGateModalVisible}
@@ -4065,6 +4048,17 @@ export default function MatchesScreen() {
             }}
             visible={true}
             noModal
+            profileCompatibility={
+              selectedMatch.stage !== 'pending' ? profileCompatibility : null
+            }
+            onInterestMatchPress={
+              selectedMatch.stage !== 'pending' && profileCompatibility != null
+                ? () => {
+                    setShowProfileModal(false);
+                    setShowCompatibilityCardModal(true);
+                  }
+                : undefined
+            }
             onClose={() => {
               setShowProfileModal(false);
               setFullScreenImageUrl(null);
@@ -4710,14 +4704,17 @@ const styles = StyleSheet.create({
       default: {},
     }),
   },
-  chatHeaderGradient: {
+  chatHeaderShell: {
+    position: 'relative',
     paddingTop: Platform.OS === 'ios' ? 50 : 20,
     borderBottomWidth: 0,
+    backgroundColor: '#0f172a',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    // Keep visible so feature-hint tips can float above the shell.
     overflow: 'visible',
   },
   loadingContainer: {
@@ -5317,15 +5314,22 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     lineHeight: 16,
   },
-  chatHeaderGradient: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 20,
-    borderBottomWidth: 0,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    overflow: 'visible',
+  // Full-bleed putting-green photo. Inset-only sizing on purpose: percentage
+  // width/height would resolve against the shell's content box and leave a
+  // strip of shell background below the padded header content.
+  chatHeaderHeroImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  chatHeaderHeroScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   chatHeader: {
     flexDirection: 'column',
