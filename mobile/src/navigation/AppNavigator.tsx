@@ -13,7 +13,7 @@ import {
 } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import { Platform, Text, View, StyleSheet, Alert, Vibration, Pressable, ActivityIndicator } from 'react-native';
+import { Dimensions, Platform, Text, View, StyleSheet, Alert, Vibration, Pressable, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -215,8 +215,12 @@ function MainTabs() {
   const insets = useSafeAreaInsets();
   const { mode: connectShellMode } = useConnectShellTheme();
   const shellMidnight = connectShellMode === 'midnight';
-  // Floating absolute tab bar on iPhone only — on iPad it lets scene content steal touches (App Review 2.1a).
-  const useFloatingIosTabBar = Platform.OS === 'ios' && !Platform.isPad;
+  // Floating absolute tab bar on iPhone only — on iPad/large tablets scene content can steal
+  // tab touches (App Store Guideline 2.1(a), iPad Air review). Prefer Platform.isPad, and also
+  // treat large min-window sizes as tablet in case isPad is wrong under compatibility mode.
+  const windowMin = Math.min(Dimensions.get('window').width, Dimensions.get('window').height);
+  const isTabletLayout = Platform.OS === 'ios' && (Platform.isPad || windowMin >= 600);
+  const useFloatingIosTabBar = Platform.OS === 'ios' && !isTabletLayout;
 
   // Stable tab bar button factory — same reference always so options are stable
   const createTabBarButton = React.useCallback((requiresProfile: boolean) => (buttonProps: any) => (
@@ -661,7 +665,9 @@ export default function AppNavigator() {
     ageGateNextRoute,
   ]);
 
-  const showAuthOverlay = loading || (user && !gateStatusLoaded);
+  // Only block the UI before login. Once a user exists, never mount a full-screen overlay —
+  // even with pointerEvents="none" some iPad builds still swallowed tab bar taps (2.1a).
+  const showAuthOverlay = !user && loading;
 
   try {
     return (
@@ -705,11 +711,7 @@ export default function AppNavigator() {
           </Stack.Navigator>
         </NavigationContainer>
         {showAuthOverlay ? (
-          <View
-            style={styles.loadingOverlay}
-            // After login, never block tab bar / screen touches during background profile refresh.
-            pointerEvents={user ? 'none' : 'auto'}
-          >
+          <View style={styles.loadingOverlay} pointerEvents="auto">
             <ActivityIndicator size="small" color="#8B1538" />
           </View>
         ) : null}
