@@ -97,13 +97,15 @@ export async function forceMatchByPhone(phoneA: string, phoneB: string): Promise
 
   const matchId = uuidv4();
   const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  // Default admin/script force-matches to Golf Date so Plan / Holes chat tools appear.
+  const connectedVia = 'golf_date';
 
   const insertResult = db
     .prepare(
-      `INSERT INTO matches (id, user1_id, user2_id, user1_token_id, status, stage, stage1_at, expires_at)
-       VALUES (?, ?, ?, NULL, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?)`
+      `INSERT INTO matches (id, user1_id, user2_id, user1_token_id, status, stage, stage1_at, expires_at, connected_via)
+       VALUES (?, ?, ?, NULL, 'mutual', 'stage1', CURRENT_TIMESTAMP, ?, ?)`
     )
-    .run([matchId, u1.id, u2.id, sevenDaysFromNow.toISOString()]);
+    .run([matchId, u1.id, u2.id, sevenDaysFromNow.toISOString(), connectedVia]);
 
   if (insertResult instanceof Promise) {
     await insertResult;

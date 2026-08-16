@@ -846,6 +846,7 @@ export default function GolfHolePrompts({
           priority={15}
           glowColor="rgba(45, 212, 191, 0.55)"
           alwaysPulse
+          alwaysShowTip
           tipPlacement="below"
           tipAlign="center"
           tipLift={40}

@@ -6,7 +6,7 @@ type Props = {
   onPress: () => void;
 };
 
-/** Prominent chat header CTA for Plan Golf Date — one-time tip, then quiet. */
+/** Prominent chat header CTA for Plan Golf Date — tip stays visible. */
 export default function GolfDatePlanHeaderButton({ onPress }: Props) {
   const pulse = useRef(new Animated.Value(0)).current;
 
@@ -37,6 +37,7 @@ export default function GolfDatePlanHeaderButton({ onPress }: Props) {
       priority={10}
       glowColor="rgba(45, 212, 191, 0.55)"
       alwaysPulse
+      alwaysShowTip
       tipPlacement="above"
       tipAlign="center"
       tipLift={40}
